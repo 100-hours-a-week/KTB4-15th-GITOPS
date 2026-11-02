@@ -1,0 +1,6 @@
+{{/*
+Standard Kubernetes NetworkPolicy rules will be added after the complete
+Cilium and Istio Ambient traffic matrix is validated. Until then, no default
+deny policy is rendered, so this chart cannot accidentally block application,
+DNS, health probe, or observability traffic.
+*/}}

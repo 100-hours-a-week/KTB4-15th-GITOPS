@@ -1,0 +1,14 @@
+{{- if .Values.limitRange.enabled }}
+{{- if empty .Values.limitRange.limits }}
+{{- fail "limitRange.limits is required when LimitRange is enabled" }}
+{{- end }}
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ .Release.Name }}-limits
+  labels:
+    {{- include "lookddak-domain.labels" . | nindent 4 }}
+spec:
+  limits:
+    {{- toYaml .Values.limitRange.limits | nindent 4 }}
+{{- end }}

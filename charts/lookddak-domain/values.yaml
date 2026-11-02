@@ -1,0 +1,19 @@
+# Namespace-wide resource budgets will be enabled after workload requests,
+# limits, and maximum replica counts are validated by load testing.
+resourceQuota:
+  enabled: false
+  hard: {}
+
+# Namespace-wide defaults and constraints will be enabled after workload
+# resource sizing is finalized.
+limitRange:
+  enabled: false
+  limits: []
+
+# Network policies stay disabled until Cilium, Istio Ambient, probes, DNS,
+# observability, AWS services, and external FQDN flows are confirmed.
+networkPolicy:
+  enabled: false
+
+ciliumNetworkPolicy:
+  enabled: false

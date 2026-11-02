@@ -1,0 +1,14 @@
+{{- if .Values.resourceQuota.enabled }}
+{{- if empty .Values.resourceQuota.hard }}
+{{- fail "resourceQuota.hard is required when ResourceQuota is enabled" }}
+{{- end }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .Release.Name }}-quota
+  labels:
+    {{- include "lookddak-domain.labels" . | nindent 4 }}
+spec:
+  hard:
+    {{- toYaml .Values.resourceQuota.hard | nindent 4 }}
+{{- end }}

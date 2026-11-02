@@ -1,0 +1,5 @@
+{{/*
+CiliumNetworkPolicy rules, including external LLM and VTON FQDN allowlists,
+will be added after the actual destination domains and required AWS service
+flows are confirmed. This placeholder intentionally renders no resource.
+*/}}
