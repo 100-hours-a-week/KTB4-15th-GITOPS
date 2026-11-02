@@ -1,0 +1,19 @@
+workload:
+  name: fixture-cronjob
+  type: cronjob
+
+imageGroup: crawler
+images:
+  crawler:
+    repository: example.invalid/lookddak
+    digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+
+service:
+  enabled: false
+
+serviceAccount:
+  create: true
+
+cronJob:
+  schedule: 0 4 * * *
+  restartPolicy: OnFailure
