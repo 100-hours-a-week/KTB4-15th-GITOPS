@@ -1,0 +1,45 @@
+workload:
+  name: fixture-routed
+  type: deployment
+  runtimeRole: fixture-routed
+
+imageGroup: be
+images:
+  be:
+    repository: example.invalid/lookddak
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+container:
+  port: 8080
+
+replicaCount: 2
+
+probes:
+  liveness:
+    httpGet:
+      path: /health/live
+      port: http
+  readiness:
+    httpGet:
+      path: /health/ready
+      port: http
+
+service:
+  enabled: true
+  port: 8080
+
+routing:
+  enabled: true
+  parentRefs:
+    - name: fixture-gateway
+      namespace: istio-ingress
+  hostnames:
+    - fixture.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /fixture
+
+serviceAccount:
+  create: true

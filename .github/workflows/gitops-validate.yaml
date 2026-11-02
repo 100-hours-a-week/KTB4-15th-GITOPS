@@ -1,0 +1,59 @@
+name: GitOps Validate
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitops-validate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: GitOps Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 저장소 Checkout
+        uses: actions/checkout@v6
+
+      - name: Helm 설치
+        uses: azure/setup-helm@v5.0.1
+        with:
+          version: v4.2.3
+
+      - name: YAML 문법 검사
+        run: ruby scripts/validate-yaml.rb
+
+      - name: 저장소 구조 검사
+        run: ruby scripts/validate-repository.rb
+
+      - name: Helm Chart 검사
+        run: |
+          helm lint charts/lookddak-workload
+          helm lint charts/lookddak-domain
+
+      - name: Helm Fixture 렌더링
+        run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
+
+      - name: Kubernetes Schema 검사
+        run: |
+          docker run --rm \
+            -v "$RUNNER_TEMP/rendered:/manifests:ro" \
+            ghcr.io/yannh/kubeconform:v0.8.0-alpine@sha256:461fae0fa54c5fe64028152533e57f6b88adb1d26dbafd80092e7310d349ae48 \
+            -strict \
+            -skip HTTPRoute,SecretProviderClass \
+            -summary \
+            /manifests
+
+      - name: GitOps 정책 검사
+        run: ruby scripts/validate-policy.rb

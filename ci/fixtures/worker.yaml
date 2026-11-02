@@ -1,0 +1,27 @@
+workload:
+  name: fixture-worker
+  type: deployment
+  runtimeRole: fixture-worker
+
+imageGroup: be
+images:
+  be:
+    repository: example.invalid/lookddak
+    digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+replicaCount: 1
+
+service:
+  enabled: false
+
+serviceAccount:
+  create: true
+
+secrets:
+  enabled: true
+  secretProviderClassName: fixture-worker
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: fixture-secret
+        objectType: secretsmanager

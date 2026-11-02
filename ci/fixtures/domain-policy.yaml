@@ -1,0 +1,19 @@
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+
+limitRange:
+  enabled: true
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+
+networkPolicy:
+  enabled: false
+
+ciliumNetworkPolicy:
+  enabled: false

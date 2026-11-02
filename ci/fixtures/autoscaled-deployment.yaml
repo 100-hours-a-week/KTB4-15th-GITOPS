@@ -1,0 +1,35 @@
+workload:
+  name: fixture-autoscaled
+  type: deployment
+
+imageGroup: ai
+images:
+  ai:
+    repository: example.invalid/lookddak
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+container:
+  port: 8000
+
+service:
+  enabled: true
+  port: 8000
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+serviceAccount:
+  create: true
