@@ -1,0 +1,77 @@
+# Workload identity and execution type.
+# type accepts "deployment" or "cronjob".
+workload:
+  name: ""
+  type: ""
+  runtimeRole: ""
+
+# A workload selects one shared image group. Environment-specific values files
+# provide the repository and immutable digest for each group.
+imageGroup: ""
+images:
+  fe:
+    repository: ""
+    digest: ""
+  be:
+    repository: ""
+    digest: ""
+  ai:
+    repository: ""
+    digest: ""
+  crawler:
+    repository: ""
+    digest: ""
+
+container:
+  port: null
+  command: []
+  args: []
+  env: []
+
+# Used only when autoscaling.enabled is false.
+replicaCount: null
+
+# Values are supplied after workload sizing and application health endpoints
+# are confirmed.
+resources: {}
+probes:
+  startup: {}
+  liveness: {}
+  readiness: {}
+
+service:
+  enabled: false
+  port: null
+
+autoscaling:
+  enabled: false
+  minReplicas: null
+  maxReplicas: null
+  metrics: []
+  behavior: {}
+
+pdb:
+  enabled: false
+  minAvailable: null
+  maxUnavailable: null
+
+serviceAccount:
+  create: false
+  name: ""
+  roleArn: ""
+
+secrets:
+  enabled: false
+  secretProviderClassName: ""
+  mountPath: ""
+  parameters: {}
+
+routing:
+  enabled: false
+  parentRefs: []
+  hostnames: []
+  rules: []
+
+cronJob:
+  schedule: ""
+  restartPolicy: ""

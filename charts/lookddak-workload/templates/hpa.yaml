@@ -1,0 +1,21 @@
+{{- if and (eq .Values.workload.type "deployment") .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "lookddak-workload.name" . }}
+  labels:
+    {{- include "lookddak-workload.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "lookddak-workload.name" . }}
+  minReplicas: {{ required "autoscaling.minReplicas is required when autoscaling is enabled" .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ required "autoscaling.maxReplicas is required when autoscaling is enabled" .Values.autoscaling.maxReplicas }}
+  metrics:
+    {{- toYaml .Values.autoscaling.metrics | nindent 4 }}
+  {{- with .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

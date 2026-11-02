@@ -1,0 +1,59 @@
+{{- if eq .Values.workload.type "cronjob" }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "lookddak-workload.name" . }}
+  labels:
+    {{- include "lookddak-workload.labels" . | nindent 4 }}
+spec:
+  schedule: {{ required "cronJob.schedule is required for cronjob workloads" .Values.cronJob.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "lookddak-workload.labels" . | nindent 12 }}
+        spec:
+          serviceAccountName: {{ include "lookddak-workload.serviceAccountName" . }}
+          restartPolicy: {{ required "cronJob.restartPolicy is required for cronjob workloads" .Values.cronJob.restartPolicy }}
+          containers:
+            - name: {{ include "lookddak-workload.name" . }}
+              image: {{ include "lookddak-workload.image" . | quote }}
+              {{- with .Values.container.command }}
+              command:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with .Values.container.args }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- if or .Values.workload.runtimeRole .Values.container.env }}
+              env:
+                {{- if .Values.workload.runtimeRole }}
+                - name: LOOKDDAK_RUNTIME_ROLE
+                  value: {{ .Values.workload.runtimeRole | quote }}
+                {{- end }}
+                {{- with .Values.container.env }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- end }}
+              {{- with .Values.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- if .Values.secrets.enabled }}
+              volumeMounts:
+                - name: secrets-store-inline
+                  mountPath: {{ required "secrets.mountPath is required when secrets are enabled" .Values.secrets.mountPath | quote }}
+                  readOnly: true
+              {{- end }}
+          {{- if .Values.secrets.enabled }}
+          volumes:
+            - name: secrets-store-inline
+              csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes:
+                  secretProviderClass: {{ required "secrets.secretProviderClassName is required when secrets are enabled" .Values.secrets.secretProviderClassName | quote }}
+          {{- end }}
+{{- end }}

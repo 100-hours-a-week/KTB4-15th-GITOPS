@@ -1,0 +1,19 @@
+{{- if and (eq .Values.workload.type "deployment") .Values.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "lookddak-workload.name" . }}
+  labels:
+    {{- include "lookddak-workload.labels" . | nindent 4 }}
+spec:
+  {{- if ne .Values.pdb.minAvailable nil }}
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  {{- else if ne .Values.pdb.maxUnavailable nil }}
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  {{- else }}
+  {{- fail "pdb.minAvailable or pdb.maxUnavailable is required when PDB is enabled" }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "lookddak-workload.selectorLabels" . | nindent 6 }}
+{{- end }}

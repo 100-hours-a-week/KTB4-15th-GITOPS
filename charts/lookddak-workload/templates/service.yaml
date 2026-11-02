@@ -1,0 +1,17 @@
+{{- if .Values.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lookddak-workload.name" . }}
+  labels:
+    {{- include "lookddak-workload.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "lookddak-workload.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ required "service.port is required when service is enabled" .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

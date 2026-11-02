@@ -1,0 +1,32 @@
+{{- if .Values.routing.enabled }}
+{{- if not .Values.service.enabled }}
+{{- fail "service.enabled must be true when routing is enabled" }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "lookddak-workload.name" . }}
+  labels:
+    {{- include "lookddak-workload.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.routing.parentRefs | nindent 4 }}
+  {{- with .Values.routing.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.routing.rules }}
+    - {{- with .matches }}
+      matches:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .timeouts }}
+      timeouts:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      backendRefs:
+        - name: {{ include "lookddak-workload.name" $ }}
+          port: {{ required "service.port is required when routing is enabled" $.Values.service.port }}
+    {{- end }}
+{{- end }}
