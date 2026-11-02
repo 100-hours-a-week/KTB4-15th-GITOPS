@@ -1,0 +1,15 @@
+workload:
+  name: chat-api
+  type: deployment
+  runtimeRole: chat-api
+
+imageGroup: be
+
+service:
+  enabled: true
+
+routing:
+  enabled: true
+
+serviceAccount:
+  create: true

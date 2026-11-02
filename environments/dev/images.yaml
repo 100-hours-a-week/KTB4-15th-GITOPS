@@ -1,0 +1,14 @@
+# EKS dev image references. GitHub Actions will update immutable digests later.
+images:
+  fe:
+    repository: ""
+    digest: ""
+  be:
+    repository: ""
+    digest: ""
+  ai:
+    repository: ""
+    digest: ""
+  crawler:
+    repository: ""
+    digest: ""

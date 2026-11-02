@@ -1,0 +1,15 @@
+workload:
+  name: vton-orchestrator
+  type: deployment
+  runtimeRole: vton-orchestrator
+
+imageGroup: ai
+
+service:
+  enabled: true
+
+routing:
+  enabled: true
+
+serviceAccount:
+  create: true

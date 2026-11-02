@@ -1,0 +1,15 @@
+workload:
+  name: body-image-validator
+  type: deployment
+  runtimeRole: body-image-validator
+
+imageGroup: ai
+
+service:
+  enabled: true
+
+routing:
+  enabled: false
+
+serviceAccount:
+  create: true

@@ -1,0 +1,15 @@
+workload:
+  name: fitting-worker
+  type: deployment
+  runtimeRole: fitting-worker
+
+imageGroup: be
+
+service:
+  enabled: false
+
+routing:
+  enabled: false
+
+serviceAccount:
+  create: true

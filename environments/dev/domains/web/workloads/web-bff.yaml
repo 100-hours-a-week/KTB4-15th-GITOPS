@@ -1,0 +1,14 @@
+workload:
+  name: web-bff
+  type: deployment
+
+imageGroup: fe
+
+service:
+  enabled: true
+
+routing:
+  enabled: true
+
+serviceAccount:
+  create: true

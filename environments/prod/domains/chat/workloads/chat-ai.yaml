@@ -1,0 +1,15 @@
+workload:
+  name: chat-ai
+  type: deployment
+  runtimeRole: chat-ai
+
+imageGroup: ai
+
+service:
+  enabled: true
+
+routing:
+  enabled: false
+
+serviceAccount:
+  create: true

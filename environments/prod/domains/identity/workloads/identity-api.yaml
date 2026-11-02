@@ -1,0 +1,15 @@
+workload:
+  name: identity-api
+  type: deployment
+  runtimeRole: identity-api
+
+imageGroup: be
+
+service:
+  enabled: true
+
+routing:
+  enabled: true
+
+serviceAccount:
+  create: true

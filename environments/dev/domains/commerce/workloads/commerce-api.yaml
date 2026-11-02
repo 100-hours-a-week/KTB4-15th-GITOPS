@@ -1,0 +1,15 @@
+workload:
+  name: commerce-api
+  type: deployment
+  runtimeRole: commerce-api
+
+imageGroup: be
+
+service:
+  enabled: true
+
+routing:
+  enabled: true
+
+serviceAccount:
+  create: true

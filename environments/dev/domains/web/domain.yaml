@@ -1,0 +1,11 @@
+# Values for the lookddak-web namespace. Policy values are not finalized yet.
+resourceQuota:
+  enabled: false
+  hard: {}
+limitRange:
+  enabled: false
+  limits: []
+networkPolicy:
+  enabled: false
+ciliumNetworkPolicy:
+  enabled: false

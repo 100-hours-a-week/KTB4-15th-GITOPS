@@ -1,0 +1,14 @@
+workload:
+  name: price-crawler
+  type: cronjob
+
+imageGroup: crawler
+
+service:
+  enabled: false
+
+routing:
+  enabled: false
+
+serviceAccount:
+  create: true

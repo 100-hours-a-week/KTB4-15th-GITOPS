@@ -1,0 +1,14 @@
+# EKS prod image references. Only digests verified in dev will be promoted here.
+images:
+  fe:
+    repository: ""
+    digest: ""
+  be:
+    repository: ""
+    digest: ""
+  ai:
+    repository: ""
+    digest: ""
+  crawler:
+    repository: ""
+    digest: ""
