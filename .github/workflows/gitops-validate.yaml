@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: 저장소 Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Helm 설치
         uses: azure/setup-helm@v5.0.1
@@ -41,6 +43,12 @@ jobs:
 
       - name: Helm Fixture 렌더링
         run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
+
+      - name: Helm Manifest 변경점 출력
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: scripts/diff-rendered-manifests.sh "$BASE_SHA" "$RUNNER_TEMP/manifest-diff"
 
       - name: Kubernetes Schema 검사
         run: |
