@@ -1,10 +1,7 @@
-name: GitOps Validate
+name: GitOps CI
 
 on:
   pull_request:
-    branches:
-      - main
-  push:
     branches:
       - main
   workflow_dispatch:
@@ -18,7 +15,7 @@ concurrency:
 
 jobs:
   validate:
-    name: GitOps Validate
+    name: GitOps CI
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
