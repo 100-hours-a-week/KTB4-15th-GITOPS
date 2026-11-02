@@ -149,7 +149,22 @@ dev와 prod는 별도 EKS Cluster로 구성하지만 동일한 Directory 구조�
 
 ## 변경 절차
 
-### 1. 작업 브랜치 생성
+### 1. Issue 생성
+
+작업을 시작하기 전에 GitHub Issue를 생성합니다. Issue에는 작업 목적, 변경 범위, 영향을 받는 환경·Domain·Workload와 완료 조건을 작성합니다.
+
+```text
+제목: [영역] 작업 내용
+
+- 작업 목적
+- 변경 대상 환경·Domain·Workload
+- 예상 영향
+- 완료 조건
+```
+
+Issue는 작업이 진행되는 동안 Open 상태로 유지합니다. 작업을 취소하는 경우에는 취소 이유를 댓글로 남기고 Issue를 닫습니다.
+
+### 2. 작업 브랜치 생성
 
 장기 `develop` 브랜치를 두지 않고 `main + 단기 작업 브랜치`를 사용합니다.
 
@@ -159,7 +174,7 @@ git pull --ff-only origin main
 git switch -c feat/<작업명>
 ```
 
-### 2. 변경 유형에 맞는 파일 수정
+### 3. 변경 유형에 맞는 파일 수정
 
 | 변경 목적 | 수정 위치 |
 | --- | --- |
@@ -170,7 +185,7 @@ git switch -c feat/<작업명>
 | Cilium·Istio·Gateway 등 플랫폼 | `platform/<env>` |
 | Argo CD 배포 범위 | `argocd` |
 
-### 3. 로컬 검증
+### 4. 로컬 검증
 
 ```bash
 ruby scripts/validate-yaml.rb
@@ -189,23 +204,27 @@ ruby scripts/validate-policy.rb
 scripts/diff-rendered-manifests.sh origin/main /tmp/lookddak-manifest-diff
 ```
 
-### 4. PR 생성·검토
+### 5. PR 생성·검토 및 Issue 종료
 
-1. 변경 이유와 영향을 받는 환경·Domain·Workload를 PR에 작성합니다.
-2. GitOps CI 결과를 확인합니다.
-3. PR Bot이 출력한 Helm Manifest 변경점을 확인합니다.
-4. 리소스 삭제, Route·권한·Secret·prod 변경은 반드시 추가로 검토합니다.
-5. 필수 검사가 성공하고 리뷰가 완료된 후 `main`에 Merge합니다.
+1. PR 본문에 관련 Issue 번호와 변경 이유, 영향을 받는 환경·Domain·Workload를 작성합니다.
+2. PR 본문에 `Closes #<Issue 번호>`를 작성해 Merge 시 Issue가 자동으로 종료되도록 연결합니다.
+3. GitOps CI 결과를 확인합니다.
+4. PR Bot이 출력한 Helm Manifest 변경점을 확인합니다.
+5. 리소스 삭제, Route·권한·Secret·prod 변경은 반드시 추가로 검토합니다.
+6. 필수 검사가 성공하고 리뷰가 완료된 후 `main`에 Merge합니다.
+7. Merge 후 관련 Issue가 종료되었는지 확인합니다.
 
 ## 브랜치·PR 규칙
 
 - 기본 브랜치는 `main` 하나만 사용합니다.
+- 작업을 시작하기 전에 Issue를 생성하고, PR에 해당 Issue를 연결합니다.
 - 작업은 `feat/*`, `fix/*`, `ci/*`, `docs/*` 등 목적이 드러나는 단기 브랜치에서 진행합니다.
 - `main` 직접 Push와 Force Push를 금지합니다.
 - 모든 변경은 PR과 필수 상태 검사 `GitOps CI`를 통과해야 합니다.
 - 한 PR에는 하나의 논리적 변경만 포함합니다.
 - dev와 prod를 동시에 변경해야 한다면 변경 이유와 승격 근거를 PR에 명시합니다.
 - 생성된 Manifest와 실제 의도가 일치하는지 확인한 뒤 Merge합니다.
+- 작업 완료 후 관련 Issue가 종료되었는지 확인합니다.
 
 ## GitOps CI
 
