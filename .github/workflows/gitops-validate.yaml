@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
   group: gitops-validate-${{ github.event.pull_request.number || github.ref }}
@@ -62,3 +63,17 @@ jobs:
 
       - name: GitOps 정책 검사
         run: ruby scripts/validate-policy.rb
+
+      - name: PR에 Manifest 변경점 댓글 작성
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v9
+        env:
+          DIFF_FILE: ${{ runner.temp }}/manifest-diff/manifest.diff
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const commentManifestDiff = require('./.github/scripts/comment-manifest-diff.js')
+            await commentManifestDiff({ github, context, core })
