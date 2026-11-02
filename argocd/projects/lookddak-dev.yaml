@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: lookddak-dev
+  namespace: argocd
+spec:
+  description: LookDDak dev 애플리케이션 배포 범위
+  sourceRepos:
+    - https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: lookddak-*
+  clusterResourceWhitelist: []
+  orphanedResources:
+    warn: true

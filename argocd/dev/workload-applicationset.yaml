@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: lookddak-dev-workloads
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+  generators:
+    - git:
+        repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+        revision: main
+        files:
+          - path: environments/dev/domains/*/workloads/*.yaml
+  template:
+    metadata:
+      name: 'dev-{{ .workload.name }}'
+    spec:
+      project: lookddak-dev
+      sources:
+        - repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+          targetRevision: main
+          path: charts/lookddak-workload
+          helm:
+            releaseName: '{{ .workload.name }}'
+            valueFiles:
+              - $values/environments/dev/images.yaml
+              - '$values/{{ .path.path }}'
+        - repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'lookddak-{{ index .path.segments 3 }}'
+      syncPolicy:
+        automated:
+          enabled: true
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+          - PruneLast=true
