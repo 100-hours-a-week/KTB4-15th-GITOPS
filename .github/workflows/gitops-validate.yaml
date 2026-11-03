@@ -78,6 +78,7 @@ jobs:
         uses: actions/github-script@v9
         env:
           DIFF_FILE: ${{ runner.temp }}/manifest-diff/manifest.diff
+          SUMMARY_FILE: ${{ runner.temp }}/manifest-diff/manifest-summary.md
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CI_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

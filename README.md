@@ -239,7 +239,7 @@ scripts/diff-rendered-manifests.sh origin/main /tmp/lookddak-manifest-diff
 | 2 | 저장소 구조 | 5개 Domain, 환경별 10개 Workload, 필수 파일과 ApplicationSet 경로 검사 |
 | 3 | Helm dependency·lint | 공통 Chart와 Argo CD Chart 의존성·구조·Template 문법 검사 |
 | 4 | Helm template | 대표 Fixture 5개와 Argo CD를 Kubernetes Manifest로 렌더링 |
-| 5 | Manifest Diff | `main`과 PR의 렌더링 결과를 비교해 Summary와 PR Bot 댓글로 출력 |
+| 5 | Manifest Diff | `main`과 PR의 렌더링 결과를 비교해 리소스별 추가·변경·삭제 요약을 Summary와 PR Bot 댓글로 출력 |
 | 6 | Kubernetes Schema | 렌더링 결과를 `kubeconform`으로 검사 |
 | 7 | GitOps 정책 | Secret 원문, `kind: Secret`, 이미지 Repository·Digest 짝과 Digest 형식 검사 |
 
