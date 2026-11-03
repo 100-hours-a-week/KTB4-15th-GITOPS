@@ -39,4 +39,22 @@ if [[ -f platform/dev/argocd/Chart.yaml ]]; then
     > "$output_dir/argocd-dev.yaml"
 fi
 
-echo "Helm Manifest 렌더링 완료: Fixture 5개, Argo CD 1개"
+if [[ -f platform/dev/karpenter/crd/Chart.yaml ]]; then
+  helm dependency build platform/dev/karpenter/crd >/dev/null
+  helm template karpenter-crd platform/dev/karpenter/crd \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    --include-crds \
+    > "$output_dir/karpenter-crd-dev.yaml"
+fi
+
+if [[ -f platform/dev/karpenter/controller/Chart.yaml ]]; then
+  helm dependency build platform/dev/karpenter/controller >/dev/null
+  helm template karpenter platform/dev/karpenter/controller \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    --skip-crds \
+    > "$output_dir/karpenter-controller-dev.yaml"
+fi
+
+echo "Helm Manifest 렌더링 완료: Fixture 5개, Argo CD 1개, Karpenter 2개"

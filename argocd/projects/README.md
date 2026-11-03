@@ -11,4 +11,11 @@ Argo CD Application이 사용할 수 있는 Git 저장소와 배포 대상 범�
 - 현재 애플리케이션 Chart에는 Cluster 범위 리소스가 없으므로 Cluster 범위 리소스 생성을 허용하지 않는다.
 - Argo CD가 관리하지 않는 리소스가 대상 Namespace에 남으면 경고하도록 설정한다.
 
-플랫폼 구성요소와 Cluster 범위 리소스의 Argo CD 관리 범위는 아직 확정하지 않았으므로 현재 AppProject에 포함하지 않는다.
+## dev 플랫폼 Project
+
+`lookddak-dev-platform`은 애플리케이션용 Project와 분리하여 Karpenter 같은 클러스터 플랫폼 구성요소를 관리한다.
+
+- 배포 대상 Namespace는 `kube-system`으로 제한한다.
+- 현재는 Karpenter 설치에 필요한 CRD, ClusterRole, ClusterRoleBinding만 허용한다.
+- `EC2NodeClass`와 `NodePool` 권한은 해당 리소스를 실제로 추가하는 작업에서 확장한다.
+- 애플리케이션용 `lookddak-dev` Project의 권한은 넓히지 않는다.

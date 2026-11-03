@@ -10,7 +10,7 @@ spec:
       targetRevision: main
       path: argocd/projects
       directory:
-        include: lookddak-dev.yaml
+        include: lookddak-dev*.yaml
     - repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
       targetRevision: main
       path: argocd/dev

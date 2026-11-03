@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-karpenter-crd
+description: LookDDak EKS dev Karpenter CRD 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: karpenter-crd
+    version: 1.15.1
+    repository: oci://public.ecr.aws/karpenter
