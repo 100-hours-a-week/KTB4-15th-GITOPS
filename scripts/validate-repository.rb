@@ -162,6 +162,25 @@ end
 dev_domain_set = load_yaml("argocd/dev/domain-applicationset.yaml")
 dev_workload_set = load_yaml("argocd/dev/workload-applicationset.yaml")
 
+expected_domain_value_files = [
+  "$values/{{ .path.path }}/{{ .path.filename }}"
+]
+expected_workload_value_files = [
+  "$values/environments/dev/images.yaml",
+  "$values/{{ .path.path }}/{{ .path.filename }}"
+]
+
+actual_domain_value_files = dev_domain_set.dig("spec", "template", "spec", "sources", 0, "helm", "valueFiles")
+actual_workload_value_files = dev_workload_set.dig("spec", "template", "spec", "sources", 0, "helm", "valueFiles")
+
+unless actual_domain_value_files == expected_domain_value_files
+  abort "dev Domain ApplicationSet은 Git generator가 찾은 domain.yaml 파일을 Helm values로 사용해야 합니다."
+end
+
+unless actual_workload_value_files == expected_workload_value_files
+  abort "dev Workload ApplicationSet은 images.yaml과 Git generator가 찾은 workload YAML 파일을 Helm values로 사용해야 합니다."
+end
+
 [dev_domain_set, dev_workload_set].each do |application_set|
   unless application_set.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "0"
     abort "#{application_set.dig('metadata', 'name')}: Namespace 이후에 적용할 sync-wave 0이 필요합니다."

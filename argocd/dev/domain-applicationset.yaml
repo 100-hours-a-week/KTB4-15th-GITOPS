@@ -27,7 +27,7 @@ spec:
           helm:
             releaseName: '{{ index .path.segments 3 }}-domain'
             valueFiles:
-              - '$values/{{ .path.path }}'
+              - '$values/{{ .path.path }}/{{ .path.filename }}'
         - repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
           targetRevision: main
           ref: values
