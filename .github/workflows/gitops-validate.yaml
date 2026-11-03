@@ -59,6 +59,9 @@ jobs:
       - name: Helm Fixture 렌더링
         run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
 
+      - name: Argo CD System 배치·자기 관리 보호 설정 검사
+        run: ruby scripts/validate-argocd-install.rb "$RUNNER_TEMP/rendered/argocd-dev.yaml"
+
       - name: Helm Manifest 변경점 출력
         if: github.event_name == 'pull_request'
         env:
@@ -101,8 +104,10 @@ jobs:
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             -summary \
             /workspace/argocd/projects/lookddak-dev.yaml \
+            /workspace/argocd/projects/lookddak-dev-argocd.yaml \
             /workspace/argocd/projects/lookddak-dev-platform.yaml \
             /workspace/argocd/dev/root-application.yaml \
+            /workspace/argocd/dev/argocd-application.yaml \
             /workspace/argocd/dev/domain-applicationset.yaml \
             /workspace/argocd/dev/workload-applicationset.yaml \
             /workspace/argocd/dev/karpenter-crd-application.yaml \

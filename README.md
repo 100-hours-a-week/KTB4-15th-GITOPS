@@ -117,7 +117,7 @@ KTB4-15th-GITOPS/
 | `environments/<env>/images.yaml` | FE·BE·AI·Crawler 이미지 Repository와 불변 Digest |
 | `environments/<env>/domains` | Domain과 Workload별 환경 설정 |
 | `platform/<env>` | Cilium, Istio, Gateway, Karpenter, KEDA, Secret, 관측 구성 |
-| `platform/dev/argocd` | EKS dev에 설치할 Argo CD 자체의 Chart 버전과 Helm 설정 |
+| `platform/dev/argocd` | `argocd` Application이 자동 관리하는 Argo CD 자체 Chart·Helm 설정과 System Node 격리 인계 문서 |
 | `platform/dev/karpenter/nodepool` | Dev Application Node의 EC2NodeClass·NodePool과 공급·회수 정책 |
 | `argocd/projects` | Argo CD의 Repository·Cluster·Namespace 접근 범위 |
 | `argocd/<env>` | Root Application, Namespace와 Domain·Workload ApplicationSet |
@@ -240,6 +240,7 @@ scripts/diff-rendered-manifests.sh origin/main /tmp/lookddak-manifest-diff
 | 2 | 저장소 구조 | 5개 Domain, 환경별 10개 Workload, 필수 파일과 ApplicationSet 경로 검사 |
 | 3 | Helm dependency·lint | 공통 Chart·Argo CD·Karpenter Chart 의존성·구조·Template 문법 검사 |
 | 4 | Manifest 준비 | 대표 Fixture·Argo CD·Karpenter Chart 렌더링과 정적 Argo CD·NodePool YAML 수집 |
+| 4-1 | Argo CD 설치 정책 | 실행 구성요소·Hook의 System NodeSelector·Toleration, CRD·런타임 Secret 보호 검사 |
 | 5 | Manifest Diff | `main`과 PR의 Helm·정적 리소스를 비교해 추가·변경·삭제 요약을 Summary와 PR Bot 댓글로 출력 |
 | 6 | Kubernetes Schema | 표준·Argo CD 리소스와 고정 Karpenter CRD에서 추출한 NodePool·EC2NodeClass Schema 검사 |
 | 7 | GitOps 정책 | Secret 원문, `kind: Secret`, 이미지 Repository·Digest 짝과 Digest 형식 검사 |
@@ -275,6 +276,8 @@ Root Application과 최종 활성화된 ApplicationSet은 `main`을 감시하며
 따라서 Cluster를 수동으로 변경하더라도 Self Heal에 의해 Git 상태로 되돌아갈 수 있습니다. 운영 변경은 반드시 Git에서 시작해야 합니다.
 
 EKS dev 최초 연결 단계에서는 이미지·Replica 등 실배포 값이 아직 확정되지 않았으므로 Workload ApplicationSet의 `automated.enabled`를 `false`로 유지합니다. Root Application은 AppProject, Namespace와 ApplicationSet을 자동 관리하지만, 실제 Workload Auto Sync는 필수 values와 전체 Helm 렌더링 검증이 완료된 후 별도 PR로 활성화합니다.
+
+Argo CD 자체는 별도 `argocd` Application이 `platform/dev/argocd`를 자동 관리합니다. 기존 Helm Release 이름과 설치 버전을 유지하고, CRD와 런타임 Secret 데이터는 삭제·덮어쓰기 방지 정책을 적용합니다. Cilium은 네트워크 담당자의 Bootstrap 관리 범위이며 이 Application에 포함하지 않습니다. 자세한 전환·검증 절차는 [Argo CD 운영 문서](platform/dev/argocd/README.md)를 참고합니다.
 
 ## 롤백·장애 대응
 

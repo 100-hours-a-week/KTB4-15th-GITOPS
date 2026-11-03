@@ -6,7 +6,8 @@ metadata:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   amiSelectorTerms:
-    # 2026-11-03 AWS SSM 조회: EKS 1.36.5 / AL2023 x86_64 Standard.
+    # 2026-11-03 AWS SSM 조회: EKS 1.36.5 / AL2023 ARM64 Standard.
+    # 고정 alias 후보 중 NodePool의 arm64 조건에 맞는 AMI를 선택한다.
     - alias: al2023@v20261031
   instanceProfile: lookddak-dev-karpenter-node
   subnetSelectorTerms:

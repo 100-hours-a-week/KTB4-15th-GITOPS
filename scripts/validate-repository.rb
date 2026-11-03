@@ -31,6 +31,9 @@ argocd_files = %w[
   platform/dev/argocd/Chart.lock
   platform/dev/argocd/values.yaml
   platform/dev/argocd/README.md
+  platform/dev/argocd/system-node-isolation.md
+  argocd/projects/lookddak-dev-argocd.yaml
+  argocd/dev/argocd-application.yaml
 ].freeze
 
 karpenter_files = %w[
@@ -163,6 +166,51 @@ expected_root_automation = {
 }
 abort "#{root_file}: Root Auto Sync 안전 정책이 예상과 다릅니다." unless root_automation == expected_root_automation
 
+argocd_project_file = "argocd/projects/lookddak-dev-argocd.yaml"
+argocd_project = load_yaml(argocd_project_file)
+unless argocd_project["kind"] == "AppProject" && argocd_project.dig("metadata", "name") == "lookddak-dev-argocd" && argocd_project.dig("metadata", "namespace") == "argocd"
+  abort "#{argocd_project_file}: Argo CD 전용 AppProject 신원이 예상과 다릅니다."
+end
+unless argocd_project.dig("spec", "sourceRepos") == [gitops_repository] && argocd_project.dig("spec", "destinations") == [{ "server" => in_cluster_server, "namespace" => "argocd" }]
+  abort "#{argocd_project_file}: Argo CD 전용 Project는 GitOps 저장소와 현재 Cluster의 argocd Namespace만 허용해야 합니다."
+end
+unless argocd_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2"
+  abort "Argo CD 전용 Project는 Application보다 먼저 선언해야 합니다."
+end
+expected_argocd_cluster_resources = [
+  { "group" => "apiextensions.k8s.io", "kind" => "CustomResourceDefinition" },
+  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRole" },
+  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" }
+]
+unless argocd_project.dig("spec", "clusterResourceWhitelist") == expected_argocd_cluster_resources
+  abort "Argo CD 전용 Project에는 설치 Chart에 필요한 Cluster 범위 종류만 허용해야 합니다."
+end
+
+argocd_app_file = "argocd/dev/argocd-application.yaml"
+argocd_app = load_yaml(argocd_app_file)
+unless argocd_app["kind"] == "Application" && argocd_app.dig("metadata", "name") == "argocd" && argocd_app.dig("metadata", "namespace") == "argocd"
+  abort "#{argocd_app_file}: 기존 Helm Release와 동일한 argocd Application 이름을 사용해야 합니다."
+end
+unless argocd_app.dig("spec", "project") == "lookddak-dev-argocd" && argocd_app.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "argocd" }
+  abort "Argo CD 자기 관리 Application의 Project·배포 대상이 예상과 다릅니다."
+end
+unless argocd_app.dig("spec", "source") == { "repoURL" => gitops_repository, "targetRevision" => "main", "path" => "platform/dev/argocd", "helm" => { "releaseName" => "argocd" } }
+  abort "Argo CD 자기 관리는 main의 기존 Wrapper Chart와 releaseName=argocd를 사용해야 합니다."
+end
+unless argocd_app.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "1" && argocd_app.dig("spec", "syncPolicy", "automated") == expected_root_automation
+  abort "Argo CD 자기 관리 Application의 Sync Wave·자동 동기화 정책이 예상과 다릅니다."
+end
+unless argocd_app.dig("spec", "ignoreDifferences") == [{ "group" => "", "kind" => "Secret", "name" => "argocd-secret", "namespace" => "argocd", "jsonPointers" => ["/data"] }] && argocd_app.dig("spec", "syncPolicy", "syncOptions") == ["RespectIgnoreDifferences=true", "PruneLast=true"]
+  abort "Argo CD 런타임 Secret 데이터의 비교·적용 제외 설정이 필요합니다."
+end
+abort "Argo CD 자기 관리 Application에는 연쇄 삭제 Finalizer를 추가하지 않습니다." unless (argocd_app.dig("metadata", "finalizers") || []).empty?
+
+argocd_chart = load_yaml("platform/dev/argocd/Chart.yaml")
+argocd_dependency = argocd_chart.fetch("dependencies").find { |item| item["name"] == "argo-cd" }
+unless argocd_dependency && argocd_dependency["version"] == "10.11.6" && argocd_dependency["repository"] == "https://argoproj.github.io/argo-helm"
+  abort "Argo CD 전환에서는 기존 공식 Chart 10.11.6을 유지해야 합니다."
+end
+
 platform_project_file = "argocd/projects/lookddak-dev-platform.yaml"
 platform_project = load_yaml(platform_project_file)
 abort "#{platform_project_file}: kind가 AppProject가 아닙니다." unless platform_project["kind"] == "AppProject"
@@ -294,7 +342,7 @@ unless nodepool.dig("spec", "template", "metadata", "labels", "lookddak.io/node-
 end
 expected_requirements = {
   "kubernetes.io/os" => ["In", %w[linux]],
-  "kubernetes.io/arch" => ["In", %w[amd64]],
+  "kubernetes.io/arch" => ["In", %w[arm64]],
   "karpenter.sh/capacity-type" => ["In", %w[on-demand]],
   "karpenter.k8s.aws/instance-category" => ["In", %w[c m r]],
   "karpenter.k8s.aws/instance-generation" => ["Gt", %w[4]],
@@ -304,7 +352,7 @@ expected_requirements = {
 requirements = node_template.fetch("requirements")
 actual_requirements = requirements.to_h { |item| [item.fetch("key"), [item.fetch("operator"), item.fetch("values")]] }
 unless actual_requirements == expected_requirements && requirements.length == expected_requirements.length
-  abort "NodePool 인스턴스 조건이 승인된 Linux·AMD64·On-Demand·C/M/R·세대·CPU·AZ 범위와 다릅니다."
+  abort "NodePool 인스턴스 조건이 승인된 Linux·ARM64·On-Demand·C/M/R·세대·CPU·AZ 범위와 다릅니다."
 end
 unless node_template["startupTaints"] == [{ "key" => "node.cilium.io/agent-not-ready", "value" => "true", "effect" => "NoExecute" }] && (node_template["taints"] || []).empty?
   abort "고정 Taint 없이 Cilium Startup Taint를 선언해야 합니다."

@@ -12,7 +12,10 @@ end
 def walk(value, file, sensitive_keys)
   case value
   when Hash
-    abort "#{file}: kind: Secret 리소스는 Git에 저장할 수 없습니다." if value["kind"] == "Secret"
+    # ignoreDifferences·targetRef 등의 kind: Secret 참조는 실제 Secret 선언과 구분한다.
+    if value["kind"] == "Secret" && (value.key?("apiVersion") || value.key?("metadata"))
+      abort "#{file}: kind: Secret 리소스는 Git에 저장할 수 없습니다."
+    end
 
     value.each do |key, child|
       if key.to_s.match?(sensitive_keys) && !child.nil? && child.to_s != ""
@@ -31,6 +34,7 @@ end.sort
 
 source_files.each do |file|
   document = load_yaml(file)
+  abort "#{file}: kind: Secret 리소스는 Git에 저장할 수 없습니다." if document.is_a?(Hash) && document["kind"] == "Secret"
   walk(document, file, sensitive_keys) unless document.nil?
 end
 
