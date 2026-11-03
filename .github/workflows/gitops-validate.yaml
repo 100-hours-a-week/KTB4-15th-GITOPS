@@ -31,6 +31,9 @@ jobs:
         with:
           version: v4.2.3
 
+      - name: Argo CD Helm Repository 등록
+        run: helm repo add argo https://argoproj.github.io/argo-helm
+
       - name: Argo CD Helm 의존성 준비
         run: helm dependency build platform/dev/argocd
 
