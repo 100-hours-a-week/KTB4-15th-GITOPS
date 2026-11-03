@@ -57,4 +57,10 @@ if [[ -f platform/dev/karpenter/controller/Chart.yaml ]]; then
     > "$output_dir/karpenter-controller-dev.yaml"
 fi
 
-echo "Helm Manifest 렌더링 완료: Fixture 5개, Argo CD 1개, Karpenter 2개"
+# 정적 NodePool 리소스도 Schema와 PR Manifest Diff 검증에 포함한다.
+if [[ -f platform/dev/karpenter/nodepool/nodepool.yaml ]]; then
+  cp platform/dev/karpenter/nodepool/ec2-nodeclass.yaml "$output_dir/karpenter-ec2nodeclass-dev.yaml"
+  cp platform/dev/karpenter/nodepool/nodepool.yaml "$output_dir/karpenter-nodepool-dev.yaml"
+fi
+
+echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter Chart 및 NodePool 선언"
