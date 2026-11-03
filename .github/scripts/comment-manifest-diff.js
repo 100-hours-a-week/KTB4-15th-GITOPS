@@ -3,14 +3,16 @@ const fs = require("node:fs");
 const COMMENT_MARKER = "<!-- lookddak-helm-manifest-diff -->";
 const MAX_DIFF_LENGTH = 50_000;
 
-function buildComment({ diff, baseSha, ciStatus, runUrl }) {
+function buildComment({ diff, summary, baseSha, ciStatus, runUrl }) {
   const validationResult = ciStatus === "success"
     ? "✅ GitOps CI 검증을 통과했습니다."
     : `❌ GitOps CI 검증에 실패했습니다. [실행 로그](${runUrl})를 확인해 주세요.`;
 
   let diffResult;
 
-  if (diff === null) {
+  if (summary?.trim()) {
+    diffResult = summary.trim();
+  } else if (diff === null) {
     diffResult = `Manifest 비교 결과를 생성하지 못했습니다. [실행 로그](${runUrl})를 확인해 주세요.`;
   } else if (diff.trim() === "") {
     diffResult = "렌더링된 Helm Manifest 변경이 없습니다.";
@@ -54,9 +56,14 @@ async function commentManifestDiff({ github, context, core }) {
   const diff = diffFile && fs.existsSync(diffFile)
     ? fs.readFileSync(diffFile, "utf8")
     : null;
+  const summaryFile = process.env.SUMMARY_FILE;
+  const summary = summaryFile && fs.existsSync(summaryFile)
+    ? fs.readFileSync(summaryFile, "utf8")
+    : null;
 
   const body = buildComment({
     diff,
+    summary,
     baseSha: process.env.BASE_SHA,
     ciStatus: process.env.CI_STATUS,
     runUrl: process.env.RUN_URL,

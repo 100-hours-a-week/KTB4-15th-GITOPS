@@ -13,6 +13,7 @@ base_checkout="$work_dir/base"
 base_output="$work_dir/base-rendered"
 head_output="$work_dir/head-rendered"
 diff_file="$work_dir/manifest.diff"
+summary_file="$work_dir/manifest-summary.md"
 
 mkdir -p "$work_dir"
 
@@ -40,14 +41,15 @@ if [[ $diff_status -gt 1 ]]; then
   exit "$diff_status"
 fi
 
+ruby scripts/summarize-rendered-manifests.rb \
+  "$base_output" \
+  "$head_output" \
+  "$summary_file"
+
 if [[ $diff_status -eq 0 ]]; then
   echo "Helm Manifest 변경 없음"
   if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-    {
-      echo "## Helm Manifest 변경점"
-      echo
-      echo "렌더링된 Manifest 변경이 없습니다."
-    } >> "$GITHUB_STEP_SUMMARY"
+    cat "$summary_file" >> "$GITHUB_STEP_SUMMARY"
   fi
   exit 0
 fi
@@ -56,20 +58,7 @@ echo "Helm Manifest 변경점"
 cat "$diff_file"
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-  {
-    echo "## Helm Manifest 변경점"
-    echo
-    echo "기준 Commit: \`$base_sha\`"
-    echo
-    echo '```diff'
-    head -c 60000 "$diff_file"
-    echo
-    echo '```'
-    if [[ $(wc -c < "$diff_file") -gt 60000 ]]; then
-      echo
-      echo "> 변경 내용이 길어 앞부분 60KB만 표시했습니다. 전체 내용은 Workflow 로그에서 확인할 수 있습니다."
-    fi
-  } >> "$GITHUB_STEP_SUMMARY"
+  cat "$summary_file" >> "$GITHUB_STEP_SUMMARY"
 fi
 
 exit 0
