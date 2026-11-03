@@ -342,7 +342,7 @@ unless nodepool.dig("spec", "template", "metadata", "labels", "lookddak.io/node-
 end
 expected_requirements = {
   "kubernetes.io/os" => ["In", %w[linux]],
-  "kubernetes.io/arch" => ["In", %w[amd64]],
+  "kubernetes.io/arch" => ["In", %w[arm64]],
   "karpenter.sh/capacity-type" => ["In", %w[on-demand]],
   "karpenter.k8s.aws/instance-category" => ["In", %w[c m r]],
   "karpenter.k8s.aws/instance-generation" => ["Gt", %w[4]],
@@ -352,7 +352,7 @@ expected_requirements = {
 requirements = node_template.fetch("requirements")
 actual_requirements = requirements.to_h { |item| [item.fetch("key"), [item.fetch("operator"), item.fetch("values")]] }
 unless actual_requirements == expected_requirements && requirements.length == expected_requirements.length
-  abort "NodePool 인스턴스 조건이 승인된 Linux·AMD64·On-Demand·C/M/R·세대·CPU·AZ 범위와 다릅니다."
+  abort "NodePool 인스턴스 조건이 승인된 Linux·ARM64·On-Demand·C/M/R·세대·CPU·AZ 범위와 다릅니다."
 end
 unless node_template["startupTaints"] == [{ "key" => "node.cilium.io/agent-not-ready", "value" => "true", "effect" => "NoExecute" }] && (node_template["taints"] || []).empty?
   abort "고정 Taint 없이 Cilium Startup Taint를 선언해야 합니다."

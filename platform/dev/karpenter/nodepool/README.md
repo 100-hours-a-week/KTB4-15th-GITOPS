@@ -17,7 +17,7 @@
 | 항목 | 설정 | 확인 근거 |
 | --- | --- | --- |
 | Cluster | `lookddak-dev`, Kubernetes `1.36` | EKS DescribeCluster |
-| AMI | `al2023@v20261031` | SSM EKS 1.36 AL2023 x86_64 Standard recommended: `1.36.5-20261031`, `ami-0ff26945ed10b79c1` |
+| AMI | `al2023@v20261031` | SSM EKS 1.36 AL2023 ARM64 Standard recommended: `1.36.5-20261031`, `ami-0510e3a5d76be9b00` |
 | Instance Profile | `lookddak-dev-karpenter-node` | Terraform 생성, IAM GetInstanceProfile과 EKS EC2_LINUX Access Entry 확인 |
 | Node Subnet | discovery=`lookddak-dev`, Tier=`private-node` | `subnet-0d66a74a831adfd95`(2a), `subnet-02919412338655f46`(2c) |
 | SG | `sg-04d109eb4f8eae342` | EKS 기본 Cluster SG. System MNG도 사용하는 기존 SG |
@@ -32,11 +32,21 @@ Cilium의 Pod ENI는 기존 `Tier=private-pod` Subnet 선택 설정을 따른다
 
 - 동적 Pool 1개: `general-purpose`. `replicas`를 지정하지 않아 수요가 없으면 0대까지 줄일 수 있다.
 - Node Label: `lookddak.io/node-pool=general-purpose`.
-- Linux·AMD64·On-Demand·C/M/R·5세대 이상·2/4/8 vCPU.
+- Linux·ARM64·On-Demand·C/M/R·5세대 이상·2/4/8 vCPU. FE·BE·AI 이미지가 ARM64이므로 Application Node도 같은 아키텍처로 맞춘다.
 - 허용 AZ: `ap-northeast-2a`, `ap-northeast-2c`. 실제 Pod의 AZ 분산은 각 Workload의 Topology Spread 설정이 담당한다.
 - 영구 Taint는 적용하지 않는다. 일반 Pod를 Application Node로 보내려면 Workload에 위 Node Label을 선택하도록 설정해야 한다. 이 작업에서 Workload values를 변경하지 않는다.
 - Cilium 준비 전 일반 Pod 실행을 막기 위해 `node.cilium.io/agent-not-ready=true:NoExecute`를 Startup Taint로 설정한다. Cilium이 준비 후 제거해야 하며 실제 신규 Node에서 해제 여부를 검증한다.
 - C·M·R은 CPU 대비 메모리 비율이 다른 후보군이다. 특정 Workload를 특정 계열에 고정하지 않는다. T는 CPU Credit에 따른 성능·비용 변수가 부하 테스트를 방해할 수 있어 제외한다.
+
+## ARM64와 System Node의 구분
+
+`al2023@v20261031` alias 자체는 아키텍처가 고정된 AMI ID가 아니다. Karpenter는 NodePool의 `kubernetes.io/arch=arm64` 조건에 맞는 ARM64 AMI와 EC2를 선택한다. 따라서 alias 날짜는 유지한다. AWS 조회에서 `c7g.large`, `m7g.large`, `r7g.large`가 두 허용 AZ에 제공되는 것을 확인했다. 이는 후보 제공 여부이며 실제 시점의 EC2 가용 용량을 보장하지는 않는다.
+
+System MNG는 현재 AMD64이고 Karpenter Controller·Argo CD·CoreDNS를 실행한다. Controller가 관리하는 Application Node와 같은 아키텍처일 필요는 없다. System MNG의 인스턴스 유형과 AMI는 CLOUD의 `infra/environments/dev/v3/system-node-group/main.tf`에서 관리하며 이번 변경에서는 대기한다.
+
+ARM64 전용 애플리케이션을 배포할 때는 Workload의 `nodeSelector` 등에 `lookddak.io/node-pool=general-purpose`와 `kubernetes.io/arch=arm64`를 지정해야 한다. 현재 공통 Workload Chart의 배치 조건 지원·실배포 values는 후속 작업이며, NodePool의 조건만 바꾼 것으로 일반 Pod의 System Node 배치까지 차단되지는 않는다.
+
+현재 Cluster의 Cilium·Cilium Envoy DaemonSet에는 AMD64 고정 NodeSelector가 없고, 사용 중인 두 이미지 Digest의 OCI Index에 `linux/arm64` Manifest가 포함된 것을 조회로 확인했다. 네트워크 설정 자체는 변경하지 않는다. 실제 ARM Node의 Cilium 초기화는 Node 공급 테스트에서 검증한다. Crawler와 향후 추가하는 Istio·수집기 등도 ARM64 또는 멀티아키텍처 이미지인지 배포 전에 확인한다. FE·BE·AI 이미지 아키텍처는 팀의 확인 내용을 기준으로 하며 이 저장소의 ECR Repository·Digest는 아직 미입력 상태다.
 
 ## Dev 초기 공급 상한
 
@@ -70,6 +80,7 @@ kubectl describe ec2nodeclass general-purpose
 kubectl describe nodepool general-purpose
 kubectl get nodeclaims
 kubectl get nodes -l lookddak.io/node-pool=general-purpose -o wide
+kubectl get nodes -l lookddak.io/node-pool=general-purpose -L kubernetes.io/arch,node.kubernetes.io/instance-type
 ```
 
 완료 기준은 NodeClass와 NodePool의 `Ready=True`다. NodeClass에서는 AMI·Subnet·SG·Instance Profile 조회 조건도 확인한다. 두 리소스가 Ready여도 대상 Pending Pod가 없으면 EC2가 생성되지 않는 것이 정상이다. 실제 Node 생성·Cilium Taint 해제·Node Ready는 별도 공급 테스트에서 검증한다.
@@ -83,3 +94,4 @@ Argo CD UI에서는 `lookddak-dev-karpenter-nodepool`의 Tree·리소스 상세�
 - [Karpenter 회수와 교체](https://karpenter.sh/v1.15/concepts/disruption/)
 - [AWS Karpenter 권장사항](https://docs.aws.amazon.com/eks/latest/best-practices/karpenter.html)
 - [Cilium Startup Taint](https://docs.cilium.io/en/stable/installation/taints/)
+- [EKS ARM·x86 혼합 구성과 이미지 호환성](https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-ami.html)
