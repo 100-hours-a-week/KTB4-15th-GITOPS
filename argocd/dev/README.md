@@ -6,29 +6,39 @@ EKS dev에 설치된 Argo CD가 GitOps 저장소의 dev 목표 상태를 읽어 
 
 ## 현재 작성된 범위
 
+- `root-application.yaml`은 Public GitOps 저장소의 dev AppProject와 ApplicationSet, Namespace 선언을 관리하는 최초 진입점이다.
+- `namespace-*.yaml`은 dev의 5개 도메인 Namespace를 생성한다. Namespace 자체는 실수로 자동 삭제되지 않도록 `Prune=false`를 사용한다.
 - `domain-applicationset.yaml`은 dev의 5개 `domain.yaml`을 `lookddak-domain` Chart와 조합한다.
 - `workload-applicationset.yaml`은 dev의 10개 워크로드 values를 `lookddak-workload` Chart 및 `images.yaml`과 조합한다.
-- 두 ApplicationSet은 Git 변경을 자동 동기화하고 `Self Heal`, `Prune`, `allowEmpty: false`, `PruneLast=true` 정책을 사용한다.
+- Root Application과 Domain ApplicationSet은 Git 변경을 자동 동기화한다.
+- Workload ApplicationSet은 Application을 생성하지만, 이미지·Replica 등 실배포 값이 확정될 때까지 `automated.enabled: false`로 유지한다.
 - 배포 대상은 각 도메인의 `lookddak-*` Namespace이며, Argo CD가 실행되는 클러스터 내부 주소를 사용한다.
 
-## 적용 전에 결정하거나 준비할 항목
+## 적용 순서
 
-- Argo CD 설치 방법, 버전과 설치 Namespace
-- Private GitHub 저장소를 읽기 위한 Repository Credential 전달 방식
-- `lookddak-web`, `lookddak-identity`, `lookddak-commerce`, `lookddak-chat`, `lookddak-fitting` Namespace 생성 주체
+Root Application은 Sync Wave를 사용해 다음 순서로 리소스를 준비한다.
+
+1. `lookddak-dev` AppProject (`-2`)
+2. dev 도메인 Namespace 5개 (`-1`)
+3. Domain·Workload ApplicationSet (`0`)
+
+Root Application은 `default` Project를 사용해 위 부트스트랩 리소스만 관리한다. 실제 도메인과 워크로드 Application은 권한이 제한된 `lookddak-dev` AppProject를 사용한다.
+
+## Workload Auto Sync 활성화 전에 준비할 항목
+
 - ECR Repository와 Image Digest
 - 워크로드별 Port, Resource, Probe, HPA, PDB, IRSA와 Secret Mount 값
 - Gateway와 HTTPRoute의 `parentRefs`, Hostname 및 경로 규칙
 - HPA·KEDA가 관리하는 Replica 필드의 `ignoreDifferences` 적용 범위
 - Argo CD Notifications의 수신 채널과 알림 조건
 
-위 항목이 준비되기 전에는 이 디렉터리의 AppProject와 ApplicationSet을 클러스터에 적용하지 않는다.
+위 항목이 준비되고 모든 Helm 렌더링 검사가 통과하기 전에는 Workload Application의 Auto Sync를 활성화하지 않는다.
 
 ## 최초 등록 순서
 
 1. Argo CD와 ApplicationSet Controller가 정상 동작하는지 확인한다.
-2. Private GitOps 저장소 Credential을 등록한다.
-3. `lookddak-dev` AppProject를 등록한다.
-4. 대상 Namespace와 환경 values가 준비되었는지 확인한다.
-5. dev의 Domain ApplicationSet과 Workload ApplicationSet을 등록한다.
-6. 생성된 Application의 Sync 및 Health 상태를 확인한다.
+2. Public GitOps 저장소가 `argocd-repo-server`에서 조회되는지 확인한다.
+3. `root-application.yaml`을 최초 한 번 `kubectl apply`한다.
+4. Root가 AppProject, Namespace와 ApplicationSet을 순서대로 생성하는지 확인한다.
+5. Workload Application이 생성되지만 자동 Sync되지 않는지 확인한다.
+6. 실배포 values를 완성하고 검증한 뒤 별도 PR로 Workload Auto Sync를 활성화한다.

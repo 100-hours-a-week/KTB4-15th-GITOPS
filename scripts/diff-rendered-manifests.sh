@@ -22,6 +22,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
+copy_static_manifests() {
+  local source_root="$1"
+  local output_root="$2"
+  local manifest
+  local relative_path
+  local target
+
+  [[ -d "$source_root/argocd" ]] || return 0
+
+  while IFS= read -r -d '' manifest; do
+    relative_path="${manifest#"$source_root"/}"
+    target="$output_root/gitops-static/$relative_path"
+    mkdir -p "$(dirname "$target")"
+    cp "$manifest" "$target"
+  done < <(find "$source_root/argocd" -type f -name '*.yaml' -print0)
+}
+
 git worktree add --detach "$base_checkout" "$base_sha" >/dev/null
 
 (
@@ -30,6 +47,9 @@ git worktree add --detach "$base_checkout" "$base_sha" >/dev/null
 )
 
 scripts/render-fixtures.sh "$head_output"
+
+copy_static_manifests "$base_checkout" "$base_output"
+copy_static_manifests "." "$head_output"
 
 set +e
 diff -ruN "$base_output" "$head_output" > "$diff_file"
