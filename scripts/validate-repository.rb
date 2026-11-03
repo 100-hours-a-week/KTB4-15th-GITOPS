@@ -33,7 +33,20 @@ argocd_files = %w[
   platform/dev/argocd/README.md
 ].freeze
 
-argocd_files.each do |file|
+karpenter_files = %w[
+  platform/dev/karpenter/README.md
+  platform/dev/karpenter/crd/Chart.yaml
+  platform/dev/karpenter/crd/Chart.lock
+  platform/dev/karpenter/crd/values.yaml
+  platform/dev/karpenter/controller/Chart.yaml
+  platform/dev/karpenter/controller/Chart.lock
+  platform/dev/karpenter/controller/values.yaml
+  argocd/projects/lookddak-dev-platform.yaml
+  argocd/dev/karpenter-crd-application.yaml
+  argocd/dev/karpenter-controller-application.yaml
+].freeze
+
+[argocd_files, karpenter_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -121,7 +134,7 @@ abort "#{root_file}: Root Application은 default Project에서 부트스트랩�
 
 root_sources = root.dig("spec", "sources") || []
 expected_root_sources = {
-  "argocd/projects" => "lookddak-dev.yaml",
+  "argocd/projects" => "lookddak-dev*.yaml",
   "argocd/dev" => nil
 }
 
@@ -145,6 +158,108 @@ expected_root_automation = {
   "allowEmpty" => false
 }
 abort "#{root_file}: Root Auto Sync 안전 정책이 예상과 다릅니다." unless root_automation == expected_root_automation
+
+platform_project_file = "argocd/projects/lookddak-dev-platform.yaml"
+platform_project = load_yaml(platform_project_file)
+abort "#{platform_project_file}: kind가 AppProject가 아닙니다." unless platform_project["kind"] == "AppProject"
+abort "#{platform_project_file}: Project 이름이 예상과 다릅니다." unless platform_project.dig("metadata", "name") == "lookddak-dev-platform"
+abort "#{platform_project_file}: 허용 Repository가 예상과 다릅니다." unless platform_project.dig("spec", "sourceRepos") == [gitops_repository]
+
+platform_destination = platform_project.dig("spec", "destinations", 0)
+unless platform_destination == { "server" => in_cluster_server, "namespace" => "kube-system" }
+  abort "#{platform_project_file}: 플랫폼 배포 대상은 현재 Cluster의 kube-system Namespace여야 합니다."
+end
+
+expected_platform_resources = [
+  { "group" => "apiextensions.k8s.io", "kind" => "CustomResourceDefinition" },
+  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRole" },
+  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" }
+]
+unless platform_project.dig("spec", "clusterResourceWhitelist") == expected_platform_resources
+  abort "#{platform_project_file}: Karpenter 설치에 필요한 Cluster 범위 리소스만 허용해야 합니다."
+end
+
+unless platform_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2"
+  abort "#{platform_project_file}: Karpenter Application 전에 적용할 sync-wave -2가 필요합니다."
+end
+
+karpenter_version = "1.15.1"
+{
+  "platform/dev/karpenter/crd/Chart.yaml" => "karpenter-crd",
+  "platform/dev/karpenter/controller/Chart.yaml" => "karpenter"
+}.each do |file, dependency_name|
+  chart = load_yaml(file)
+  dependency = (chart["dependencies"] || []).find { |item| item["name"] == dependency_name }
+  abort "#{file}: #{dependency_name} 의존성이 필요합니다." unless dependency
+  abort "#{file}: #{dependency_name} 버전은 #{karpenter_version}이어야 합니다." unless dependency["version"] == karpenter_version
+  abort "#{file}: Karpenter 공식 OCI Repository를 사용해야 합니다." unless dependency["repository"] == "oci://public.ecr.aws/karpenter"
+end
+
+controller_values_file = "platform/dev/karpenter/controller/values.yaml"
+controller_values = load_yaml(controller_values_file).fetch("karpenter")
+unless controller_values.dig("settings", "clusterName") == "lookddak-dev" &&
+       controller_values.dig("settings", "interruptionQueue") == ""
+  abort "#{controller_values_file}: dev Cluster 이름과 비활성화된 Interruption Queue가 필요합니다."
+end
+
+unless controller_values.dig("serviceAccount", "name") == "karpenter" &&
+       controller_values.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-dev-karpenter-controller"
+  abort "#{controller_values_file}: karpenter ServiceAccount와 Controller IRSA Role 연결이 필요합니다."
+end
+
+unless controller_values["replicas"] == 2 &&
+       controller_values.dig("nodeSelector", "lookddak.io/node-pool") == "system"
+  abort "#{controller_values_file}: Controller Replica 2개와 System Node 고정 배치가 필요합니다."
+end
+
+expected_resources = {
+  "requests" => { "cpu" => 1, "memory" => "1Gi" },
+  "limits" => { "cpu" => 1, "memory" => "1Gi" }
+}
+unless controller_values.dig("controller", "resources") == expected_resources
+  abort "#{controller_values_file}: Controller Resource는 CPU 1, Memory 1Gi로 명시해야 합니다."
+end
+
+expected_application_automation = {
+  "enabled" => true,
+  "prune" => true,
+  "selfHeal" => true,
+  "allowEmpty" => false
+}
+
+karpenter_applications = {
+  "argocd/dev/karpenter-crd-application.yaml" => {
+    "name" => "lookddak-dev-karpenter-crd",
+    "path" => "platform/dev/karpenter/crd",
+    "wave" => "-1",
+    "skip_crds" => nil,
+    "sync_options" => ["ServerSideApply=true", "PruneLast=true"]
+  },
+  "argocd/dev/karpenter-controller-application.yaml" => {
+    "name" => "lookddak-dev-karpenter-controller",
+    "path" => "platform/dev/karpenter/controller",
+    "wave" => "0",
+    "skip_crds" => true,
+    "sync_options" => ["PruneLast=true"]
+  }
+}
+
+karpenter_applications.each do |file, expected|
+  application = load_yaml(file)
+  abort "#{file}: kind가 Application이 아닙니다." unless application["kind"] == "Application"
+  abort "#{file}: Application 이름이 예상과 다릅니다." unless application.dig("metadata", "name") == expected["name"]
+  abort "#{file}: argocd Namespace에 있어야 합니다." unless application.dig("metadata", "namespace") == "argocd"
+  abort "#{file}: 플랫폼 AppProject를 사용해야 합니다." unless application.dig("spec", "project") == "lookddak-dev-platform"
+  abort "#{file}: sync-wave가 예상과 다릅니다." unless application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == expected["wave"]
+  abort "#{file}: Public GitOps Repository의 main을 추적해야 합니다." unless application.dig("spec", "source", "repoURL") == gitops_repository && application.dig("spec", "source", "targetRevision") == "main"
+  abort "#{file}: Helm Chart 경로가 예상과 다릅니다." unless application.dig("spec", "source", "path") == expected["path"]
+  abort "#{file}: 배포 대상은 현재 Cluster의 kube-system이어야 합니다." unless application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "kube-system" }
+  abort "#{file}: Auto Sync 정책이 예상과 다릅니다." unless application.dig("spec", "syncPolicy", "automated") == expected_application_automation
+  abort "#{file}: Sync Option이 예상과 다릅니다." unless application.dig("spec", "syncPolicy", "syncOptions") == expected["sync_options"]
+
+  actual_skip_crds = application.dig("spec", "source", "helm", "skipCrds")
+  abort "#{file}: Controller Application만 내장 CRD를 제외해야 합니다." unless actual_skip_crds == expected["skip_crds"]
+end
 
 dev_namespace_files = Dir["argocd/dev/namespace-*.yaml"].sort
 actual_dev_namespaces = dev_namespace_files.map do |file|

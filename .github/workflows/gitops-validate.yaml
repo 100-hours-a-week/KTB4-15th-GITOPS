@@ -37,6 +37,11 @@ jobs:
       - name: Argo CD Helm 의존성 준비
         run: helm dependency build platform/dev/argocd
 
+      - name: Karpenter Helm 의존성 준비
+        run: |
+          helm dependency build platform/dev/karpenter/crd
+          helm dependency build platform/dev/karpenter/controller
+
       - name: YAML 문법 검사
         run: ruby scripts/validate-yaml.rb
 
@@ -48,6 +53,8 @@ jobs:
           helm lint charts/lookddak-workload
           helm lint charts/lookddak-domain
           helm lint platform/dev/argocd --namespace argocd --kube-version 1.36.0
+          helm lint platform/dev/karpenter/crd --namespace kube-system --kube-version 1.36.0
+          helm lint platform/dev/karpenter/controller --namespace kube-system --kube-version 1.36.0
 
       - name: Helm Fixture 렌더링
         run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
@@ -80,9 +87,12 @@ jobs:
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             -summary \
             /workspace/argocd/projects/lookddak-dev.yaml \
+            /workspace/argocd/projects/lookddak-dev-platform.yaml \
             /workspace/argocd/dev/root-application.yaml \
             /workspace/argocd/dev/domain-applicationset.yaml \
             /workspace/argocd/dev/workload-applicationset.yaml \
+            /workspace/argocd/dev/karpenter-crd-application.yaml \
+            /workspace/argocd/dev/karpenter-controller-application.yaml \
             /workspace/argocd/dev/namespace-web.yaml \
             /workspace/argocd/dev/namespace-identity.yaml \
             /workspace/argocd/dev/namespace-commerce.yaml \

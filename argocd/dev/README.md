@@ -18,9 +18,9 @@ EKS dev에 설치된 Argo CD가 GitOps 저장소의 dev 목표 상태를 읽어 
 
 Root Application은 Sync Wave를 사용해 다음 순서로 리소스를 준비한다.
 
-1. `lookddak-dev` AppProject (`-2`)
-2. dev 도메인 Namespace 5개 (`-1`)
-3. Domain·Workload ApplicationSet (`0`)
+1. `lookddak-dev`, `lookddak-dev-platform` AppProject (`-2`)
+2. dev 도메인 Namespace 5개 및 Karpenter CRD Application (`-1`)
+3. Domain·Workload ApplicationSet 및 Karpenter Controller Application (`0`)
 
 Root Application은 `default` Project를 사용해 위 부트스트랩 리소스만 관리한다. 실제 도메인과 워크로드 Application은 권한이 제한된 `lookddak-dev` AppProject를 사용한다.
 

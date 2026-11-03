@@ -1,0 +1,31 @@
+karpenter:
+  settings:
+    clusterName: lookddak-dev
+    interruptionQueue: ""
+    enableZonalShift: false
+
+  serviceAccount:
+    create: true
+    name: karpenter
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-dev-karpenter-controller
+
+  replicas: 2
+
+  nodeSelector:
+    kubernetes.io/os: linux
+    lookddak.io/node-pool: system
+
+  controller:
+    resources:
+      requests:
+        cpu: 1
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 1Gi
+
+  serviceMonitor:
+    enabled: false
+
+  logLevel: info
