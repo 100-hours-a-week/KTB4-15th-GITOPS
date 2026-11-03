@@ -45,9 +45,9 @@ EKS dev(`lookddak-dev`)의 Cilium 설정을 관리하는 디렉터리다. Cilium
 
 ## 설치·변경
 
-터미널 1 (터널, 켜둔다) — KTB4-15th-CLOUD에서
+터미널 1 (터널, 켜둔다)
 ```bash
-aws ssm start-session --region ap-northeast-2 --target $(cd infra/environments && terraform output -raw dev_v2_db_access_instance_id) --document-name lookddak-dev-api-port-forward --parameters '{"localPortNumber":["8443"]}'
+aws ssm start-session --region ap-northeast-2 --target $(aws ec2 describe-instances --region ap-northeast-2 --filters Name=tag:Name,Values=lookddak-dev-db-access Name=instance-state-name,Values=running --query 'Reservations[0].Instances[0].InstanceId' --output text) --document-name lookddak-dev-api-port-forward --parameters '{"localPortNumber":["8443"]}'
 ```
 
 터미널 2 — kubeconfig 최초 1회
