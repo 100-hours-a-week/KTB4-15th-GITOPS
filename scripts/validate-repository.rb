@@ -17,6 +17,17 @@ domains = {
 environments = %w[dev prod].freeze
 application_names = []
 
+argocd_files = %w[
+  platform/dev/argocd/Chart.yaml
+  platform/dev/argocd/Chart.lock
+  platform/dev/argocd/values.yaml
+  platform/dev/argocd/README.md
+].freeze
+
+argocd_files.each do |file|
+  abort "필수 파일 누락: #{file}" unless File.file?(file)
+end
+
 environments.each do |environment|
   images_file = "environments/#{environment}/images.yaml"
   abort "필수 파일 누락: #{images_file}" unless File.file?(images_file)
@@ -77,4 +88,4 @@ expected_sets.each do |file, expected_path|
   abort "#{file}: Git generator 경로가 예상과 다릅니다." unless actual_path == expected_path
 end
 
-puts "저장소 구조 검사 완료: 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"
+puts "저장소 구조 검사 완료: Argo CD 설치 설정, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"

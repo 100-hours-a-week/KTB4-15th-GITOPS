@@ -1,0 +1,48 @@
+argo-cd:
+  crds:
+    install: true
+    keep: true
+
+  global:
+    nodeSelector:
+      kubernetes.io/os: linux
+      lookddak.io/node-pool: system
+    networkPolicy:
+      create: false
+
+  controller:
+    replicas: 1
+
+  dex:
+    enabled: false
+
+  redis:
+    enabled: true
+
+  redis-ha:
+    enabled: false
+
+  configs:
+    cm:
+      admin.enabled: true
+      url: https://argocd-dev.lookddak.com
+
+  server:
+    replicas: 1
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: false
+
+  repoServer:
+    replicas: 1
+
+  applicationSet:
+    replicas: 1
+
+  notifications:
+    enabled: false
+
+  commitServer:
+    enabled: false
+
