@@ -101,7 +101,7 @@ KTB4-15th-GITOPS/
 │  └─ prod/                      # Prod 클러스터 공통 구성
 ├─ argocd/
 │  ├─ projects/                  # 환경별 AppProject
-│  ├─ dev/                       # Dev ApplicationSet
+│  ├─ dev/                       # Dev Root Application·Namespace·ApplicationSet
 │  └─ prod/                      # Prod ApplicationSet
 ├─ ci/
 │  └─ fixtures/                  # 공통 Chart를 검증하는 대표 values
@@ -119,7 +119,7 @@ KTB4-15th-GITOPS/
 | `platform/<env>` | Cilium, Istio, Gateway, Karpenter, KEDA, Secret, 관측 구성 |
 | `platform/dev/argocd` | EKS dev에 설치할 Argo CD 자체의 Chart 버전과 Helm 설정 |
 | `argocd/projects` | Argo CD의 Repository·Cluster·Namespace 접근 범위 |
-| `argocd/<env>` | Domain과 Workload Application을 생성하는 ApplicationSet |
+| `argocd/<env>` | Root Application, Namespace와 Domain·Workload ApplicationSet |
 | `ci/fixtures` | 실제 환경 설정이 완성되기 전 공통 Chart 분기를 검증하는 입력값 |
 | `scripts` | CI가 실행하는 저장소 검증과 Manifest Diff 도구 |
 
@@ -238,9 +238,9 @@ scripts/diff-rendered-manifests.sh origin/main /tmp/lookddak-manifest-diff
 | 1 | YAML 문법 | 파싱 오류와 중복 키 검사 |
 | 2 | 저장소 구조 | 5개 Domain, 환경별 10개 Workload, 필수 파일과 ApplicationSet 경로 검사 |
 | 3 | Helm dependency·lint | 공통 Chart와 Argo CD Chart 의존성·구조·Template 문법 검사 |
-| 4 | Helm template | 대표 Fixture 5개와 Argo CD를 Kubernetes Manifest로 렌더링 |
-| 5 | Manifest Diff | `main`과 PR의 렌더링 결과를 비교해 리소스별 추가·변경·삭제 요약을 Summary와 PR Bot 댓글로 출력 |
-| 6 | Kubernetes Schema | 렌더링 결과를 `kubeconform`으로 검사 |
+| 4 | Manifest 준비 | 대표 Fixture 5개와 Argo CD Chart를 렌더링하고 정적 Argo CD YAML을 수집 |
+| 5 | Manifest Diff | `main`과 PR의 Helm·정적 Argo CD 리소스를 비교해 추가·변경·삭제 요약을 Summary와 PR Bot 댓글로 출력 |
+| 6 | Kubernetes Schema | 렌더링 결과와 Argo CD CRD 리소스를 `kubeconform`으로 검사 |
 | 7 | GitOps 정책 | Secret 원문, `kind: Secret`, 이미지 Repository·Digest 짝과 Digest 형식 검사 |
 
 Manifest에 변경이 있다는 이유만으로 CI가 실패하지 않습니다. Diff는 변경 결과를 사람이 검토하기 위한 정보이며, 문법·구조·Schema·정책 위반이 있을 때 CI가 실패합니다.
@@ -261,7 +261,7 @@ Manifest에 변경이 있다는 이유만으로 CI가 실패하지 않습니다.
 
 ## Argo CD 동기화 정책
 
-dev와 prod ApplicationSet은 `main`을 감시하며 다음 정책으로 동기화합니다.
+Root Application과 최종 활성화된 ApplicationSet은 `main`을 감시하며 다음 정책으로 동기화합니다.
 
 | 설정 | 동작 |
 | --- | --- |
@@ -272,6 +272,8 @@ dev와 prod ApplicationSet은 `main`을 감시하며 다음 정책으로 동기�
 | `PruneLast=true` | 새 상태가 반영된 후 삭제 대상 정리 |
 
 따라서 Cluster를 수동으로 변경하더라도 Self Heal에 의해 Git 상태로 되돌아갈 수 있습니다. 운영 변경은 반드시 Git에서 시작해야 합니다.
+
+EKS dev 최초 연결 단계에서는 이미지·Replica 등 실배포 값이 아직 확정되지 않았으므로 Workload ApplicationSet의 `automated.enabled`를 `false`로 유지합니다. Root Application은 AppProject, Namespace와 ApplicationSet을 자동 관리하지만, 실제 Workload Auto Sync는 필수 values와 전체 Helm 렌더링 검증이 완료된 후 별도 PR로 활성화합니다.
 
 ## 롤백·장애 대응
 

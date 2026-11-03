@@ -3,6 +3,8 @@ kind: ApplicationSet
 metadata:
   name: lookddak-dev-workloads
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   goTemplate: true
   goTemplateOptions:
@@ -35,7 +37,7 @@ spec:
         namespace: 'lookddak-{{ index .path.segments 3 }}'
       syncPolicy:
         automated:
-          enabled: true
+          enabled: false
           prune: true
           selfHeal: true
           allowEmpty: false
