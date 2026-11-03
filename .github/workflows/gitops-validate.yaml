@@ -31,6 +31,12 @@ jobs:
         with:
           version: v4.2.3
 
+      - name: Argo CD Helm Repository 등록
+        run: helm repo add argo https://argoproj.github.io/argo-helm
+
+      - name: Argo CD Helm 의존성 준비
+        run: helm dependency build platform/dev/argocd
+
       - name: YAML 문법 검사
         run: ruby scripts/validate-yaml.rb
 
@@ -41,6 +47,7 @@ jobs:
         run: |
           helm lint charts/lookddak-workload
           helm lint charts/lookddak-domain
+          helm lint platform/dev/argocd --namespace argocd --kube-version 1.36.0
 
       - name: Helm Fixture 렌더링
         run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
@@ -57,7 +64,8 @@ jobs:
             -v "$RUNNER_TEMP/rendered:/manifests:ro" \
             ghcr.io/yannh/kubeconform:v0.8.0-alpine@sha256:461fae0fa54c5fe64028152533e57f6b88adb1d26dbafd80092e7310d349ae48 \
             -strict \
-            -skip HTTPRoute,SecretProviderClass \
+            -kubernetes-version 1.36.0 \
+            -skip HTTPRoute,SecretProviderClass,CustomResourceDefinition \
             -summary \
             /manifests
 

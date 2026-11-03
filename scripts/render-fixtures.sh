@@ -30,4 +30,13 @@ helm template fixture-domain charts/lookddak-domain \
   -f ci/fixtures/domain-policy.yaml \
   > "$output_dir/domain-policy.yaml"
 
-echo "Helm fixture 렌더링 완료: 5개"
+if [[ -f platform/dev/argocd/Chart.yaml ]]; then
+  helm dependency build platform/dev/argocd >/dev/null
+  helm template argocd platform/dev/argocd \
+    --namespace argocd \
+    --kube-version 1.36.0 \
+    --include-crds \
+    > "$output_dir/argocd-dev.yaml"
+fi
+
+echo "Helm Manifest 렌더링 완료: Fixture 5개, Argo CD 1개"

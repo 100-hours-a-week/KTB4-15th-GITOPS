@@ -97,7 +97,7 @@ KTB4-15th-GITOPS/
 │     ├─ images.yaml             # Prod로 승격한 이미지 Digest
 │     └─ domains/
 ├─ platform/
-│  ├─ dev/                       # Dev 클러스터 공통 구성
+│  ├─ dev/                       # Dev 클러스터 공통 구성과 Argo CD 설치 설정
 │  └─ prod/                      # Prod 클러스터 공통 구성
 ├─ argocd/
 │  ├─ projects/                  # 환경별 AppProject
@@ -117,6 +117,7 @@ KTB4-15th-GITOPS/
 | `environments/<env>/images.yaml` | FE·BE·AI·Crawler 이미지 Repository와 불변 Digest |
 | `environments/<env>/domains` | Domain과 Workload별 환경 설정 |
 | `platform/<env>` | Cilium, Istio, Gateway, Karpenter, KEDA, Secret, 관측 구성 |
+| `platform/dev/argocd` | EKS dev에 설치할 Argo CD 자체의 Chart 버전과 Helm 설정 |
 | `argocd/projects` | Argo CD의 Repository·Cluster·Namespace 접근 범위 |
 | `argocd/<env>` | Domain과 Workload Application을 생성하는 ApplicationSet |
 | `ci/fixtures` | 실제 환경 설정이 완성되기 전 공통 Chart 분기를 검증하는 입력값 |
@@ -193,6 +194,8 @@ ruby scripts/validate-repository.rb
 
 helm lint charts/lookddak-workload
 helm lint charts/lookddak-domain
+helm dependency build platform/dev/argocd
+helm lint platform/dev/argocd --namespace argocd --kube-version 1.36.0
 
 scripts/render-fixtures.sh /tmp/lookddak-rendered
 ruby scripts/validate-policy.rb
@@ -234,8 +237,8 @@ scripts/diff-rendered-manifests.sh origin/main /tmp/lookddak-manifest-diff
 | --- | --- | --- |
 | 1 | YAML 문법 | 파싱 오류와 중복 키 검사 |
 | 2 | 저장소 구조 | 5개 Domain, 환경별 10개 Workload, 필수 파일과 ApplicationSet 경로 검사 |
-| 3 | Helm lint | 공통 Workload·Domain Chart 구조와 Template 문법 검사 |
-| 4 | Helm template | 대표 Fixture 5개를 Kubernetes Manifest로 렌더링 |
+| 3 | Helm dependency·lint | 공통 Chart와 Argo CD Chart 의존성·구조·Template 문법 검사 |
+| 4 | Helm template | 대표 Fixture 5개와 Argo CD를 Kubernetes Manifest로 렌더링 |
 | 5 | Manifest Diff | `main`과 PR의 렌더링 결과를 비교해 Summary와 PR Bot 댓글로 출력 |
 | 6 | Kubernetes Schema | 렌더링 결과를 `kubeconform`으로 검사 |
 | 7 | GitOps 정책 | Secret 원문, `kind: Secret`, 이미지 Repository·Digest 짝과 Digest 형식 검사 |
