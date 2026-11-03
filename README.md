@@ -118,6 +118,7 @@ KTB4-15th-GITOPS/
 | `environments/<env>/domains` | Domain과 Workload별 환경 설정 |
 | `platform/<env>` | Cilium, Istio, Gateway, Karpenter, KEDA, Secret, 관측 구성 |
 | `platform/dev/argocd` | EKS dev에 설치할 Argo CD 자체의 Chart 버전과 Helm 설정 |
+| `platform/dev/karpenter/nodepool` | Dev Application Node의 EC2NodeClass·NodePool과 공급·회수 정책 |
 | `argocd/projects` | Argo CD의 Repository·Cluster·Namespace 접근 범위 |
 | `argocd/<env>` | Root Application, Namespace와 Domain·Workload ApplicationSet |
 | `ci/fixtures` | 실제 환경 설정이 완성되기 전 공통 Chart 분기를 검증하는 입력값 |
@@ -237,10 +238,10 @@ scripts/diff-rendered-manifests.sh origin/main /tmp/lookddak-manifest-diff
 | --- | --- | --- |
 | 1 | YAML 문법 | 파싱 오류와 중복 키 검사 |
 | 2 | 저장소 구조 | 5개 Domain, 환경별 10개 Workload, 필수 파일과 ApplicationSet 경로 검사 |
-| 3 | Helm dependency·lint | 공통 Chart와 Argo CD Chart 의존성·구조·Template 문법 검사 |
-| 4 | Manifest 준비 | 대표 Fixture 5개와 Argo CD Chart를 렌더링하고 정적 Argo CD YAML을 수집 |
-| 5 | Manifest Diff | `main`과 PR의 Helm·정적 Argo CD 리소스를 비교해 추가·변경·삭제 요약을 Summary와 PR Bot 댓글로 출력 |
-| 6 | Kubernetes Schema | 렌더링 결과와 Argo CD CRD 리소스를 `kubeconform`으로 검사 |
+| 3 | Helm dependency·lint | 공통 Chart·Argo CD·Karpenter Chart 의존성·구조·Template 문법 검사 |
+| 4 | Manifest 준비 | 대표 Fixture·Argo CD·Karpenter Chart 렌더링과 정적 Argo CD·NodePool YAML 수집 |
+| 5 | Manifest Diff | `main`과 PR의 Helm·정적 리소스를 비교해 추가·변경·삭제 요약을 Summary와 PR Bot 댓글로 출력 |
+| 6 | Kubernetes Schema | 표준·Argo CD 리소스와 고정 Karpenter CRD에서 추출한 NodePool·EC2NodeClass Schema 검사 |
 | 7 | GitOps 정책 | Secret 원문, `kind: Secret`, 이미지 Repository·Digest 짝과 Digest 형식 검사 |
 
 Manifest에 변경이 있다는 이유만으로 CI가 실패하지 않습니다. Diff는 변경 결과를 사람이 검토하기 위한 정보이며, 문법·구조·Schema·정책 위반이 있을 때 CI가 실패합니다.

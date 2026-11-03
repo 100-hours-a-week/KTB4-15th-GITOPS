@@ -1,0 +1,38 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: general-purpose
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  amiSelectorTerms:
+    # 2026-11-03 AWS SSM 조회: EKS 1.36.5 / AL2023 x86_64 Standard.
+    - alias: al2023@v20261031
+  instanceProfile: lookddak-dev-karpenter-node
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: lookddak-dev
+        Tier: private-node
+  securityGroupSelectorTerms:
+    # System MNG와 같은 EKS 기본 Cluster SG. 별도 discovery 태그는 현재 없음.
+    - id: sg-04d109eb4f8eae342
+  associatePublicIPAddress: false
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 1
+    httpTokens: required
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeType: gp3
+        volumeSize: 30Gi
+        encrypted: true
+        deleteOnTermination: true
+  tags:
+    Name: lookddak-dev-general-purpose
+    Project: lookddak
+    Environment: dev
+    Version: v3
+    NodePool: general-purpose
+    ManagedBy: karpenter

@@ -44,6 +44,10 @@ karpenter_files = %w[
   argocd/projects/lookddak-dev-platform.yaml
   argocd/dev/karpenter-crd-application.yaml
   argocd/dev/karpenter-controller-application.yaml
+  argocd/dev/karpenter-nodepool-application.yaml
+  platform/dev/karpenter/nodepool/ec2-nodeclass.yaml
+  platform/dev/karpenter/nodepool/nodepool.yaml
+  platform/dev/karpenter/nodepool/README.md
 ].freeze
 
 [argocd_files, karpenter_files].flatten.each do |file|
@@ -173,7 +177,9 @@ end
 expected_platform_resources = [
   { "group" => "apiextensions.k8s.io", "kind" => "CustomResourceDefinition" },
   { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRole" },
-  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" }
+  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" },
+  { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass" },
+  { "group" => "karpenter.sh", "kind" => "NodePool" }
 ]
 unless platform_project.dig("spec", "clusterResourceWhitelist") == expected_platform_resources
   abort "#{platform_project_file}: Karpenter 설치에 필요한 Cluster 범위 리소스만 허용해야 합니다."
@@ -241,6 +247,13 @@ karpenter_applications = {
     "wave" => "0",
     "skip_crds" => true,
     "sync_options" => ["PruneLast=true"]
+  },
+  "argocd/dev/karpenter-nodepool-application.yaml" => {
+    "name" => "lookddak-dev-karpenter-nodepool",
+    "path" => "platform/dev/karpenter/nodepool",
+    "wave" => "1",
+    "skip_crds" => nil,
+    "sync_options" => ["PruneLast=true"]
   }
 }
 
@@ -259,6 +272,63 @@ karpenter_applications.each do |file, expected|
 
   actual_skip_crds = application.dig("spec", "source", "helm", "skipCrds")
   abort "#{file}: Controller Application만 내장 CRD를 제외해야 합니다." unless actual_skip_crds == expected["skip_crds"]
+end
+
+nodepool_application = load_yaml("argocd/dev/karpenter-nodepool-application.yaml")
+unless nodepool_application.dig("spec", "source", "directory", "include") == "{ec2-nodeclass.yaml,nodepool.yaml}"
+  abort "NodePool Application은 승인된 EC2NodeClass·NodePool 파일만 배포해야 합니다."
+end
+
+nodepool = load_yaml("platform/dev/karpenter/nodepool/nodepool.yaml")
+nodeclass = load_yaml("platform/dev/karpenter/nodepool/ec2-nodeclass.yaml")
+abort "NodePool·EC2NodeClass는 general-purpose 이름을 사용해야 합니다." unless [nodepool, nodeclass].all? { |item| item.dig("metadata", "name") == "general-purpose" }
+abort "NodePool·EC2NodeClass는 Namespace를 지정하지 않는 Cluster 리소스입니다." if [nodepool, nodeclass].any? { |item| item.dig("metadata", "namespace") }
+abort "동적 NodePool에는 고정 replicas를 지정하지 않습니다." if nodepool.fetch("spec").key?("replicas")
+
+node_template = nodepool.dig("spec", "template", "spec")
+unless node_template["nodeClassRef"] == { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass", "name" => "general-purpose" }
+  abort "NodePool은 general-purpose EC2NodeClass를 참조해야 합니다."
+end
+unless nodepool.dig("spec", "template", "metadata", "labels", "lookddak.io/node-pool") == "general-purpose"
+  abort "Application Node 식별 Label이 필요합니다."
+end
+expected_requirements = {
+  "kubernetes.io/os" => ["In", %w[linux]],
+  "kubernetes.io/arch" => ["In", %w[amd64]],
+  "karpenter.sh/capacity-type" => ["In", %w[on-demand]],
+  "karpenter.k8s.aws/instance-category" => ["In", %w[c m r]],
+  "karpenter.k8s.aws/instance-generation" => ["Gt", %w[4]],
+  "karpenter.k8s.aws/instance-cpu" => ["In", %w[2 4 8]],
+  "topology.kubernetes.io/zone" => ["In", %w[ap-northeast-2a ap-northeast-2c]]
+}
+requirements = node_template.fetch("requirements")
+actual_requirements = requirements.to_h { |item| [item.fetch("key"), [item.fetch("operator"), item.fetch("values")]] }
+unless actual_requirements == expected_requirements && requirements.length == expected_requirements.length
+  abort "NodePool 인스턴스 조건이 승인된 Linux·AMD64·On-Demand·C/M/R·세대·CPU·AZ 범위와 다릅니다."
+end
+unless node_template["startupTaints"] == [{ "key" => "node.cilium.io/agent-not-ready", "value" => "true", "effect" => "NoExecute" }] && (node_template["taints"] || []).empty?
+  abort "고정 Taint 없이 Cilium Startup Taint를 선언해야 합니다."
+end
+unless nodepool.dig("spec", "limits") == { "cpu" => "32", "memory" => "64Gi" }
+  abort "Dev 초기 공급 상한은 CPU 32·Memory 64Gi입니다. 부하 테스트 후 정책과 검증을 함께 갱신하세요."
+end
+unless nodepool.dig("spec", "disruption") == { "consolidationPolicy" => "WhenEmpty", "consolidateAfter" => "5m", "budgets" => [{ "nodes" => "1" }] } && node_template["expireAfter"] == "Never"
+  abort "초기 회수 정책은 WhenEmpty·5분 대기·동시 1대이며 시간 만료는 비활성화합니다."
+end
+unless nodeclass.dig("spec", "instanceProfile") == "lookddak-dev-karpenter-node" && !nodeclass.fetch("spec").key?("role")
+  abort "Terraform에서 생성한 Karpenter Node Instance Profile을 사용해야 합니다."
+end
+unless nodeclass.dig("spec", "amiSelectorTerms")&.all? { |term| term["alias"].to_s.match?(/\Aal2023@v\d{8}\z/) }
+  abort "EKS AL2023 AMI 날짜 버전을 고정해야 합니다."
+end
+unless nodeclass.dig("spec", "subnetSelectorTerms") == [{ "tags" => { "karpenter.sh/discovery" => "lookddak-dev", "Tier" => "private-node" } }] && nodeclass.dig("spec", "associatePublicIPAddress") == false
+  abort "Node 전용 Private Subnet만 선택하고 Public IP는 비활성화해야 합니다."
+end
+unless nodeclass.dig("spec", "securityGroupSelectorTerms") == [{ "id" => "sg-04d109eb4f8eae342" }]
+  abort "조회로 확인한 기존 EKS Cluster SG를 사용해야 합니다."
+end
+unless nodeclass.dig("spec", "blockDeviceMappings") == [{ "deviceName" => "/dev/xvda", "ebs" => { "volumeType" => "gp3", "volumeSize" => "30Gi", "encrypted" => true, "deleteOnTermination" => true } }]
+  abort "Root Volume은 암호화 gp3 30Gi, 종료 시 삭제 정책이어야 합니다."
 end
 
 dev_namespace_files = Dir["argocd/dev/namespace-*.yaml"].sort

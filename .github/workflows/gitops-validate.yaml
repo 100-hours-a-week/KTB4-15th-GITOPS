@@ -72,9 +72,23 @@ jobs:
             ghcr.io/yannh/kubeconform:v0.8.0-alpine@sha256:461fae0fa54c5fe64028152533e57f6b88adb1d26dbafd80092e7310d349ae48 \
             -strict \
             -kubernetes-version 1.36.0 \
-            -skip HTTPRoute,SecretProviderClass,CustomResourceDefinition,Application,ApplicationSet,AppProject \
+            -skip HTTPRoute,SecretProviderClass,CustomResourceDefinition,Application,ApplicationSet,AppProject,NodePool,EC2NodeClass \
             -summary \
             /manifests
+
+      - name: Karpenter NodePool·EC2NodeClass Schema 검사
+        run: |
+          ruby scripts/extract-karpenter-schemas.rb \
+            "$RUNNER_TEMP/rendered/karpenter-crd-dev.yaml" "$RUNNER_TEMP/karpenter-schemas"
+          docker run --rm \
+            -v "$RUNNER_TEMP/rendered:/manifests:ro" \
+            -v "$RUNNER_TEMP/karpenter-schemas:/schemas:ro" \
+            ghcr.io/yannh/kubeconform:v0.8.0-alpine@sha256:461fae0fa54c5fe64028152533e57f6b88adb1d26dbafd80092e7310d349ae48 \
+            -strict \
+            -schema-location '/schemas/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            -summary \
+            /manifests/karpenter-ec2nodeclass-dev.yaml \
+            /manifests/karpenter-nodepool-dev.yaml
 
       - name: Argo CD 리소스 Schema 검사
         run: |
@@ -93,6 +107,7 @@ jobs:
             /workspace/argocd/dev/workload-applicationset.yaml \
             /workspace/argocd/dev/karpenter-crd-application.yaml \
             /workspace/argocd/dev/karpenter-controller-application.yaml \
+            /workspace/argocd/dev/karpenter-nodepool-application.yaml \
             /workspace/argocd/dev/namespace-web.yaml \
             /workspace/argocd/dev/namespace-identity.yaml \
             /workspace/argocd/dev/namespace-commerce.yaml \

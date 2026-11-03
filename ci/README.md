@@ -15,3 +15,5 @@
 Fixture의 이미지 주소, Digest, Port와 Resource 값은 렌더링 검증용이며 실제 서비스 설정을 의미하지 않는다.
 
 현재 Kubernetes Schema 검사에서는 표준 Kubernetes 리소스를 엄격하게 검사한다. `HTTPRoute`, `SecretProviderClass` 등 CRD는 Cilium·Istio·Gateway API·Secrets Store CSI 버전이 확정된 후 해당 버전의 Schema를 고정하여 검사한다.
+
+Karpenter의 NodePool·EC2NodeClass는 `karpenter-crd` 고정 버전의 렌더링 결과에서 v1 OpenAPI Schema를 추출해 별도로 검사한다. Schema 파일을 중복 관리하지 않고 Chart 버전과 함께 갱신한다. 두 정적 Manifest도 PR Diff에 포함한다. 로컬 Schema 검사는 API Server의 CEL·Admission 검증, AWS 리소스 발견과 실제 Ready 상태를 대신하지 않는다.

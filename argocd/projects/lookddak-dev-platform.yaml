@@ -19,5 +19,9 @@ spec:
       kind: ClusterRole
     - group: rbac.authorization.k8s.io
       kind: ClusterRoleBinding
+    - group: karpenter.k8s.aws
+      kind: EC2NodeClass
+    - group: karpenter.sh
+      kind: NodePool
   orphanedResources:
     warn: true

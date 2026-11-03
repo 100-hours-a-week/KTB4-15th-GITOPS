@@ -21,6 +21,9 @@ Root Application은 Sync Wave를 사용해 다음 순서로 리소스를 준비�
 1. `lookddak-dev`, `lookddak-dev-platform` AppProject (`-2`)
 2. dev 도메인 Namespace 5개 및 Karpenter CRD Application (`-1`)
 3. Domain·Workload ApplicationSet 및 Karpenter Controller Application (`0`)
+4. Karpenter NodePool Application (`1`)
+
+NodePool Application은 `platform/dev/karpenter/nodepool`의 EC2NodeClass와 NodePool만 자동 반영한다. Root의 Sync Wave는 Child Application 선언 순서이며, 별도 Application의 배포 완료까지 보장하지 않는다. 기존 CRD·Controller가 정상인지 확인한 후 NodePool 구성을 Merge한다.
 
 Root Application은 `default` Project를 사용해 위 부트스트랩 리소스만 관리한다. 실제 도메인과 워크로드 Application은 권한이 제한된 `lookddak-dev` AppProject를 사용한다.
 
