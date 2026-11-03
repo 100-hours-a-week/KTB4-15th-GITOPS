@@ -2,11 +2,18 @@ argo-cd:
   crds:
     install: true
     keep: true
+    annotations:
+      argocd.argoproj.io/sync-options: ServerSideApply=true,Prune=false,Delete=false
 
   global:
     nodeSelector:
       kubernetes.io/os: linux
       lookddak.io/node-pool: system
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
     networkPolicy:
       create: false
 
@@ -23,6 +30,9 @@ argo-cd:
     enabled: false
 
   configs:
+    secret:
+      annotations:
+        argocd.argoproj.io/sync-options: Prune=false,Delete=false
     cm:
       admin.enabled: true
       url: https://argocd-dev.lookddak.com
