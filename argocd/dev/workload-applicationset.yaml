@@ -28,7 +28,7 @@ spec:
             releaseName: '{{ .workload.name }}'
             valueFiles:
               - $values/environments/dev/images.yaml
-              - '$values/{{ .path.path }}'
+              - '$values/{{ .path.path }}/{{ .path.filename }}'
         - repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
           targetRevision: main
           ref: values
