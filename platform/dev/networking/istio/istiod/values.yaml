@@ -1,0 +1,27 @@
+istiod:
+  # Ambient 모드 (ztunnel·waypoint 사용, Sidecar 주입 안 함)
+  profile: ambient
+
+  # Argo CD(helm template + apply) 사용 시 istiod가 Validation Webhook의 failurePolicy를
+  # Ignore → Fail로 바꾸며 생기는 반복 diff를 막기 위해 처음부터 Fail로 둔다 (Istio Helm 설치 문서).
+  base:
+    validationFailurePolicy: Fail
+
+  # dev 초기값. 차트 기본(500m / 2Gi)은 System Node(m7g.large 2대)에 과하다. 관측 후 조정
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  autoscaleMin: 1
+  autoscaleMax: 3
+
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: system
+
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Equal
+      value: "true"
+      effect: NoSchedule

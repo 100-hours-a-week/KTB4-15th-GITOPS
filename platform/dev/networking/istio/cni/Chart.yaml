@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-istio-cni
+description: LookDDak EKS dev Istio Ambient CNI Node Agent 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: cni
+    version: 1.31.3
+    repository: https://blob.istio.io/istio-release/charts

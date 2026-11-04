@@ -1,0 +1,4 @@
+# Istio CRD와 클러스터 공통 리소스. 다른 Istio 구성요소보다 먼저 적용한다.
+base:
+  global:
+    istioNamespace: istio-system
