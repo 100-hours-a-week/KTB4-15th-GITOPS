@@ -38,6 +38,23 @@ socketLB:
 
 operator:
   replicas: 2
+  # System Node에만 배치 (Application Node가 비면 Karpenter가 회수할 수 있게)
+  nodeSelector:
+    kubernetes.io/os: linux
+    lookddak.io/node-pool: system
+  # 차트 기본 Toleration + System Node 격리 Taint(CriticalAddonsOnly) 허용
+  # (agent-not-ready Toleration은 차트가 항상 추가한다)
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+    - key: node.cloudprovider.kubernetes.io/uninitialized
+      operator: Exists
+    - key: CriticalAddonsOnly
+      operator: Exists
 
 # Hubble: 흐름 수집만 켠다. Relay/UI는 관측 단계에서 켠다
 hubble:
