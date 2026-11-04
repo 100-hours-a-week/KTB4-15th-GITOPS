@@ -1,0 +1,45 @@
+# istiod가 자동 생성하는 Gateway Deployment·PDB의 덮어쓰기 값 (Gateway spec.infrastructure.parametersRef)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lookddak-gateway-options
+  namespace: istio-ingress
+data:
+  deployment: |
+    spec:
+      replicas: 2
+      template:
+        spec:
+          # 초기: System Node에 배치 (dev 트래픽이 작아 Gateway만을 위한 Application Node를 켜두지 않는다)
+          # 확장 필요 시: preferred(system) + required(system, general-purpose)로 전환 (README 참고)
+          nodeSelector:
+            kubernetes.io/os: linux
+            kubernetes.io/arch: arm64
+            lookddak.io/node-pool: system
+          tolerations:
+            - key: CriticalAddonsOnly
+              operator: Equal
+              value: "true"
+              effect: NoSchedule
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: DoNotSchedule
+              labelSelector:
+                matchLabels:
+                  gateway.networking.k8s.io/gateway-name: lookddak-gateway
+          # NLB deregistration delay(300초) 동안 기존 연결 종료를 기다린다
+          terminationGracePeriodSeconds: 330
+          containers:
+            - name: istio-proxy
+              # System Node의 CoreDNS·Karpenter·istiod 등을 보호하기 위해 사용량 상한을 둔다
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+  podDisruptionBudget: |
+    spec:
+      minAvailable: 1
