@@ -35,7 +35,10 @@ argo-cd:
         argocd.argoproj.io/sync-options: Prune=false,Delete=false
     cm:
       admin.enabled: true
-      url: https://argocd-dev.lookddak.com
+      url: https://argocd.dev.lookddak.com
+    params:
+      # TLS는 Istio Gateway에서 종료한다. argocd-server는 HTTP(80)로 받는다
+      server.insecure: true
 
   server:
     replicas: 1
