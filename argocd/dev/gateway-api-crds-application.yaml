@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lookddak-dev-gateway-api-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: lookddak-dev-platform
+  source:
+    repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+    targetRevision: main
+    path: platform/dev/networking/gateway-api/crds
+    directory:
+      include: standard-install.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  # CRD를 지우면 모든 Gateway·HTTPRoute가 함께 삭제되므로 자동 Prune을 끈다.
+  # 1.1MB CRD는 client-side apply 어노테이션 한도를 넘으므로 ServerSideApply로 적용한다.
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - PruneLast=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
