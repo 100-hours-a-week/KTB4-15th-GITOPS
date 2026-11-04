@@ -56,6 +56,13 @@ operator:
     - key: CriticalAddonsOnly
       operator: Exists
 
+# Envoy: standalone DaemonSet(cilium-envoy)을 끈다
+# - L7(Gateway, mTLS, AuthorizationPolicy, 서킷 브레이커)은 Istio가 담당한다
+# - L3/L4 정책, FQDN egress(DNS 프록시는 agent 내장), kube-proxy 대체에는 필요 없다
+# - L7 CiliumNetworkPolicy를 쓰게 되면 agent 내장 Envoy가 필요할 때 실행된다
+envoy:
+  enabled: false
+
 # Hubble: 흐름 수집만 켠다. Relay/UI는 관측 단계에서 켠다
 hubble:
   enabled: true
