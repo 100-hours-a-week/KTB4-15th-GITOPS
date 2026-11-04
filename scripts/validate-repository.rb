@@ -53,7 +53,15 @@ karpenter_files = %w[
   platform/dev/karpenter/nodepool/README.md
 ].freeze
 
-[argocd_files, karpenter_files].flatten.each do |file|
+metrics_server_files = %w[
+  platform/dev/metrics-server/Chart.yaml
+  platform/dev/metrics-server/Chart.lock
+  platform/dev/metrics-server/values.yaml
+  platform/dev/metrics-server/README.md
+  argocd/dev/metrics-server-application.yaml
+].freeze
+
+[argocd_files, karpenter_files, metrics_server_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -226,15 +234,24 @@ expected_platform_resources = [
   { "group" => "apiextensions.k8s.io", "kind" => "CustomResourceDefinition" },
   { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRole" },
   { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" },
+  { "group" => "apiregistration.k8s.io", "kind" => "APIService" },
   { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass" },
   { "group" => "karpenter.sh", "kind" => "NodePool" }
 ]
 unless platform_project.dig("spec", "clusterResourceWhitelist") == expected_platform_resources
-  abort "#{platform_project_file}: Karpenter 설치에 필요한 Cluster 범위 리소스만 허용해야 합니다."
+  abort "#{platform_project_file}: 승인된 플랫폼 Cluster 범위 리소스만 허용해야 합니다."
 end
 
 unless platform_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2"
-  abort "#{platform_project_file}: Karpenter Application 전에 적용할 sync-wave -2가 필요합니다."
+  abort "#{platform_project_file}: 플랫폼 Application 전에 적용할 sync-wave -2가 필요합니다."
+end
+
+metrics_server_chart = load_yaml("platform/dev/metrics-server/Chart.yaml")
+metrics_server_dependency = (metrics_server_chart["dependencies"] || []).find { |item| item["name"] == "metrics-server" }
+unless metrics_server_dependency &&
+       metrics_server_dependency["version"] == "3.14.0" &&
+       metrics_server_dependency["repository"] == "https://kubernetes-sigs.github.io/metrics-server/"
+  abort "Metrics Server 공식 Chart 3.14.0 의존성을 고정해야 합니다."
 end
 
 karpenter_version = "1.15.1"
@@ -429,4 +446,4 @@ unless dev_workload_set.dig("spec", "template", "spec", "syncPolicy", "automated
   abort "실배포 값 확정 전에는 dev Workload Auto Sync가 비활성화되어야 합니다."
 end
 
-puts "저장소 구조 검사 완료: Argo CD 설치·Root 설정, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"
+puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"

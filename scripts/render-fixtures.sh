@@ -57,10 +57,18 @@ if [[ -f platform/dev/karpenter/controller/Chart.yaml ]]; then
     > "$output_dir/karpenter-controller-dev.yaml"
 fi
 
+if [[ -f platform/dev/metrics-server/Chart.yaml ]]; then
+  helm dependency build platform/dev/metrics-server >/dev/null
+  helm template metrics-server platform/dev/metrics-server \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    > "$output_dir/metrics-server-dev.yaml"
+fi
+
 # 정적 NodePool 리소스도 Schema와 PR Manifest Diff 검증에 포함한다.
 if [[ -f platform/dev/karpenter/nodepool/nodepool.yaml ]]; then
   cp platform/dev/karpenter/nodepool/ec2-nodeclass.yaml "$output_dir/karpenter-ec2nodeclass-dev.yaml"
   cp platform/dev/karpenter/nodepool/nodepool.yaml "$output_dir/karpenter-nodepool-dev.yaml"
 fi
 
-echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter Chart 및 NodePool 선언"
+echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter·Metrics Server Chart 및 NodePool 선언"

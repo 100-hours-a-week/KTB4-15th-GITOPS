@@ -1,3 +1,4 @@
 /platform/dev/argocd/charts/
 /platform/dev/karpenter/*/charts/
+/platform/dev/metrics-server/charts/
 

@@ -34,6 +34,9 @@ jobs:
       - name: Argo CD Helm Repository 등록
         run: helm repo add argo https://argoproj.github.io/argo-helm
 
+      - name: Metrics Server Helm Repository 등록
+        run: helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+
       - name: Argo CD Helm 의존성 준비
         run: helm dependency build platform/dev/argocd
 
@@ -41,6 +44,9 @@ jobs:
         run: |
           helm dependency build platform/dev/karpenter/crd
           helm dependency build platform/dev/karpenter/controller
+
+      - name: Metrics Server Helm 의존성 준비
+        run: helm dependency build platform/dev/metrics-server
 
       - name: YAML 문법 검사
         run: ruby scripts/validate-yaml.rb
@@ -55,6 +61,7 @@ jobs:
           helm lint platform/dev/argocd --namespace argocd --kube-version 1.36.0
           helm lint platform/dev/karpenter/crd --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/karpenter/controller --namespace kube-system --kube-version 1.36.0
+          helm lint platform/dev/metrics-server --namespace kube-system --kube-version 1.36.0
 
       - name: Helm Fixture 렌더링
         run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
@@ -113,6 +120,7 @@ jobs:
             /workspace/argocd/dev/karpenter-crd-application.yaml \
             /workspace/argocd/dev/karpenter-controller-application.yaml \
             /workspace/argocd/dev/karpenter-nodepool-application.yaml \
+            /workspace/argocd/dev/metrics-server-application.yaml \
             /workspace/argocd/dev/namespace-web.yaml \
             /workspace/argocd/dev/namespace-identity.yaml \
             /workspace/argocd/dev/namespace-commerce.yaml \
