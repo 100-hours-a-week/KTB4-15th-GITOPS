@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-istio-istiod
+description: LookDDak EKS dev Istio Ambient Control Plane(istiod) 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: istiod
+    version: 1.31.3
+    repository: https://blob.istio.io/istio-release/charts

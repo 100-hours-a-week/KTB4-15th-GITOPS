@@ -69,7 +69,22 @@ aws_load_balancer_controller_files = %w[
   argocd/dev/aws-load-balancer-controller-application.yaml
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files].flatten.each do |file|
+istio_charts = %w[base istiod cni ztunnel].freeze
+istio_files = istio_charts.flat_map do |chart|
+  %W[platform/dev/networking/istio/#{chart}/Chart.yaml platform/dev/networking/istio/#{chart}/Chart.lock platform/dev/networking/istio/#{chart}/values.yaml]
+end + %w[
+  platform/dev/networking/istio/README.md
+  platform/dev/networking/gateway-api/crds/standard-install.yaml
+  platform/dev/networking/gateway-api/README.md
+  argocd/dev/namespace-istio-system.yaml
+  argocd/dev/gateway-api-crds-application.yaml
+  argocd/dev/istio-base-application.yaml
+  argocd/dev/istiod-application.yaml
+  argocd/dev/istio-cni-application.yaml
+  argocd/dev/ztunnel-application.yaml
+]
+
+[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -233,9 +248,9 @@ abort "#{platform_project_file}: kind가 AppProject가 아닙니다." unless pla
 abort "#{platform_project_file}: Project 이름이 예상과 다릅니다." unless platform_project.dig("metadata", "name") == "lookddak-dev-platform"
 abort "#{platform_project_file}: 허용 Repository가 예상과 다릅니다." unless platform_project.dig("spec", "sourceRepos") == [gitops_repository]
 
-platform_destination = platform_project.dig("spec", "destinations", 0)
-unless platform_destination == { "server" => in_cluster_server, "namespace" => "kube-system" }
-  abort "#{platform_project_file}: 플랫폼 배포 대상은 현재 Cluster의 kube-system Namespace여야 합니다."
+platform_destinations = platform_project.dig("spec", "destinations")
+unless platform_destinations == %w[kube-system istio-system].map { |namespace| { "server" => in_cluster_server, "namespace" => namespace } }
+  abort "#{platform_project_file}: 플랫폼 배포 대상은 현재 Cluster의 kube-system·istio-system Namespace여야 합니다."
 end
 
 expected_platform_resources = [
@@ -245,6 +260,8 @@ expected_platform_resources = [
   { "group" => "apiregistration.k8s.io", "kind" => "APIService" },
   { "group" => "admissionregistration.k8s.io", "kind" => "MutatingWebhookConfiguration" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingWebhookConfiguration" },
+  { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicy" },
+  { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicyBinding" },
   { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass" },
   { "group" => "karpenter.sh", "kind" => "NodePool" }
 ]
@@ -254,6 +271,55 @@ end
 
 unless platform_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2"
   abort "#{platform_project_file}: 플랫폼 Application 전에 적용할 sync-wave -2가 필요합니다."
+end
+
+istio_version = "1.31.3"
+istio_charts.each do |chart|
+  chart_file = "platform/dev/networking/istio/#{chart}/Chart.yaml"
+  dependency = (load_yaml(chart_file)["dependencies"] || []).find { |item| item["name"] == chart }
+  unless dependency && dependency["version"] == istio_version && dependency["repository"] == "https://blob.istio.io/istio-release/charts"
+    abort "#{chart_file}: Istio 공식 #{chart} Chart #{istio_version} 의존성을 고정해야 합니다."
+  end
+end
+%w[istiod cni].each do |chart|
+  values = load_yaml("platform/dev/networking/istio/#{chart}/values.yaml").fetch(chart)
+  abort "Istio #{chart}는 ambient profile을 사용해야 합니다." unless values["profile"] == "ambient"
+end
+istiod_values = load_yaml("platform/dev/networking/istio/istiod/values.yaml").fetch("istiod")
+unless istiod_values.dig("nodeSelector", "lookddak.io/node-pool") == "system" &&
+       (istiod_values["tolerations"] || []).any? { |item| item["key"] == "CriticalAddonsOnly" } &&
+       istiod_values.dig("base", "validationFailurePolicy") == "Fail"
+  abort "istiod는 System Node 배치, CriticalAddonsOnly Toleration, validationFailurePolicy Fail이 필요합니다."
+end
+
+istio_applications = {
+  "argocd/dev/gateway-api-crds-application.yaml" => { "name" => "lookddak-dev-gateway-api-crds", "path" => "platform/dev/networking/gateway-api/crds", "namespace" => "kube-system", "wave" => "-1" },
+  "argocd/dev/istio-base-application.yaml" => { "name" => "lookddak-dev-istio-base", "path" => "platform/dev/networking/istio/base", "namespace" => "istio-system", "wave" => "-1" },
+  "argocd/dev/istiod-application.yaml" => { "name" => "lookddak-dev-istiod", "path" => "platform/dev/networking/istio/istiod", "namespace" => "istio-system", "wave" => "0" },
+  "argocd/dev/istio-cni-application.yaml" => { "name" => "lookddak-dev-istio-cni", "path" => "platform/dev/networking/istio/cni", "namespace" => "istio-system", "wave" => "1" },
+  "argocd/dev/ztunnel-application.yaml" => { "name" => "lookddak-dev-ztunnel", "path" => "platform/dev/networking/istio/ztunnel", "namespace" => "istio-system", "wave" => "1" }
+}
+istio_applications.each do |file, expected|
+  application = load_yaml(file)
+  abort "#{file}: Application 이름이 예상과 다릅니다." unless application.dig("metadata", "name") == expected["name"]
+  abort "#{file}: 플랫폼 AppProject를 사용해야 합니다." unless application.dig("spec", "project") == "lookddak-dev-platform"
+  abort "#{file}: sync-wave가 예상과 다릅니다." unless application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == expected["wave"]
+  abort "#{file}: Public GitOps Repository의 main을 추적해야 합니다." unless application.dig("spec", "source", "repoURL") == gitops_repository && application.dig("spec", "source", "targetRevision") == "main"
+  abort "#{file}: 경로가 예상과 다릅니다." unless application.dig("spec", "source", "path") == expected["path"]
+  abort "#{file}: 배포 대상이 예상과 다릅니다." unless application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => expected["namespace"] }
+end
+gateway_crd_application = load_yaml("argocd/dev/gateway-api-crds-application.yaml")
+unless gateway_crd_application.dig("spec", "syncPolicy", "automated", "prune") == false &&
+       (gateway_crd_application.dig("spec", "syncPolicy", "syncOptions") || []).include?("ServerSideApply=true")
+  abort "Gateway API CRD Application은 자동 Prune을 끄고 ServerSideApply를 사용해야 합니다."
+end
+%w[argocd/dev/istio-base-application.yaml argocd/dev/istiod-application.yaml].each do |file|
+  application = load_yaml(file)
+  ignored = (application.dig("spec", "ignoreDifferences") || []).map { |item| item["kind"] }.sort
+  unless ignored == %w[MutatingWebhookConfiguration ValidatingWebhookConfiguration] &&
+         (application.dig("spec", "syncPolicy", "syncOptions") || []).include?("RespectIgnoreDifferences=true")
+    abort "#{file}: istiod가 채우는 Webhook caBundle ignoreDifferences와 RespectIgnoreDifferences가 필요합니다."
+  end
 end
 
 lbc_chart = load_yaml("platform/dev/networking/aws-load-balancer-controller/Chart.yaml")
@@ -454,8 +520,9 @@ actual_dev_namespaces = dev_namespace_files.map do |file|
   manifest.dig("metadata", "name")
 end.sort
 
-unless actual_dev_namespaces == dev_namespaces.sort
-  abort "dev Namespace 구성이 설계와 다릅니다. 예상=#{dev_namespaces.sort}, 실제=#{actual_dev_namespaces}"
+platform_namespaces = %w[istio-system].freeze
+unless actual_dev_namespaces == (dev_namespaces + platform_namespaces).sort
+  abort "dev Namespace 구성이 설계와 다릅니다. 예상=#{(dev_namespaces + platform_namespaces).sort}, 실제=#{actual_dev_namespaces}"
 end
 
 dev_domain_set = load_yaml("argocd/dev/domain-applicationset.yaml")

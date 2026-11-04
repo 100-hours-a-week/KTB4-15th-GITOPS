@@ -2,3 +2,4 @@
 /platform/dev/karpenter/*/charts/
 /platform/dev/metrics-server/charts/
 /platform/dev/networking/aws-load-balancer-controller/charts/
+/platform/dev/networking/istio/*/charts/

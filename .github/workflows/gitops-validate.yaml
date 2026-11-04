@@ -40,6 +40,9 @@ jobs:
       - name: AWS Load Balancer Controller Helm Repository 등록
         run: helm repo add eks https://aws.github.io/eks-charts
 
+      - name: Istio Helm Repository 등록
+        run: helm repo add istio https://blob.istio.io/istio-release/charts
+
       - name: Argo CD Helm 의존성 준비
         run: helm dependency build platform/dev/argocd
 
@@ -53,6 +56,12 @@ jobs:
 
       - name: AWS Load Balancer Controller Helm 의존성 준비
         run: helm dependency build platform/dev/networking/aws-load-balancer-controller
+
+      - name: Istio Helm 의존성 준비
+        run: |
+          for chart in base istiod cni ztunnel; do
+            helm dependency build "platform/dev/networking/istio/$chart"
+          done
 
       - name: YAML 문법 검사
         run: ruby scripts/validate-yaml.rb
@@ -69,6 +78,9 @@ jobs:
           helm lint platform/dev/karpenter/controller --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/metrics-server --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/networking/aws-load-balancer-controller --namespace kube-system --kube-version 1.36.0
+          for chart in base istiod cni ztunnel; do
+            helm lint "platform/dev/networking/istio/$chart" --namespace istio-system --kube-version 1.36.0
+          done
 
       - name: Helm Fixture 렌더링
         run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
@@ -129,6 +141,12 @@ jobs:
             /workspace/argocd/dev/karpenter-nodepool-application.yaml \
             /workspace/argocd/dev/metrics-server-application.yaml \
             /workspace/argocd/dev/aws-load-balancer-controller-application.yaml \
+            /workspace/argocd/dev/gateway-api-crds-application.yaml \
+            /workspace/argocd/dev/istio-base-application.yaml \
+            /workspace/argocd/dev/istiod-application.yaml \
+            /workspace/argocd/dev/istio-cni-application.yaml \
+            /workspace/argocd/dev/ztunnel-application.yaml \
+            /workspace/argocd/dev/namespace-istio-system.yaml \
             /workspace/argocd/dev/namespace-web.yaml \
             /workspace/argocd/dev/namespace-identity.yaml \
             /workspace/argocd/dev/namespace-commerce.yaml \
