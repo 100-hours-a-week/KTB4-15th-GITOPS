@@ -84,7 +84,17 @@ end + %w[
   argocd/dev/ztunnel-application.yaml
 ]
 
-[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files].flatten.each do |file|
+cert_manager_files = %w[
+  platform/dev/cert-manager/README.md
+  platform/dev/cert-manager/controller/Chart.yaml
+  platform/dev/cert-manager/controller/Chart.lock
+  platform/dev/cert-manager/controller/values.yaml
+  platform/dev/cert-manager/issuers/cluster-issuers.yaml
+  argocd/dev/cert-manager-application.yaml
+  argocd/dev/cert-manager-issuers-application.yaml
+].freeze
+
+[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files, cert_manager_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -262,6 +272,7 @@ expected_platform_resources = [
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingWebhookConfiguration" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicy" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicyBinding" },
+  { "group" => "cert-manager.io", "kind" => "ClusterIssuer" },
   { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass" },
   { "group" => "karpenter.sh", "kind" => "NodePool" }
 ]
@@ -323,6 +334,32 @@ end
   unless ignored == %w[MutatingWebhookConfiguration ValidatingWebhookConfiguration] &&
          (application.dig("spec", "syncPolicy", "syncOptions") || []).include?("RespectIgnoreDifferences=true")
     abort "#{file}: istiod가 채우는 Webhook caBundle ignoreDifferences와 RespectIgnoreDifferences가 필요합니다."
+  end
+end
+
+cert_manager_dependency = (load_yaml("platform/dev/cert-manager/controller/Chart.yaml")["dependencies"] || []).find { |item| item["name"] == "cert-manager" }
+unless cert_manager_dependency && cert_manager_dependency["version"] == "v1.21.3" && cert_manager_dependency["repository"] == "https://charts.jetstack.io"
+  abort "cert-manager 공식 Chart v1.21.3 의존성을 고정해야 합니다."
+end
+cert_manager_values = load_yaml("platform/dev/cert-manager/controller/values.yaml").fetch("cert-manager")
+unless cert_manager_values.dig("serviceAccount", "name") == "cert-manager" &&
+       cert_manager_values.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-dev-cert-manager" &&
+       cert_manager_values.dig("crds", "enabled") == true && cert_manager_values.dig("crds", "keep") == true
+  abort "cert-manager는 IRSA ServiceAccount 연결과 CRD 설치·유지 설정이 필요합니다."
+end
+%w[nodeSelector].each do |key|
+  [cert_manager_values, cert_manager_values["webhook"], cert_manager_values["cainjector"]].each do |component|
+    abort "cert-manager 구성요소는 System Node에 배치해야 합니다." unless component.dig(key, "lookddak.io/node-pool") == "system"
+  end
+end
+issuer_documents = YAML.load_stream(File.read("platform/dev/cert-manager/issuers/cluster-issuers.yaml"))
+issuer_names = issuer_documents.map { |item| item.dig("metadata", "name") }.sort
+abort "ClusterIssuer는 letsencrypt-staging·letsencrypt-prod 2개여야 합니다." unless issuer_names == %w[letsencrypt-prod letsencrypt-staging]
+issuer_documents.each do |issuer|
+  abort "ClusterIssuer는 kind ClusterIssuer여야 합니다." unless issuer["kind"] == "ClusterIssuer"
+  solvers = issuer.dig("spec", "acme", "solvers") || []
+  unless solvers.all? { |solver| solver.dig("dns01", "route53") && !solver.dig("dns01", "route53").key?("accessKeyID") && !solver.dig("dns01", "route53").key?("secretAccessKeySecretRef") }
+    abort "ClusterIssuer는 Route53 DNS-01을 IRSA로만 사용해야 합니다 (Access Key 금지)."
   end
 end
 
