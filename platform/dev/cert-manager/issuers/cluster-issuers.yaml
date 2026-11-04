@@ -1,0 +1,40 @@
+# Let's Encrypt ACME ClusterIssuer (Route53 DNS-01)
+# - staging: 발급 절차 검증용 (신뢰되지 않는 인증서, 발급 한도 넉넉)
+# - prod: 실제 사용. staging으로 발급이 성공한 뒤 Certificate가 prod를 참조하게 한다
+# - email은 지정하지 않는다 (Let's Encrypt 만료 안내 메일 종료, ACME 계정에 필수 아님)
+# - 자격 증명: cert-manager ServiceAccount IRSA (accessKey 등 Secret 미사용)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - dns01:
+          route53:
+            region: ap-northeast-2
+            hostedZoneID: Z06877251U6DKTWG3X2JG
+        selector:
+          dnsZones:
+            - lookddak.com
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - dns01:
+          route53:
+            region: ap-northeast-2
+            hostedZoneID: Z06877251U6DKTWG3X2JG
+        selector:
+          dnsZones:
+            - lookddak.com
