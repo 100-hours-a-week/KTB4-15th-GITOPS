@@ -37,6 +37,9 @@ jobs:
       - name: Metrics Server Helm Repository 등록
         run: helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
 
+      - name: AWS Load Balancer Controller Helm Repository 등록
+        run: helm repo add eks https://aws.github.io/eks-charts
+
       - name: Argo CD Helm 의존성 준비
         run: helm dependency build platform/dev/argocd
 
@@ -47,6 +50,9 @@ jobs:
 
       - name: Metrics Server Helm 의존성 준비
         run: helm dependency build platform/dev/metrics-server
+
+      - name: AWS Load Balancer Controller Helm 의존성 준비
+        run: helm dependency build platform/dev/networking/aws-load-balancer-controller
 
       - name: YAML 문법 검사
         run: ruby scripts/validate-yaml.rb
