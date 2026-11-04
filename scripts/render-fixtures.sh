@@ -73,10 +73,20 @@ if [[ -f platform/dev/networking/aws-load-balancer-controller/Chart.yaml ]]; the
     > "$output_dir/aws-load-balancer-controller-dev.yaml"
 fi
 
+for chart in base istiod cni ztunnel; do
+  if [[ -f "platform/dev/networking/istio/$chart/Chart.yaml" ]]; then
+    helm dependency build "platform/dev/networking/istio/$chart" >/dev/null
+    helm template "istio-$chart" "platform/dev/networking/istio/$chart" \
+      --namespace istio-system \
+      --kube-version 1.36.0 \
+      > "$output_dir/istio-$chart-dev.yaml"
+  fi
+done
+
 # 정적 NodePool 리소스도 Schema와 PR Manifest Diff 검증에 포함한다.
 if [[ -f platform/dev/karpenter/nodepool/nodepool.yaml ]]; then
   cp platform/dev/karpenter/nodepool/ec2-nodeclass.yaml "$output_dir/karpenter-ec2nodeclass-dev.yaml"
   cp platform/dev/karpenter/nodepool/nodepool.yaml "$output_dir/karpenter-nodepool-dev.yaml"
 fi
 
-echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter·Metrics Server·AWS LB Controller Chart 및 NodePool 선언"
+echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter·Metrics Server·AWS LB Controller·Istio Chart 및 NodePool 선언"
