@@ -65,10 +65,18 @@ if [[ -f platform/dev/metrics-server/Chart.yaml ]]; then
     > "$output_dir/metrics-server-dev.yaml"
 fi
 
+if [[ -f platform/dev/networking/aws-load-balancer-controller/Chart.yaml ]]; then
+  helm dependency build platform/dev/networking/aws-load-balancer-controller >/dev/null
+  helm template aws-load-balancer-controller platform/dev/networking/aws-load-balancer-controller \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    > "$output_dir/aws-load-balancer-controller-dev.yaml"
+fi
+
 # 정적 NodePool 리소스도 Schema와 PR Manifest Diff 검증에 포함한다.
 if [[ -f platform/dev/karpenter/nodepool/nodepool.yaml ]]; then
   cp platform/dev/karpenter/nodepool/ec2-nodeclass.yaml "$output_dir/karpenter-ec2nodeclass-dev.yaml"
   cp platform/dev/karpenter/nodepool/nodepool.yaml "$output_dir/karpenter-nodepool-dev.yaml"
 fi
 
-echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter·Metrics Server Chart 및 NodePool 선언"
+echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter·Metrics Server·AWS LB Controller Chart 및 NodePool 선언"

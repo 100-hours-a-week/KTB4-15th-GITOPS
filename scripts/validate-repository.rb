@@ -61,7 +61,15 @@ metrics_server_files = %w[
   argocd/dev/metrics-server-application.yaml
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files].flatten.each do |file|
+aws_load_balancer_controller_files = %w[
+  platform/dev/networking/aws-load-balancer-controller/Chart.yaml
+  platform/dev/networking/aws-load-balancer-controller/Chart.lock
+  platform/dev/networking/aws-load-balancer-controller/values.yaml
+  platform/dev/networking/aws-load-balancer-controller/README.md
+  argocd/dev/aws-load-balancer-controller-application.yaml
+].freeze
+
+[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -235,6 +243,8 @@ expected_platform_resources = [
   { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRole" },
   { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" },
   { "group" => "apiregistration.k8s.io", "kind" => "APIService" },
+  { "group" => "admissionregistration.k8s.io", "kind" => "MutatingWebhookConfiguration" },
+  { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingWebhookConfiguration" },
   { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass" },
   { "group" => "karpenter.sh", "kind" => "NodePool" }
 ]
@@ -244,6 +254,45 @@ end
 
 unless platform_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2"
   abort "#{platform_project_file}: 플랫폼 Application 전에 적용할 sync-wave -2가 필요합니다."
+end
+
+lbc_chart = load_yaml("platform/dev/networking/aws-load-balancer-controller/Chart.yaml")
+lbc_dependency = (lbc_chart["dependencies"] || []).find { |item| item["name"] == "aws-load-balancer-controller" }
+unless lbc_dependency &&
+       lbc_dependency["version"] == "3.6.2" &&
+       lbc_dependency["repository"] == "https://aws.github.io/eks-charts"
+  abort "AWS Load Balancer Controller 공식 Chart 3.6.2 의존성을 고정해야 합니다."
+end
+
+lbc_values_file = "platform/dev/networking/aws-load-balancer-controller/values.yaml"
+lbc_values = load_yaml(lbc_values_file).fetch("aws-load-balancer-controller")
+unless lbc_values["clusterName"] == "lookddak-dev" &&
+       lbc_values.dig("serviceAccount", "name") == "aws-load-balancer-controller" &&
+       lbc_values.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-dev-aws-load-balancer-controller"
+  abort "#{lbc_values_file}: lookddak-dev Cluster와 LBC ServiceAccount·IRSA Role 연결이 필요합니다."
+end
+unless lbc_values.dig("nodeSelector", "lookddak.io/node-pool") == "system" &&
+       (lbc_values["tolerations"] || []).any? { |item| item["key"] == "CriticalAddonsOnly" }
+  abort "#{lbc_values_file}: LBC는 System Node에 배치하고 CriticalAddonsOnly Toleration이 필요합니다."
+end
+unless lbc_values["createIngressClassResource"] == false &&
+       lbc_values.dig("controllerConfig", "featureGates", "NLBGatewayAPI") == false &&
+       lbc_values.dig("controllerConfig", "featureGates", "ALBGatewayAPI") == false
+  abort "#{lbc_values_file}: LBC는 Service(NLB) 용도만 사용한다. IngressClass와 Gateway API 기능을 꺼야 합니다."
+end
+
+lbc_application_file = "argocd/dev/aws-load-balancer-controller-application.yaml"
+lbc_application = load_yaml(lbc_application_file)
+unless lbc_application.dig("spec", "project") == "lookddak-dev-platform" &&
+       lbc_application.dig("spec", "source", "path") == "platform/dev/networking/aws-load-balancer-controller" &&
+       lbc_application.dig("spec", "source", "helm", "releaseName") == "aws-load-balancer-controller" &&
+       lbc_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "kube-system" }
+  abort "#{lbc_application_file}: 플랫폼 Project, Chart 경로, Release 이름, kube-system 대상이 예상과 다릅니다."
+end
+ignored_kinds = (lbc_application.dig("spec", "ignoreDifferences") || []).map { |item| item["kind"] }.sort
+unless ignored_kinds == %w[MutatingWebhookConfiguration Secret ValidatingWebhookConfiguration] &&
+       (lbc_application.dig("spec", "syncPolicy", "syncOptions") || []).include?("RespectIgnoreDifferences=true")
+  abort "#{lbc_application_file}: Webhook 인증서(caBundle·TLS Secret) ignoreDifferences와 RespectIgnoreDifferences가 필요합니다."
 end
 
 metrics_server_chart = load_yaml("platform/dev/metrics-server/Chart.yaml")

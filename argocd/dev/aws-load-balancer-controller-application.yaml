@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lookddak-dev-aws-load-balancer-controller
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: lookddak-dev-platform
+  source:
+    repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+    targetRevision: main
+    path: platform/dev/networking/aws-load-balancer-controller
+    helm:
+      releaseName: aws-load-balancer-controller
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  # 차트가 렌더링할 때마다 Webhook 인증서를 새로 만든다(genCA, Argo CD는 lookup 미지원).
+  # 최초 Sync에서 만든 인증서·caBundle 짝을 유지하도록 비교·적용에서 제외한다.
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      name: aws-load-balancer-webhook
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: aws-load-balancer-webhook
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+    - group: ""
+      kind: Secret
+      name: aws-load-balancer-tls
+      jsonPointers:
+        - /data
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
