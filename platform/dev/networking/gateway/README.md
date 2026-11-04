@@ -17,9 +17,8 @@ dev의 공용 Istio Gateway(Gateway API)를 GitOps로 관리한다. 각 도메�
 |---|---|
 | GatewayClass | `istio` (istiod가 제공) |
 | Gateway | `istio-ingress/lookddak-gateway` |
-| Listener | `https` 443 HTTPS, hostname `dev.lookddak.com`, `tls.mode: Terminate` |
-| 인증서 | Certificate `dev-lookddak-com` → Secret `dev-lookddak-com-tls` (cert-manager, Route53 DNS-01, ECDSA P-256) |
-| 허용 Route | `lookddak.io/domain` 라벨이 있는 Namespace의 HTTPRoute만 |
+| Listener | 443 HTTPS, `tls.mode: Terminate`, 인증서 1개 공유<br>`https`: `dev.lookddak.com` → `lookddak.com/domain` 라벨 Namespace<br>`https-argocd`: `argocd.dev.lookddak.com` → `argocd` Namespace<br>`https-grafana`: `grafana.dev.lookddak.com` → `monitoring` Namespace |
+| 인증서 | Certificate `dev-lookddak-com` → Secret `dev-lookddak-com-tls`, SAN 3개(dev·argocd·grafana), cert-manager Route53 DNS-01, ECDSA P-256 |
 | NLB | `internal`, target-type `ip`, TCP, cross-zone 활성 |
 | NLB Health Check | HTTP `15021` `/healthz/ready` |
 | Deregistration delay | 300초 (SSE 연결 종료 대기) |
@@ -49,6 +48,12 @@ dev의 공용 Istio Gateway(Gateway API)를 GitOps로 관리한다. 각 도메�
 - `requiredDuringScheduling`: `lookddak.io/node-pool In [system]` 또는 Karpenter `general-purpose` NodePool
 - `preferredDuringScheduling`: `lookddak.io/node-pool In [system]`
 - HPA를 추가해 늘어난 Pod는 general-purpose Node로 가게 한다.
+
+### 운영 도구 (Argo CD, Grafana)
+
+- HTTPRoute는 각 도구 담당이 해당 Namespace에 만든다 (`parentRefs: istio-ingress/lookddak-gateway`, `sectionName: https-argocd`/`https-grafana`).
+- Argo CD: TLS를 Gateway가 끝내므로 `server.insecure: true`가 필요하다. CLI는 `--grpc-web`으로 접속한다.
+- 외부에 노출되므로 CloudFront WAF IP 제한 또는 SSO를 함께 건다.
 
 ### SSE
 
