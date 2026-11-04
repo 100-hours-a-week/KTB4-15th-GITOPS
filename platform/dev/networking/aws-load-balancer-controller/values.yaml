@@ -1,0 +1,45 @@
+aws-load-balancer-controller:
+  clusterName: lookddak-dev
+  region: ap-northeast-2
+  vpcId: vpc-063458ffaf9d17f4e
+
+  replicaCount: 2
+
+  serviceAccount:
+    create: true
+    name: aws-load-balancer-controller
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-dev-aws-load-balancer-controller
+
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: system
+
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  # 차트 기본 podAntiAffinity(같은 Node에 2개가 몰리지 않게)를 사용한다.
+  configureDefaultAffinity: true
+
+  podDisruptionBudget:
+    maxUnavailable: 1
+
+  # 용도: Istio Gateway Service(type: LoadBalancer) → 내부 NLB만 만든다.
+  # ALB Ingress는 쓰지 않으므로 IngressClass를 만들지 않는다.
+  createIngressClassResource: false
+
+  # Service(type: LoadBalancer)를 이 Controller가 처리하도록 loadBalancerClass를 기본 주입한다.
+  enableServiceMutatorWebhook: true
+
+  # Pod IP가 VPC IP(Cilium ENI)이므로 NLB가 Pod로 바로 보낸다 (NodePort 경유 없음).
+  defaultTargetType: ip
+
+  # Gateway API는 Istio가 담당한다. LBC의 Gateway API 기능은 끈다.
+  controllerConfig:
+    featureGates:
+      NLBGatewayAPI: false
+      ALBGatewayAPI: false
