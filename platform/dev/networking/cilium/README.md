@@ -41,6 +41,8 @@ EKS dev(`lookddak-dev`)의 Cilium 설정을 관리하는 디렉터리다. Cilium
 | Operator 권한 | `eni.iamRole` = `lookddak-dev-cilium-operator` | IRSA (`kube-system/cilium-operator`) |
 | kube-proxy | `kubeProxyReplacement=true`, `k8sServiceHost` = EKS API 호스트 | 클러스터에 kube-proxy가 없다 |
 | Istio Ambient 공존 | `cni.exclusive=false`, `socketLB.hostNamespaceOnly=true` | istio-cni 체이닝, ztunnel 리다이렉션 충돌 방지 |
+| Operator 배치 | `operator.nodeSelector` `lookddak.io/node-pool=system`, `CriticalAddonsOnly` Toleration | System Node 격리(Taint) 대비. Application Node에 Operator가 남아 Karpenter 회수를 막지 않게 |
+| Agent·Envoy | DaemonSet, 모든 Node (기본 Toleration) | System·Application Node 모두에서 실행되어야 한다 |
 | Hubble | 수집만, Relay·UI 끔 | 관측 단계에서 켠다 |
 
 ## 설치·변경
