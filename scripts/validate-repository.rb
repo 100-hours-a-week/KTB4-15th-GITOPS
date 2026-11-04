@@ -285,6 +285,10 @@ end
   values = load_yaml("platform/dev/networking/istio/#{chart}/values.yaml").fetch(chart)
   abort "Istio #{chart}는 ambient profile을 사용해야 합니다." unless values["profile"] == "ambient"
 end
+istio_base_values = load_yaml("platform/dev/networking/istio/base/values.yaml").fetch("base")
+unless istio_base_values.dig("base", "validationFailurePolicy") == "Fail"
+  abort "Istio base는 istiod-default-validator 반복 diff 방지를 위해 validationFailurePolicy Fail이 필요합니다."
+end
 istiod_values = load_yaml("platform/dev/networking/istio/istiod/values.yaml").fetch("istiod")
 unless istiod_values.dig("nodeSelector", "lookddak.io/node-pool") == "system" &&
        (istiod_values["tolerations"] || []).any? { |item| item["key"] == "CriticalAddonsOnly" } &&
