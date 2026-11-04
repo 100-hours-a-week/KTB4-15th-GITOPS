@@ -156,6 +156,11 @@ jobs:
             /workspace/argocd/dev/namespace-istio-system.yaml \
             /workspace/argocd/dev/cert-manager-application.yaml \
             /workspace/argocd/dev/cert-manager-issuers-application.yaml \
+            /workspace/argocd/dev/namespace-istio-ingress.yaml \
+            /workspace/argocd/dev/istio-gateway-application.yaml \
+            /workspace/platform/dev/networking/gateway/gateway.yaml \
+            /workspace/platform/dev/networking/gateway/gateway-options.yaml \
+            /workspace/platform/dev/networking/gateway/certificate.yaml \
             /workspace/argocd/dev/namespace-web.yaml \
             /workspace/argocd/dev/namespace-identity.yaml \
             /workspace/argocd/dev/namespace-commerce.yaml \

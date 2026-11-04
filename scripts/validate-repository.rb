@@ -94,7 +94,16 @@ cert_manager_files = %w[
   argocd/dev/cert-manager-issuers-application.yaml
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files, cert_manager_files].flatten.each do |file|
+istio_gateway_files = %w[
+  platform/dev/networking/gateway/README.md
+  platform/dev/networking/gateway/gateway.yaml
+  platform/dev/networking/gateway/gateway-options.yaml
+  platform/dev/networking/gateway/certificate.yaml
+  argocd/dev/namespace-istio-ingress.yaml
+  argocd/dev/istio-gateway-application.yaml
+].freeze
+
+[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -259,8 +268,8 @@ abort "#{platform_project_file}: Project 이름이 예상과 다릅니다." unle
 abort "#{platform_project_file}: 허용 Repository가 예상과 다릅니다." unless platform_project.dig("spec", "sourceRepos") == [gitops_repository]
 
 platform_destinations = platform_project.dig("spec", "destinations")
-unless platform_destinations == %w[kube-system istio-system].map { |namespace| { "server" => in_cluster_server, "namespace" => namespace } }
-  abort "#{platform_project_file}: 플랫폼 배포 대상은 현재 Cluster의 kube-system·istio-system Namespace여야 합니다."
+unless platform_destinations == %w[kube-system istio-system istio-ingress].map { |namespace| { "server" => in_cluster_server, "namespace" => namespace } }
+  abort "#{platform_project_file}: 플랫폼 배포 대상은 현재 Cluster의 kube-system·istio-system·istio-ingress Namespace여야 합니다."
 end
 
 expected_platform_resources = [
@@ -361,6 +370,49 @@ issuer_documents.each do |issuer|
   unless solvers.all? { |solver| solver.dig("dns01", "route53") && !solver.dig("dns01", "route53").key?("accessKeyID") && !solver.dig("dns01", "route53").key?("secretAccessKeySecretRef") }
     abort "ClusterIssuer는 Route53 DNS-01을 IRSA로만 사용해야 합니다 (Access Key 금지)."
   end
+end
+
+gateway_file = "platform/dev/networking/gateway/gateway.yaml"
+gateway = load_yaml(gateway_file)
+gateway_annotations = gateway.dig("spec", "infrastructure", "annotations") || {}
+unless gateway.dig("metadata", "namespace") == "istio-ingress" && gateway.dig("spec", "gatewayClassName") == "istio"
+  abort "#{gateway_file}: istio-ingress Namespace와 istio GatewayClass를 사용해야 합니다."
+end
+unless gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"] == "internal" &&
+       gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"] == "ip" &&
+       gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-backend-protocol"] == "tcp" &&
+       !gateway_annotations.key?("service.beta.kubernetes.io/aws-load-balancer-ssl-cert")
+  abort "#{gateway_file}: 내부 NLB(IP Target)로 TCP 통과해야 하며 NLB에서 TLS를 종료하면 안 됩니다."
+end
+gateway_listeners = gateway.dig("spec", "listeners") || []
+unless gateway_listeners.map { |item| item["name"] } == ["https"] &&
+       gateway_listeners.all? { |item| item["port"] == 443 && item["protocol"] == "HTTPS" && item.dig("tls", "mode") == "Terminate" }
+  abort "#{gateway_file}: 443 HTTPS Listener에서 TLS를 종료해야 합니다."
+end
+gateway_certificate = load_yaml("platform/dev/networking/gateway/certificate.yaml")
+gateway_secret_refs = gateway_listeners.flat_map { |item| (item.dig("tls", "certificateRefs") || []).map { |ref| ref["name"] } }
+unless gateway_secret_refs == [gateway_certificate.dig("spec", "secretName")] &&
+       gateway_certificate.dig("spec", "issuerRef", "kind") == "ClusterIssuer" &&
+       %w[letsencrypt-staging letsencrypt-prod].include?(gateway_certificate.dig("spec", "issuerRef", "name")) &&
+       gateway_certificate.dig("spec", "dnsNames") == gateway_listeners.map { |item| item["hostname"] }
+  abort "Gateway 인증서는 Listener hostname·Secret과 일치하고 Let's Encrypt ClusterIssuer를 사용해야 합니다."
+end
+gateway_options = load_yaml("platform/dev/networking/gateway/gateway-options.yaml")
+gateway_pod_spec = YAML.safe_load(gateway_options.dig("data", "deployment")).dig("spec", "template", "spec")
+unless gateway.dig("spec", "infrastructure", "parametersRef", "name") == gateway_options.dig("metadata", "name") &&
+       gateway_pod_spec.dig("nodeSelector", "lookddak.io/node-pool") == "system" &&
+       (gateway_pod_spec["tolerations"] || []).any? { |item| item["key"] == "CriticalAddonsOnly" }
+  abort "Gateway Pod는 parametersRef로 System Node 배치와 CriticalAddonsOnly Toleration을 설정해야 합니다."
+end
+gateway_application = load_yaml("argocd/dev/istio-gateway-application.yaml")
+unless gateway_application.dig("metadata", "name") == "lookddak-dev-istio-gateway" &&
+       gateway_application.dig("spec", "project") == "lookddak-dev-platform" &&
+       gateway_application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "2" &&
+       gateway_application.dig("spec", "source", "repoURL") == gitops_repository &&
+       gateway_application.dig("spec", "source", "targetRevision") == "main" &&
+       gateway_application.dig("spec", "source", "path") == "platform/dev/networking/gateway" &&
+       gateway_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "istio-ingress" }
+  abort "argocd/dev/istio-gateway-application.yaml: Gateway Application 설정이 예상과 다릅니다."
 end
 
 lbc_chart = load_yaml("platform/dev/networking/aws-load-balancer-controller/Chart.yaml")
@@ -561,7 +613,7 @@ actual_dev_namespaces = dev_namespace_files.map do |file|
   manifest.dig("metadata", "name")
 end.sort
 
-platform_namespaces = %w[istio-system].freeze
+platform_namespaces = %w[istio-system istio-ingress].freeze
 unless actual_dev_namespaces == (dev_namespaces + platform_namespaces).sort
   abort "dev Namespace 구성이 설계와 다릅니다. 예상=#{(dev_namespaces + platform_namespaces).sort}, 실제=#{actual_dev_namespaces}"
 end
