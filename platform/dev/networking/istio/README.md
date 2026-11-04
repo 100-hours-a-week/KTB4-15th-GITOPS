@@ -25,7 +25,7 @@ EKS dev(`lookddak-dev`)의 Istio Ambient Mesh(Control Plane, CNI Node Agent, ztu
 | istiod 배치 | `lookddak.io/node-pool=system`, arm64, `CriticalAddonsOnly` Toleration | System Node 격리 정책 |
 | istiod 자원 | requests 200m / 512Mi, HPA 1~3 | 차트 기본(500m / 2Gi)은 System Node(m7g.large 2대)에 과함. 관측 후 조정 |
 | istio-cni·ztunnel | DaemonSet, 차트 기본 Toleration(모든 Taint 허용) | System·Application Node 모두에서 실행 |
-| `base.validationFailurePolicy` | `Fail` | istiod가 실행 중 `Ignore`→`Fail`로 바꾸며 생기는 반복 diff 방지 (Istio Helm 문서: SSA·Argo CD 사용 시 필수) |
+| `base.validationFailurePolicy` | `Fail` (**base·istiod 둘 다**) | istiod가 실행 중 `Ignore`→`Fail`로 바꾸며 생기는 반복 diff 방지 (Istio Helm 문서: SSA·Argo CD 사용 시 필수). `Fail`은 istiod가 응답하지 못할 때 **Istio 설정 리소스(istio.io)** 생성·변경만 거부한다. Pod·Service·트래픽에는 영향 없음 |
 | Webhook `caBundle` | base·istiod Application `ignoreDifferences` + `RespectIgnoreDifferences=true` | istiod가 실행 중 caBundle을 직접 채운다. Git 값으로 되돌리지 않는다 |
 | base 적용 | `ServerSideApply=true` | 큰 CRD의 client-side apply 어노테이션 한도 회피 |
 
