@@ -62,6 +62,7 @@ jobs:
           helm lint platform/dev/karpenter/crd --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/karpenter/controller --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/metrics-server --namespace kube-system --kube-version 1.36.0
+          helm lint platform/dev/networking/aws-load-balancer-controller --namespace kube-system --kube-version 1.36.0
 
       - name: Helm Fixture 렌더링
         run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
@@ -121,6 +122,7 @@ jobs:
             /workspace/argocd/dev/karpenter-controller-application.yaml \
             /workspace/argocd/dev/karpenter-nodepool-application.yaml \
             /workspace/argocd/dev/metrics-server-application.yaml \
+            /workspace/argocd/dev/aws-load-balancer-controller-application.yaml \
             /workspace/argocd/dev/namespace-web.yaml \
             /workspace/argocd/dev/namespace-identity.yaml \
             /workspace/argocd/dev/namespace-commerce.yaml \
