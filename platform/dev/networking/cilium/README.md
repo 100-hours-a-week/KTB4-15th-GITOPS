@@ -42,7 +42,8 @@ EKS dev(`lookddak-dev`)의 Cilium 설정을 관리하는 디렉터리다. Cilium
 | kube-proxy | `kubeProxyReplacement=true`, `k8sServiceHost` = EKS API 호스트 | 클러스터에 kube-proxy가 없다 |
 | Istio Ambient 공존 | `cni.exclusive=false`, `socketLB.hostNamespaceOnly=true` | istio-cni 체이닝, ztunnel 리다이렉션 충돌 방지 |
 | Operator 배치 | `operator.nodeSelector` `lookddak.io/node-pool=system`, `CriticalAddonsOnly` Toleration | System Node 격리(Taint) 대비. Application Node에 Operator가 남아 Karpenter 회수를 막지 않게 |
-| Agent·Envoy | DaemonSet, 모든 Node (기본 Toleration) | System·Application Node 모두에서 실행되어야 한다 |
+| Agent | DaemonSet, 모든 Node (기본 Toleration) | System·Application Node 모두에서 실행되어야 한다 |
+| Envoy | `envoy.enabled=false` (standalone `cilium-envoy` DaemonSet 미사용) | L7은 Istio 담당. L7 CiliumNetworkPolicy가 생기면 agent 내장 Envoy가 실행된다 |
 | Hubble | 수집만, Relay·UI 끔 | 관측 단계에서 켠다 |
 
 ## 설치·변경
@@ -73,6 +74,6 @@ kubectl -n kube-system get pods -l app.kubernetes.io/part-of=cilium -o wide
 
 ## 남은 작업
 
-- system Node Group 생성 후 동작 확인: 노드 Ready, Pod IP(100.65.x.x), Prefix 할당, `cilium connectivity test`
+- ~~동작 확인: 노드 Ready, Pod IP(100.65.x.x), Prefix 할당, `cilium connectivity test`~~ 완료 (2026-11-04, arm64 노드, 83개 통과)
 - 기본 차단 정책 적용 전에 Ambient Health Probe(`169.254.7.127/32`), HBONE(15008) 예외 정책 정의
 - Hubble Relay·UI
