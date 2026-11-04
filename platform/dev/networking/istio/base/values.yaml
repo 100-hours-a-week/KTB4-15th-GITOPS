@@ -2,3 +2,8 @@
 base:
   global:
     istioNamespace: istio-system
+
+  # base Chart의 istiod-default-validator도 최초 failurePolicy가 Ignore이고 istiod가 실행 중 Fail로 바꾼다.
+  # Argo CD가 Ignore로 되돌리며 OutOfSync가 반복되지 않도록 처음부터 Fail로 둔다 (istiod values와 동일).
+  base:
+    validationFailurePolicy: Fail
