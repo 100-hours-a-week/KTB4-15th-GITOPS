@@ -83,10 +83,18 @@ for chart in base istiod cni ztunnel; do
   fi
 done
 
+if [[ -f platform/dev/cert-manager/controller/Chart.yaml ]]; then
+  helm dependency build platform/dev/cert-manager/controller >/dev/null
+  helm template cert-manager platform/dev/cert-manager/controller \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    > "$output_dir/cert-manager-dev.yaml"
+fi
+
 # 정적 NodePool 리소스도 Schema와 PR Manifest Diff 검증에 포함한다.
 if [[ -f platform/dev/karpenter/nodepool/nodepool.yaml ]]; then
   cp platform/dev/karpenter/nodepool/ec2-nodeclass.yaml "$output_dir/karpenter-ec2nodeclass-dev.yaml"
   cp platform/dev/karpenter/nodepool/nodepool.yaml "$output_dir/karpenter-nodepool-dev.yaml"
 fi
 
-echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter·Metrics Server·AWS LB Controller·Istio Chart 및 NodePool 선언"
+echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter·Metrics Server·AWS LB Controller·Istio·cert-manager Chart 및 NodePool 선언"

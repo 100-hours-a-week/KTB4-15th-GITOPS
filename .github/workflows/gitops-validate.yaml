@@ -43,6 +43,9 @@ jobs:
       - name: Istio Helm Repository 등록
         run: helm repo add istio https://blob.istio.io/istio-release/charts
 
+      - name: cert-manager Helm Repository 등록
+        run: helm repo add jetstack https://charts.jetstack.io
+
       - name: Argo CD Helm 의존성 준비
         run: helm dependency build platform/dev/argocd
 
@@ -56,6 +59,9 @@ jobs:
 
       - name: AWS Load Balancer Controller Helm 의존성 준비
         run: helm dependency build platform/dev/networking/aws-load-balancer-controller
+
+      - name: cert-manager Helm 의존성 준비
+        run: helm dependency build platform/dev/cert-manager/controller
 
       - name: Istio Helm 의존성 준비
         run: |
@@ -81,6 +87,7 @@ jobs:
           for chart in base istiod cni ztunnel; do
             helm lint "platform/dev/networking/istio/$chart" --namespace istio-system --kube-version 1.36.0
           done
+          helm lint platform/dev/cert-manager/controller --namespace kube-system --kube-version 1.36.0
 
       - name: Helm Fixture 렌더링
         run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
@@ -147,6 +154,8 @@ jobs:
             /workspace/argocd/dev/istio-cni-application.yaml \
             /workspace/argocd/dev/ztunnel-application.yaml \
             /workspace/argocd/dev/namespace-istio-system.yaml \
+            /workspace/argocd/dev/cert-manager-application.yaml \
+            /workspace/argocd/dev/cert-manager-issuers-application.yaml \
             /workspace/argocd/dev/namespace-web.yaml \
             /workspace/argocd/dev/namespace-identity.yaml \
             /workspace/argocd/dev/namespace-commerce.yaml \

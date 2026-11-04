@@ -1,0 +1,57 @@
+cert-manager:
+  # CRD를 Chart로 설치한다. keep: Release 삭제 시에도 CRD를 남긴다 (CRD 삭제 = 모든 Certificate 삭제)
+  crds:
+    enabled: true
+    keep: true
+
+  replicaCount: 1
+
+  # Route53 DNS-01 (KTB4-15th-CLOUD dev/v3/iam: lookddak-dev-cert-manager)
+  serviceAccount:
+    create: true
+    name: cert-manager
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-dev-cert-manager
+
+  # IRSA 토큰 파일을 non-root 컨테이너가 읽을 수 있게 한다
+  securityContext:
+    runAsNonRoot: true
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: system
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  webhook:
+    nodeSelector:
+      kubernetes.io/os: linux
+      kubernetes.io/arch: arm64
+      lookddak.io/node-pool: system
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+
+  cainjector:
+    nodeSelector:
+      kubernetes.io/os: linux
+      kubernetes.io/arch: arm64
+      lookddak.io/node-pool: system
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+
+  # Helm post-install Hook(Job). Argo CD에서는 Hook 실행·정리가 Helm과 달라 끈다. 설치 확인은 README 절차로 한다
+  startupapicheck:
+    enabled: false
