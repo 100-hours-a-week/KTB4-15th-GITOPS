@@ -13,9 +13,9 @@ Argo CD Application이 사용할 수 있는 Git 저장소와 배포 대상 범�
 
 ## dev 플랫폼 Project
 
-`lookddak-dev-platform`은 애플리케이션용 Project와 분리하여 Karpenter 같은 클러스터 플랫폼 구성요소를 관리한다.
+`lookddak-dev-platform`은 애플리케이션용 Project와 분리하여 Karpenter·Metrics Server 같은 클러스터 플랫폼 구성요소를 관리한다.
 
 - 배포 대상 Namespace는 `kube-system`으로 제한한다.
-- 현재는 Karpenter 설치에 필요한 CRD, ClusterRole, ClusterRoleBinding만 허용한다.
+- 현재는 플랫폼 설치에 필요한 CRD, ClusterRole, ClusterRoleBinding과 Metrics APIService만 허용한다.
 - `EC2NodeClass`와 `NodePool` 권한은 해당 리소스를 실제로 추가하는 작업에서 확장한다.
 - 애플리케이션용 `lookddak-dev` Project의 권한은 넓히지 않는다.

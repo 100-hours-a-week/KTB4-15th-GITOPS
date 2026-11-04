@@ -116,9 +116,10 @@ KTB4-15th-GITOPS/
 | `charts/lookddak-domain` | Namespace 단위 자원·네트워크 정책을 생성하는 Helm Chart |
 | `environments/<env>/images.yaml` | FE·BE·AI·Crawler 이미지 Repository와 불변 Digest |
 | `environments/<env>/domains` | Domain과 Workload별 환경 설정 |
-| `platform/<env>` | Cilium, Istio, Gateway, Karpenter, KEDA, Secret, 관측 구성 |
+| `platform/<env>` | Cilium, Istio, Gateway, Karpenter, Metrics Server, KEDA, Secret, 관측 구성 |
 | `platform/dev/argocd` | `argocd` Application이 자동 관리하는 Argo CD 자체 Chart·Helm 설정과 System Node 격리 인계 문서 |
 | `platform/dev/karpenter/nodepool` | Dev Application Node의 EC2NodeClass·NodePool과 공급·회수 정책 |
+| `platform/dev/metrics-server` | CPU·Memory Metrics API와 HPA 기반을 제공하는 Metrics Server 설치 설정 |
 | `argocd/projects` | Argo CD의 Repository·Cluster·Namespace 접근 범위 |
 | `argocd/<env>` | Root Application, Namespace와 Domain·Workload ApplicationSet |
 | `ci/fixtures` | 실제 환경 설정이 완성되기 전 공통 Chart 분기를 검증하는 입력값 |
@@ -197,6 +198,9 @@ helm lint charts/lookddak-workload
 helm lint charts/lookddak-domain
 helm dependency build platform/dev/argocd
 helm lint platform/dev/argocd --namespace argocd --kube-version 1.36.0
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm dependency build platform/dev/metrics-server
+helm lint platform/dev/metrics-server --namespace kube-system --kube-version 1.36.0
 
 scripts/render-fixtures.sh /tmp/lookddak-rendered
 ruby scripts/validate-policy.rb
@@ -238,8 +242,8 @@ scripts/diff-rendered-manifests.sh origin/main /tmp/lookddak-manifest-diff
 | --- | --- | --- |
 | 1 | YAML 문법 | 파싱 오류와 중복 키 검사 |
 | 2 | 저장소 구조 | 5개 Domain, 환경별 10개 Workload, 필수 파일과 ApplicationSet 경로 검사 |
-| 3 | Helm dependency·lint | 공통 Chart·Argo CD·Karpenter Chart 의존성·구조·Template 문법 검사 |
-| 4 | Manifest 준비 | 대표 Fixture·Argo CD·Karpenter Chart 렌더링과 정적 Argo CD·NodePool YAML 수집 |
+| 3 | Helm dependency·lint | 공통 Chart·Argo CD·Karpenter·Metrics Server Chart 의존성·구조·Template 문법 검사 |
+| 4 | Manifest 준비 | 대표 Fixture·Argo CD·Karpenter·Metrics Server Chart 렌더링과 정적 Argo CD·NodePool YAML 수집 |
 | 4-1 | Argo CD 설치 정책 | 실행 구성요소·Hook의 System NodeSelector·Toleration, CRD·런타임 Secret 보호 검사 |
 | 5 | Manifest Diff | `main`과 PR의 Helm·정적 리소스를 비교해 추가·변경·삭제 요약을 Summary와 PR Bot 댓글로 출력 |
 | 6 | Kubernetes Schema | 표준·Argo CD 리소스와 고정 Karpenter CRD에서 추출한 NodePool·EC2NodeClass Schema 검사 |
