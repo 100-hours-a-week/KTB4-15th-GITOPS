@@ -27,6 +27,7 @@ spec:
       kind: ConfigMap
       name: lookddak-gateway-options
   listeners:
+    # 서비스: 도메인 Namespace(lookddak-*)의 HTTPRoute만 붙을 수 있다
     - name: https
       port: 443
       protocol: HTTPS
@@ -37,11 +38,43 @@ spec:
           - group: ""
             kind: Secret
             name: dev-lookddak-com-tls
-      # 도메인 Namespace(lookddak-*)의 HTTPRoute만 붙을 수 있다
       allowedRoutes:
         namespaces:
           from: Selector
           selector:
             matchExpressions:
-              - key: lookddak.io/domain
+              - key: lookddak.com/domain
                 operator: Exists
+    # 운영 도구: 각 도구 Namespace의 HTTPRoute만 붙을 수 있다
+    - name: https-argocd
+      port: 443
+      protocol: HTTPS
+      hostname: argocd.dev.lookddak.com
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: dev-lookddak-com-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+    - name: https-grafana
+      port: 443
+      protocol: HTTPS
+      hostname: grafana.dev.lookddak.com
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: dev-lookddak-com-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring

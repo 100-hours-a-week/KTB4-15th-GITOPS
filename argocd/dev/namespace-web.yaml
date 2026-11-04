@@ -7,4 +7,4 @@ metadata:
     argocd.argoproj.io/sync-options: Prune=false
   labels:
     app.kubernetes.io/managed-by: argocd
-    lookddak.io/domain: web
+    lookddak.com/domain: web

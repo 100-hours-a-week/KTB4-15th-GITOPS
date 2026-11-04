@@ -385,16 +385,16 @@ unless gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"
   abort "#{gateway_file}: 내부 NLB(IP Target)로 TCP 통과해야 하며 NLB에서 TLS를 종료하면 안 됩니다."
 end
 gateway_listeners = gateway.dig("spec", "listeners") || []
-unless gateway_listeners.map { |item| item["name"] } == ["https"] &&
+unless gateway_listeners.map { |item| item["name"] } == %w[https https-argocd https-grafana] &&
        gateway_listeners.all? { |item| item["port"] == 443 && item["protocol"] == "HTTPS" && item.dig("tls", "mode") == "Terminate" }
   abort "#{gateway_file}: 443 HTTPS Listener에서 TLS를 종료해야 합니다."
 end
 gateway_certificate = load_yaml("platform/dev/networking/gateway/certificate.yaml")
 gateway_secret_refs = gateway_listeners.flat_map { |item| (item.dig("tls", "certificateRefs") || []).map { |ref| ref["name"] } }
-unless gateway_secret_refs == [gateway_certificate.dig("spec", "secretName")] &&
+unless gateway_secret_refs.uniq == [gateway_certificate.dig("spec", "secretName")] &&
        gateway_certificate.dig("spec", "issuerRef", "kind") == "ClusterIssuer" &&
        %w[letsencrypt-staging letsencrypt-prod].include?(gateway_certificate.dig("spec", "issuerRef", "name")) &&
-       gateway_certificate.dig("spec", "dnsNames") == gateway_listeners.map { |item| item["hostname"] }
+       gateway_certificate.dig("spec", "dnsNames").sort == gateway_listeners.map { |item| item["hostname"] }.sort
   abort "Gateway 인증서는 Listener hostname·Secret과 일치하고 Let's Encrypt ClusterIssuer를 사용해야 합니다."
 end
 gateway_options = load_yaml("platform/dev/networking/gateway/gateway-options.yaml")
