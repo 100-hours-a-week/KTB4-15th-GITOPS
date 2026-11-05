@@ -66,7 +66,43 @@ envoy:
 # Hubble: 흐름 수집만 켠다. Relay/UI는 관측 단계에서 켠다
 hubble:
   enabled: true
+  # Relay: 노드별 Hubble 흐름을 모아 CLI·UI에 제공 (agent ↔ relay mTLS 인증서는 helm이 생성)
   relay:
-    enabled: false
+    enabled: true
+    replicas: 1
+    nodeSelector:
+      kubernetes.io/os: linux
+      lookddak.io/node-pool: system
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+  # UI: 외부 공개 없이 kubectl port-forward로만 접속 (모든 트래픽 흐름이 보이므로)
   ui:
-    enabled: false
+    enabled: true
+    replicas: 1
+    nodeSelector:
+      kubernetes.io/os: linux
+      lookddak.io/node-pool: system
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+    frontend:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
+    backend:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          memory: 256Mi

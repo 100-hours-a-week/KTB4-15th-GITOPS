@@ -76,4 +76,12 @@ kubectl -n kube-system get pods -l app.kubernetes.io/part-of=cilium -o wide
 
 - ~~동작 확인: 노드 Ready, Pod IP(100.65.x.x), Prefix 할당, `cilium connectivity test`~~ 완료 (2026-11-04, arm64 노드, 83개 통과)
 - 기본 차단 정책 적용 전에 Ambient Health Probe(`169.254.7.127/32`), HBONE(15008) 예외 정책 정의
-- Hubble Relay·UI
+- ~~Hubble Relay·UI~~ 활성화 (System Node, 외부 공개 없음)
+
+## Hubble 접속
+
+```bash
+kubectl -n kube-system port-forward svc/hubble-ui 12000:80
+```
+
+브라우저에서 `http://localhost:12000`. CLI는 `cilium hubble port-forward` 후 `hubble observe -n lookddak-web`.
