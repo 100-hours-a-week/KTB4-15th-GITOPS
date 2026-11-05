@@ -111,7 +111,14 @@ network_policy_files = %w[
   argocd/dev/network-policies-application.yaml
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files].flatten.each do |file|
+mesh_security_files = %w[
+  platform/dev/networking/mesh-security/README.md
+  platform/dev/networking/mesh-security/peer-authentication.yaml
+  argocd/dev/mesh-security-application.yaml
+  charts/lookddak-domain/templates/authorization-policy.yaml
+].freeze
+
+[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -671,6 +678,26 @@ unless policy_application.dig("spec", "project") == "lookddak-dev-platform" &&
        policy_application.dig("spec", "source", "targetRevision") == "main" &&
        policy_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "kube-system" }
   abort "argocd/dev/network-policies-application.yaml: 네트워크 정책 Application 설정이 예상과 다릅니다."
+end
+
+# 메시 보안: 메시 전체 mTLS STRICT, 도메인 NS마다 Istio 인가 기본값
+peer_authentication = load_yaml("platform/dev/networking/mesh-security/peer-authentication.yaml")
+unless peer_authentication["kind"] == "PeerAuthentication" &&
+       peer_authentication.dig("metadata", "namespace") == "istio-system" &&
+       peer_authentication.dig("metadata", "name") == "default" &&
+       peer_authentication.dig("spec", "mtls", "mode") == "STRICT" &&
+       !peer_authentication.dig("spec", "selector")
+  abort "메시 전체 PeerAuthentication은 istio-system/default STRICT여야 합니다."
+end
+mesh_application = load_yaml("argocd/dev/mesh-security-application.yaml")
+unless mesh_application.dig("spec", "project") == "lookddak-dev-platform" &&
+       mesh_application.dig("spec", "source", "path") == "platform/dev/networking/mesh-security" &&
+       mesh_application.dig("spec", "source", "targetRevision") == "main" &&
+       mesh_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "istio-system" }
+  abort "argocd/dev/mesh-security-application.yaml: 메시 보안 Application 설정이 예상과 다릅니다."
+end
+Dir["environments/dev/domains/*/domain.yaml"].sort.each do |file|
+  abort "#{file}: dev 도메인은 Istio 인가 기본값(authorizationPolicy.enabled)이 필요합니다." unless load_yaml(file).dig("authorizationPolicy", "enabled") == true
 end
 
 dev_domain_set = load_yaml("argocd/dev/domain-applicationset.yaml")
