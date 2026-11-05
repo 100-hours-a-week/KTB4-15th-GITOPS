@@ -17,3 +17,6 @@ networkPolicy:
 
 ciliumNetworkPolicy:
   enabled: false
+
+authorizationPolicy:
+  enabled: true

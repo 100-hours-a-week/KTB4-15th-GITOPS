@@ -17,3 +17,10 @@ networkPolicy:
 
 ciliumNetworkPolicy:
   enabled: false
+
+# Istio Ambient 인가 기본값: 같은 Namespace + 공용 Gateway만 허용 (ztunnel L4)
+# Cilium 정책(platform/dev/networking/policies)과 겹쳐 두 겹으로 막는다
+authorizationPolicy:
+  enabled: false
+  gatewayPrincipals:
+    - cluster.local/ns/istio-ingress/sa/lookddak-gateway-istio
