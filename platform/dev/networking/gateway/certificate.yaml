@@ -11,6 +11,7 @@ spec:
   secretName: dev-lookddak-com-tls
   dnsNames:
     - dev.lookddak.com
+    - v3-dev.lookddak.com
     - argocd.dev.lookddak.com
     - grafana.dev.lookddak.com
   issuerRef:

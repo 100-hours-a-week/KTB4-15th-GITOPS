@@ -17,8 +17,8 @@ dev의 공용 Istio Gateway(Gateway API)를 GitOps로 관리한다. 각 도메�
 |---|---|
 | GatewayClass | `istio` (istiod가 제공) |
 | Gateway | `istio-ingress/lookddak-gateway` |
-| Listener | 443 HTTPS, `tls.mode: Terminate`, 인증서 1개 공유<br>`https`: `dev.lookddak.com` → `lookddak.com/domain` 라벨 Namespace<br>`https-argocd`: `argocd.dev.lookddak.com` → `argocd` Namespace<br>`https-grafana`: `grafana.dev.lookddak.com` → `monitoring` Namespace |
-| 인증서 | Certificate `dev-lookddak-com` → Secret `dev-lookddak-com-tls`, SAN 3개(dev·argocd·grafana), cert-manager Route53 DNS-01, ECDSA P-256 |
+| Listener | 443 HTTPS, `tls.mode: Terminate`, 인증서 1개 공유<br>`https`: `dev.lookddak.com` → `lookddak.com/domain` 라벨 Namespace (V2 전환 후 사용)<br>`https-v3-dev`: `v3-dev.lookddak.com` → `lookddak.com/domain` 라벨 Namespace (V3 검증, CloudFront 연결됨)<br>`https-argocd`: `argocd.dev.lookddak.com` → `argocd` Namespace<br>`https-grafana`: `grafana.dev.lookddak.com` → `monitoring` Namespace |
+| 인증서 | Certificate `dev-lookddak-com` → Secret `dev-lookddak-com-tls`, SAN 4개(dev·v3-dev·argocd·grafana), cert-manager Route53 DNS-01, ECDSA P-256 |
 | NLB | `internal`, target-type `ip`, TCP 443 Listener만 (status-port 15021 제거), cross-zone 활성 |
 | NLB 보안그룹 | `sg-0a82732290785f373` (CLOUD `dev/v3/edge`): CloudFront origin-facing Prefix List에서 443만. Pod 쪽 규칙은 LB Controller 관리 |
 | NLB Health Check | HTTP `15021` `/healthz/ready` |
