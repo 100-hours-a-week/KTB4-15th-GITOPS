@@ -36,6 +36,13 @@ cni:
 socketLB:
   hostNamespaceOnly: true
 
+# Istio Ambient kubelet probe 대응 (2026-11-05)
+# istio-cni가 host iptables에서 probe 출발지를 169.254.7.127로 SNAT한다.
+# eBPF Host Routing은 Pod 응답을 host iptables(conntrack)를 거치지 않고 ENI로 바로 보내
+# 169.254.7.127 응답이 VPC로 나가 probe가 실패한다 → host stack 경유(Legacy)로 둔다
+bpf:
+  hostLegacyRouting: true
+
 operator:
   replicas: 2
   # System Node에만 배치 (Application Node가 비면 Karpenter가 회수할 수 있게)
