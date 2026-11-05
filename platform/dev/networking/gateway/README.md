@@ -19,7 +19,8 @@ dev의 공용 Istio Gateway(Gateway API)를 GitOps로 관리한다. 각 도메�
 | Gateway | `istio-ingress/lookddak-gateway` |
 | Listener | 443 HTTPS, `tls.mode: Terminate`, 인증서 1개 공유<br>`https`: `dev.lookddak.com` → `lookddak.com/domain` 라벨 Namespace<br>`https-argocd`: `argocd.dev.lookddak.com` → `argocd` Namespace<br>`https-grafana`: `grafana.dev.lookddak.com` → `monitoring` Namespace |
 | 인증서 | Certificate `dev-lookddak-com` → Secret `dev-lookddak-com-tls`, SAN 3개(dev·argocd·grafana), cert-manager Route53 DNS-01, ECDSA P-256 |
-| NLB | `internal`, target-type `ip`, TCP, cross-zone 활성 |
+| NLB | `internal`, target-type `ip`, TCP 443 Listener만 (status-port 15021 제거), cross-zone 활성 |
+| NLB 보안그룹 | `sg-0a82732290785f373` (CLOUD `dev/v3/edge`): CloudFront origin-facing Prefix List에서 443만. Pod 쪽 규칙은 LB Controller 관리 |
 | NLB Health Check | HTTP `15021` `/healthz/ready` |
 | Deregistration delay | 300초 (SSE 연결 종료 대기) |
 | Gateway Pod | replicas 2, System Node(`lookddak.io/node-pool: system`) + `CriticalAddonsOnly` Toleration, Zone 분산, PDB minAvailable 1 |

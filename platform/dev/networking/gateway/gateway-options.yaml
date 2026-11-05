@@ -40,6 +40,13 @@ data:
                 limits:
                   cpu: "1"
                   memory: 512Mi
+  # istiod가 Service에 항상 넣는 status-port(15021)를 뺀다 → NLB 15021 Listener 제거
+  # NLB Health Check는 Listener 없이 Target Pod의 15021로 직접 한다
+  service: |
+    spec:
+      ports:
+        - "$patch": delete
+          port: 15021
   podDisruptionBudget: |
     spec:
       minAvailable: 1

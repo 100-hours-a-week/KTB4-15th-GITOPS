@@ -22,6 +22,10 @@ spec:
       # Gateway 교체 시 기존 SSE 연결 종료 대기
       service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: deregistration_delay.timeout_seconds=300
       service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
+      # CloudFront(origin-facing)에서 오는 443만 허용하는 SG (KTB4-15th-CLOUD dev/v3/edge)
+      service.beta.kubernetes.io/aws-load-balancer-security-groups: sg-0a82732290785f373
+      # Pod 쪽 SG에 NLB → Pod(443, Health Check 15021) 허용 규칙은 LB Controller가 관리한다
+      service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules: "true"
     parametersRef:
       group: ""
       kind: ConfigMap
