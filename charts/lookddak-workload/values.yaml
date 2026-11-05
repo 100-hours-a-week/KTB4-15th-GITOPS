@@ -28,6 +28,33 @@ container:
   args: []
   env: []
 
+# Common rollout and shutdown defaults for long-running workloads.
+# Workload values may override the grace period when SSE or background work
+# needs more time to finish.
+deployment:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  terminationGracePeriodSeconds: 30
+
+# Application workloads run only on Karpenter-provisioned ARM64 nodes.
+# The chart supplies the workload selector to each topology constraint so
+# replicas of different workloads are not counted together.
+scheduling:
+  nodeSelector:
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: general-purpose
+  topologySpreadConstraints:
+    - maxSkew: 1
+      minDomains: 2
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: DoNotSchedule
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+
 # Used only when autoscaling.enabled is false.
 replicaCount: null
 

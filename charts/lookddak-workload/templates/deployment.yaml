@@ -6,6 +6,10 @@ metadata:
   labels:
     {{- include "lookddak-workload.labels" . | nindent 4 }}
 spec:
+  {{- with .Values.deployment.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ required "replicaCount is required when autoscaling is disabled" .Values.replicaCount }}
   {{- end }}
@@ -17,6 +21,22 @@ spec:
       labels:
         {{- include "lookddak-workload.labels" . | nindent 8 }}
     spec:
+      {{- if ne .Values.deployment.terminationGracePeriodSeconds nil }}
+      terminationGracePeriodSeconds: {{ .Values.deployment.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- with .Values.scheduling.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scheduling.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- range . }}
+        - {{- omit . "labelSelector" | toYaml | nindent 10 }}
+          labelSelector:
+            matchLabels:
+              {{- include "lookddak-workload.selectorLabels" $ | nindent 14 }}
+        {{- end }}
+      {{- end }}
       serviceAccountName: {{ include "lookddak-workload.serviceAccountName" . }}
       containers:
         - name: {{ include "lookddak-workload.name" . }}

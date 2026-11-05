@@ -14,6 +14,10 @@ spec:
           labels:
             {{- include "lookddak-workload.labels" . | nindent 12 }}
         spec:
+          {{- with .Values.scheduling.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           serviceAccountName: {{ include "lookddak-workload.serviceAccountName" . }}
           restartPolicy: {{ required "cronJob.restartPolicy is required for cronjob workloads" .Values.cronJob.restartPolicy }}
           containers:
