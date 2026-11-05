@@ -405,7 +405,7 @@ unless gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-securit
   abort "#{gateway_file}: NLB에는 CloudFront 전용 SG 1개를 지정하고 Backend SG 규칙은 LB Controller가 관리해야 합니다."
 end
 gateway_listeners = gateway.dig("spec", "listeners") || []
-unless gateway_listeners.map { |item| item["name"] } == %w[https https-argocd https-grafana] &&
+unless gateway_listeners.map { |item| item["name"] } == %w[https https-v3-dev https-argocd https-grafana] &&
        gateway_listeners.all? { |item| item["port"] == 443 && item["protocol"] == "HTTPS" && item.dig("tls", "mode") == "Terminate" }
   abort "#{gateway_file}: 443 HTTPS Listener에서 TLS를 종료해야 합니다."
 end
