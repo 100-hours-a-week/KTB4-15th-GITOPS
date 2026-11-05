@@ -384,6 +384,10 @@ unless gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"
        !gateway_annotations.key?("service.beta.kubernetes.io/aws-load-balancer-ssl-cert")
   abort "#{gateway_file}: 내부 NLB(IP Target)로 TCP 통과해야 하며 NLB에서 TLS를 종료하면 안 됩니다."
 end
+unless gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-security-groups"].to_s.match?(/\Asg-[0-9a-f]+\z/) &&
+       gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules"] == "true"
+  abort "#{gateway_file}: NLB에는 CloudFront 전용 SG 1개를 지정하고 Backend SG 규칙은 LB Controller가 관리해야 합니다."
+end
 gateway_listeners = gateway.dig("spec", "listeners") || []
 unless gateway_listeners.map { |item| item["name"] } == %w[https https-argocd https-grafana] &&
        gateway_listeners.all? { |item| item["port"] == 443 && item["protocol"] == "HTTPS" && item.dig("tls", "mode") == "Terminate" }
@@ -399,6 +403,10 @@ unless gateway_secret_refs.uniq == [gateway_certificate.dig("spec", "secretName"
 end
 gateway_options = load_yaml("platform/dev/networking/gateway/gateway-options.yaml")
 gateway_pod_spec = YAML.safe_load(gateway_options.dig("data", "deployment")).dig("spec", "template", "spec")
+gateway_service_ports = YAML.safe_load(gateway_options.dig("data", "service").to_s).to_h.dig("spec", "ports") || []
+unless gateway_service_ports.include?({ "$patch" => "delete", "port" => 15021 })
+  abort "Gateway Service에서 status-port 15021을 제거해 NLB에 15021 Listener가 생기지 않게 해야 합니다."
+end
 unless gateway.dig("spec", "infrastructure", "parametersRef", "name") == gateway_options.dig("metadata", "name") &&
        gateway_pod_spec.dig("nodeSelector", "lookddak.io/node-pool") == "system" &&
        (gateway_pod_spec["tolerations"] || []).any? { |item| item["key"] == "CriticalAddonsOnly" }
