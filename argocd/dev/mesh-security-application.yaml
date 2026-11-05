@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lookddak-dev-mesh-security
+  namespace: argocd
+  annotations:
+    # istiod(0) 이후
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: lookddak-dev-platform
+  source:
+    repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+    targetRevision: main
+    path: platform/dev/networking/mesh-security
+    directory:
+      include: "*.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

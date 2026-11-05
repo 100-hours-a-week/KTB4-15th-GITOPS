@@ -1,0 +1,11 @@
+# 메시 전체 mTLS 강제 (root Namespace istio-system → 모든 메시 워크로드)
+# - 현재 메시 범위: 도메인 Namespace(Ambient)만. 플랫폼 Namespace는 영향 없음
+# - kubelet probe(169.254.7.127)는 ztunnel을 우회하므로 영향 없음, Gateway → 앱은 HBONE(mTLS)
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT
