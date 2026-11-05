@@ -40,6 +40,7 @@ dev의 공용 Istio Gateway(Gateway API)를 GitOps로 관리한다. 각 도메�
 1. 처음에는 `letsencrypt-staging`으로 DNS-01 발급 절차를 확인한다.
 2. `kubectl -n istio-ingress get certificate dev-lookddak-com`이 `READY True`이면 `issuerRef.name`을 `letsencrypt-prod`로 바꾼다.
 3. CloudFront 연결 전에 반드시 prod여야 한다 (staging CA는 CloudFront가 신뢰하지 않아 502).
+4. 2026-11-05 staging 발급(SAN 3개) 확인 후 `letsencrypt-prod`로 전환했다. 이후 발급 테스트는 staging Certificate를 따로 만들어 한다 (prod 주간 발급 한도).
 
 ### Gateway 확장 (System Node → Application Node)
 
