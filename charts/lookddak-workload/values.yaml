@@ -1,12 +1,12 @@
-# Workload identity and execution type.
-# type accepts "deployment" or "cronjob".
+# 워크로드 식별자와 실행 유형이다.
+# type에는 "deployment" 또는 "cronjob"을 입력한다.
 workload:
   name: ""
   type: ""
   runtimeRole: ""
 
-# A workload selects one shared image group. Environment-specific values files
-# provide the repository and immutable digest for each group.
+# 워크로드는 공통 이미지 그룹 하나를 선택한다.
+# 환경별 값 파일에서 각 그룹의 저장소와 변경할 수 없는 다이제스트를 제공한다.
 imageGroup: ""
 images:
   fe:
@@ -28,9 +28,9 @@ container:
   args: []
   env: []
 
-# Common rollout and shutdown defaults for long-running workloads.
-# Workload values may override the grace period when SSE or background work
-# needs more time to finish.
+# 계속 실행되는 워크로드의 공통 롤링 배포와 종료 기본값이다.
+# SSE 연결이나 백그라운드 작업 종료에 시간이 더 필요하면
+# 워크로드별 값에서 종료 유예 시간을 재정의할 수 있다.
 deployment:
   strategy:
     type: RollingUpdate
@@ -39,9 +39,9 @@ deployment:
       maxSurge: 1
   terminationGracePeriodSeconds: 30
 
-# Application workloads run only on Karpenter-provisioned ARM64 nodes.
-# The chart supplies the workload selector to each topology constraint so
-# replicas of different workloads are not counted together.
+# 애플리케이션 워크로드는 Karpenter가 생성한 ARM64 노드에서만 실행한다.
+# 서로 다른 워크로드의 복제본이 함께 계산되지 않도록
+# 차트가 각 토폴로지 제약 조건에 워크로드 선택자를 추가한다.
 scheduling:
   nodeSelector:
     kubernetes.io/arch: arm64
@@ -55,11 +55,10 @@ scheduling:
       topologyKey: kubernetes.io/hostname
       whenUnsatisfiable: ScheduleAnyway
 
-# Used only when autoscaling.enabled is false.
+# 자동 확장을 사용하지 않을 때만 적용한다.
 replicaCount: null
 
-# Values are supplied after workload sizing and application health endpoints
-# are confirmed.
+# 워크로드 크기와 애플리케이션 상태 확인 경로를 확정한 뒤 값을 입력한다.
 resources: {}
 probes:
   startup: {}

@@ -1,8 +1,8 @@
-# EKS dev image references. GitHub Actions will update immutable digests later.
+# EKS 개발 환경 이미지 주소다. 이후 GitHub Actions가 변경할 수 없는 다이제스트를 갱신한다.
 images:
   fe:
-    repository: ""
-    digest: ""
+    repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-nextjs
+    digest: sha256:f7e76d22444fdec1706556c2417a9811d47f712690a6a0c7616abb140e440367
   be:
     repository: ""
     digest: ""
