@@ -1,3 +1,6 @@
+gitops:
+  autoSync: false
+
 workload:
   name: identity-api
   type: deployment

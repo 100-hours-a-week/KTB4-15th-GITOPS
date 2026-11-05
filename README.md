@@ -279,7 +279,7 @@ Root Application과 최종 활성화된 ApplicationSet은 `main`을 감시하며
 
 따라서 Cluster를 수동으로 변경하더라도 Self Heal에 의해 Git 상태로 되돌아갈 수 있습니다. 운영 변경은 반드시 Git에서 시작해야 합니다.
 
-EKS dev 최초 연결 단계에서는 이미지·Replica 등 실배포 값이 아직 확정되지 않았으므로 Workload ApplicationSet의 `automated.enabled`를 `false`로 유지합니다. Root Application은 AppProject, Namespace와 ApplicationSet을 자동 관리하지만, 실제 Workload Auto Sync는 필수 values와 전체 Helm 렌더링 검증이 완료된 후 별도 PR로 활성화합니다.
+EKS dev Workload ApplicationSet은 각 워크로드 values의 `gitops.autoSync`가 `true`인 Application에만 Auto Sync 정책을 추가합니다. 배포 준비가 끝나지 않은 워크로드는 `false`를 유지하며, 이미지·Replica·Probe·Secret·Route 등 필수 values와 Helm 렌더링 검증이 완료된 워크로드만 별도 PR에서 활성화합니다.
 
 Argo CD 자체는 별도 `argocd` Application이 `platform/dev/argocd`를 자동 관리합니다. 기존 Helm Release 이름과 설치 버전을 유지하고, CRD와 런타임 Secret 데이터는 삭제·덮어쓰기 방지 정책을 적용합니다. Cilium은 네트워크 담당자의 Bootstrap 관리 범위이며 이 Application에 포함하지 않습니다. 자세한 전환·검증 절차는 [Argo CD 운영 문서](platform/dev/argocd/README.md)를 참고합니다.
 

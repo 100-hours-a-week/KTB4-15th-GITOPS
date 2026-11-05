@@ -13,7 +13,7 @@ EKS dev에 설치된 Argo CD가 GitOps 저장소의 dev 목표 상태를 읽어 
 - Root Application과 Domain ApplicationSet은 Git 변경을 자동 동기화한다.
 - `argocd-application.yaml`은 기존 Argo CD 설치 Chart를 `argocd` Application으로 자동 관리한다. 전용 Project는 `lookddak-dev-argocd`이며 대상 Namespace는 `argocd`다.
 - `metrics-server-application.yaml`은 Metrics Server를 `kube-system`의 ARM64 System Node에 자동 배포한다.
-- Workload ApplicationSet은 Application을 생성하지만, 이미지·Replica 등 실배포 값이 확정될 때까지 `automated.enabled: false`로 유지한다.
+- Workload ApplicationSet은 각 workload values의 `gitops.autoSync`가 `true`인 Application에만 Auto Sync 정책을 추가한다.
 - 배포 대상은 각 도메인의 `lookddak-*` Namespace이며, Argo CD가 실행되는 클러스터 내부 주소를 사용한다.
 
 ## 적용 순서
@@ -37,7 +37,7 @@ Root Application은 `default` Project를 사용해 위 부트스트랩 리소스
 - HPA·KEDA가 관리하는 Replica 필드의 `ignoreDifferences` 적용 범위
 - Argo CD Notifications의 수신 채널과 알림 조건
 
-위 항목이 준비되고 모든 Helm 렌더링 검사가 통과하기 전에는 Workload Application의 Auto Sync를 활성화하지 않는다.
+위 항목이 준비되고 Helm 렌더링 검사가 통과한 워크로드만 `gitops.autoSync: true`로 전환한다. 준비되지 않은 워크로드는 `false`를 유지한다.
 
 ## 최초 등록 순서
 
@@ -45,5 +45,5 @@ Root Application은 `default` Project를 사용해 위 부트스트랩 리소스
 2. Public GitOps 저장소가 `argocd-repo-server`에서 조회되는지 확인한다.
 3. `root-application.yaml`을 최초 한 번 `kubectl apply`한다.
 4. Root가 AppProject, Namespace와 ApplicationSet을 순서대로 생성하는지 확인한다.
-5. Workload Application이 생성되지만 자동 Sync되지 않는지 확인한다.
-6. 실배포 values를 완성하고 검증한 뒤 별도 PR로 Workload Auto Sync를 활성화한다.
+5. `gitops.autoSync: false`인 Workload Application이 생성되지만 자동 Sync되지 않는지 확인한다.
+6. 실배포 values를 완성하고 검증한 워크로드만 별도 PR에서 `gitops.autoSync: true`로 전환한다.
