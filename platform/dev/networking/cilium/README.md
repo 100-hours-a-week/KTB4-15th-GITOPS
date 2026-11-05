@@ -78,6 +78,17 @@ kubectl -n kube-system get pods -l app.kubernetes.io/part-of=cilium -o wide
 - 기본 차단 정책 적용 전에 Ambient Health Probe(`169.254.7.127/32`), HBONE(15008) 예외 정책 정의
 - ~~Hubble Relay·UI~~ 활성화 (System Node, 외부 공개 없음)
 
+## Ambient probe와 Host Routing
+
+- `bpf.hostLegacyRouting: true` (2026-11-05)
+- 증상: Ambient Namespace Pod의 Readiness Probe 시간 초과. Hubble에서 `169.254.7.127 → Pod` SYN은 `to-endpoint`, SYN-ACK은 `to-network`(ENI로 나감)
+- 원인: eBPF Host Routing(`Routing: Host: BPF`)이 Pod 응답을 host iptables를 거치지 않고 ENI로 보내 istio-cni SNAT(169.254.7.127)가 되돌려지지 않음
+- 확인: `kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --verbose | grep -E '^Routing'` → `Host: Legacy`
+- 변경 후 Cilium agent 재시작 필요 (`kubectl -n kube-system rollout restart ds/cilium`)
+- 커뮤니티 표준 우회책이며 업스트림 근본 수정은 없다: [istio#52208](https://github.com/istio/istio/issues/52208)(EKS·ENI 동일 환경), [cilium#36022](https://github.com/cilium/cilium/issues/36022)
+- 업스트림에서 ENI 모드까지 수정되면 eBPF Host Routing 복귀를 검토한다
+- 상세 분석: `work/k8s-design/15-Ambient-Cilium-HostRouting.md`
+
 ## Hubble 접속
 
 ```bash
