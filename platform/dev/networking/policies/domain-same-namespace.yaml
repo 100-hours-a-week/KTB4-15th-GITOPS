@@ -1,0 +1,131 @@
+# 도메인 Namespace 내부 통신 허용 (Namespace마다 1개)
+# 새 도메인 Namespace를 추가하면 여기도 추가한다 (CI가 Namespace 목록과 비교)
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-web-same-namespace
+spec:
+  description: "lookddak-web 내부 Pod 간 HBONE(15008) 허용"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-web
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-web
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-web
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-identity-same-namespace
+spec:
+  description: "lookddak-identity 내부 Pod 간 HBONE(15008) 허용"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-identity
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-identity
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-identity
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-commerce-same-namespace
+spec:
+  description: "lookddak-commerce 내부 Pod 간 HBONE(15008) 허용"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-commerce
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-commerce
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-commerce
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-chat-same-namespace
+spec:
+  description: "lookddak-chat 내부 Pod 간 HBONE(15008) 허용"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-chat
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-chat
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-chat
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-fitting-same-namespace
+spec:
+  description: "lookddak-fitting 내부 Pod 간 HBONE(15008) 허용"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-fitting
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-fitting
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-fitting
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP

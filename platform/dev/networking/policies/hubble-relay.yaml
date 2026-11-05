@@ -1,0 +1,21 @@
+# Hubble Relay 서버(4245)는 TLS가 꺼져 있다 → hubble-ui만 접근 허용
+# port-forward·probe는 host(kubelet) 경유라 Cilium 기본 허용
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-relay
+  namespace: kube-system
+spec:
+  description: "Hubble Relay 4245는 hubble-ui만"
+  endpointSelector:
+    matchLabels:
+      k8s:k8s-app: hubble-relay
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: hubble-ui
+      toPorts:
+        - ports:
+            - port: "4245"
+              protocol: TCP

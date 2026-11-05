@@ -103,7 +103,15 @@ istio_gateway_files = %w[
   argocd/dev/istio-gateway-application.yaml
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files].flatten.each do |file|
+network_policy_files = %w[
+  platform/dev/networking/policies/README.md
+  platform/dev/networking/policies/domain-baseline.yaml
+  platform/dev/networking/policies/domain-same-namespace.yaml
+  platform/dev/networking/policies/hubble-relay.yaml
+  argocd/dev/network-policies-application.yaml
+].freeze
+
+[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -282,6 +290,7 @@ expected_platform_resources = [
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicy" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicyBinding" },
   { "group" => "cert-manager.io", "kind" => "ClusterIssuer" },
+  { "group" => "cilium.io", "kind" => "CiliumClusterwideNetworkPolicy" },
   { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass" },
   { "group" => "karpenter.sh", "kind" => "NodePool" }
 ]
@@ -634,6 +643,34 @@ dev_namespace_files.each do |file|
   elsif labels.key?("istio.io/dataplane-mode")
     abort "#{file}: 플랫폼 Namespace는 Ambient에 등록하지 않습니다."
   end
+end
+
+# 네트워크 정책: 도메인 기본 차단 + Ambient 필수 허용, 도메인 Namespace마다 내부 허용
+baseline = load_yaml("platform/dev/networking/policies/domain-baseline.yaml")
+baseline_ingress_cidrs = (baseline.dig("spec", "ingress") || []).flat_map { |rule| rule["fromCIDR"] || [] }
+unless baseline["kind"] == "CiliumClusterwideNetworkPolicy" &&
+       baseline.dig("spec", "endpointSelector", "matchExpressions") == [{ "key" => "k8s:io.cilium.k8s.namespace.labels.lookddak.com/domain", "operator" => "Exists" }] &&
+       baseline_ingress_cidrs == ["169.254.7.127/32"] &&
+       baseline.dig("spec", "egress").any? { |rule| (rule["toPorts"] || []).any? { |port| port.dig("rules", "dns") } }
+  abort "도메인 baseline 정책은 도메인 Namespace 선택, Ambient probe 허용, DNS 허용이 필요합니다."
+end
+same_namespace_targets = YAML.load_stream(File.read("platform/dev/networking/policies/domain-same-namespace.yaml")).compact.map do |policy|
+  namespace = policy.dig("spec", "endpointSelector", "matchLabels", "k8s:io.kubernetes.pod.namespace")
+  peers = (policy.dig("spec", "ingress") || []) + (policy.dig("spec", "egress") || [])
+  unless peers.length == 2 && peers.all? { |rule| ((rule["fromEndpoints"] || rule["toEndpoints"]) || []) == [{ "matchLabels" => { "k8s:io.kubernetes.pod.namespace" => namespace } }] }
+    abort "#{policy.dig('metadata', 'name')}: 같은 Namespace끼리만 허용해야 합니다."
+  end
+  namespace
+end.sort
+unless same_namespace_targets == dev_namespaces.sort
+  abort "도메인 Namespace마다 같은 Namespace 허용 정책이 필요합니다. 예상=#{dev_namespaces.sort}, 실제=#{same_namespace_targets}"
+end
+policy_application = load_yaml("argocd/dev/network-policies-application.yaml")
+unless policy_application.dig("spec", "project") == "lookddak-dev-platform" &&
+       policy_application.dig("spec", "source", "path") == "platform/dev/networking/policies" &&
+       policy_application.dig("spec", "source", "targetRevision") == "main" &&
+       policy_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "kube-system" }
+  abort "argocd/dev/network-policies-application.yaml: 네트워크 정책 Application 설정이 예상과 다릅니다."
 end
 
 dev_domain_set = load_yaml("argocd/dev/domain-applicationset.yaml")
