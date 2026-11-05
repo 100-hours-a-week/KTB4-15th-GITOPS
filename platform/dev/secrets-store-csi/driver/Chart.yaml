@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-secrets-store-csi-driver
+description: LookDDak EKS dev Secrets Store CSI Driver 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: secrets-store-csi-driver
+    version: 1.6.2
+    repository: https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts

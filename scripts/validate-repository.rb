@@ -61,6 +61,18 @@ metrics_server_files = %w[
   argocd/dev/metrics-server-application.yaml
 ].freeze
 
+secrets_store_csi_files = %w[
+  platform/dev/secrets-store-csi/README.md
+  platform/dev/secrets-store-csi/driver/Chart.yaml
+  platform/dev/secrets-store-csi/driver/Chart.lock
+  platform/dev/secrets-store-csi/driver/values.yaml
+  platform/dev/secrets-store-csi/provider-aws/Chart.yaml
+  platform/dev/secrets-store-csi/provider-aws/Chart.lock
+  platform/dev/secrets-store-csi/provider-aws/values.yaml
+  argocd/dev/secrets-store-csi-driver-application.yaml
+  argocd/dev/secrets-store-csi-provider-aws-application.yaml
+].freeze
+
 aws_load_balancer_controller_files = %w[
   platform/dev/networking/aws-load-balancer-controller/Chart.yaml
   platform/dev/networking/aws-load-balancer-controller/Chart.lock
@@ -118,7 +130,7 @@ mesh_security_files = %w[
   charts/lookddak-domain/templates/authorization-policy.yaml
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files].flatten.each do |file|
+[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -299,6 +311,7 @@ expected_platform_resources = [
   { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRole" },
   { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" },
   { "group" => "apiregistration.k8s.io", "kind" => "APIService" },
+  { "group" => "storage.k8s.io", "kind" => "CSIDriver" },
   { "group" => "admissionregistration.k8s.io", "kind" => "MutatingWebhookConfiguration" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingWebhookConfiguration" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicy" },
@@ -491,6 +504,81 @@ unless metrics_server_dependency &&
        metrics_server_dependency["version"] == "3.14.0" &&
        metrics_server_dependency["repository"] == "https://kubernetes-sigs.github.io/metrics-server/"
   abort "Metrics Server 공식 Chart 3.14.0 의존성을 고정해야 합니다."
+end
+
+secrets_store_dependencies = {
+  "platform/dev/secrets-store-csi/driver/Chart.yaml" => {
+    "name" => "secrets-store-csi-driver",
+    "version" => "1.6.2",
+    "repository" => "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"
+  },
+  "platform/dev/secrets-store-csi/provider-aws/Chart.yaml" => {
+    "name" => "secrets-store-csi-driver-provider-aws",
+    "version" => "3.1.4",
+    "repository" => "https://aws.github.io/secrets-store-csi-driver-provider-aws"
+  }
+}.freeze
+
+secrets_store_dependencies.each do |file, expected|
+  dependency = (load_yaml(file)["dependencies"] || []).find { |item| item["name"] == expected["name"] }
+  unless dependency && dependency["version"] == expected["version"] && dependency["repository"] == expected["repository"]
+    abort "#{file}: 공식 #{expected['name']} Chart #{expected['version']} 의존성을 고정해야 합니다."
+  end
+end
+
+csi_values_file = "platform/dev/secrets-store-csi/driver/values.yaml"
+csi_values = load_yaml(csi_values_file).fetch("secrets-store-csi-driver")
+unless csi_values.dig("linux", "nodeSelector", "kubernetes.io/os") == "linux" &&
+       (csi_values.dig("linux", "tolerations") || []).include?({ "operator" => "Exists" }) &&
+       csi_values.dig("syncSecret", "enabled") == false &&
+       csi_values["enableSecretRotation"] == true &&
+       csi_values["rotationPollInterval"] == "1h" &&
+       (csi_values["tokenRequests"] || []).map { |item| item["audience"] } == %w[sts.amazonaws.com pods.eks.amazonaws.com]
+  abort "#{csi_values_file}: 전체 Linux Node 배치, Secret 비복제, 1시간 Rotation과 AWS Token Audience 설정이 필요합니다."
+end
+
+provider_values_file = "platform/dev/secrets-store-csi/provider-aws/values.yaml"
+provider_values = load_yaml(provider_values_file).fetch("secrets-store-csi-driver-provider-aws")
+unless provider_values["awsRegion"] == "ap-northeast-2" &&
+       provider_values.dig("secrets-store-csi-driver", "install") == false &&
+       provider_values.dig("nodeSelector", "kubernetes.io/os") == "linux" &&
+       (provider_values["tolerations"] || []).include?({ "operator" => "Exists" })
+  abort "#{provider_values_file}: 서울 Region, Driver 중복 설치 방지와 전체 Linux Node 배치 설정이 필요합니다."
+end
+
+secrets_store_applications = {
+  "argocd/dev/secrets-store-csi-driver-application.yaml" => {
+    "name" => "lookddak-dev-secrets-store-csi-driver",
+    "path" => "platform/dev/secrets-store-csi/driver",
+    "release" => "secrets-store-csi-driver",
+    "wave" => "-1"
+  },
+  "argocd/dev/secrets-store-csi-provider-aws-application.yaml" => {
+    "name" => "lookddak-dev-secrets-store-csi-provider-aws",
+    "path" => "platform/dev/secrets-store-csi/provider-aws",
+    "release" => "secrets-store-csi-provider-aws",
+    "wave" => "0"
+  }
+}.freeze
+secrets_store_automation = {
+  "enabled" => true,
+  "prune" => true,
+  "selfHeal" => true,
+  "allowEmpty" => false
+}.freeze
+
+secrets_store_applications.each do |file, expected|
+  application = load_yaml(file)
+  unless application.dig("metadata", "name") == expected["name"] &&
+         application.dig("metadata", "namespace") == "argocd" &&
+         application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == expected["wave"] &&
+         application.dig("spec", "project") == "lookddak-dev-platform" &&
+         application.dig("spec", "source", "path") == expected["path"] &&
+         application.dig("spec", "source", "helm", "releaseName") == expected["release"] &&
+         application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "kube-system" } &&
+         application.dig("spec", "syncPolicy", "automated") == secrets_store_automation
+    abort "#{file}: Secrets Store 플랫폼 Application 설정이 예상과 다릅니다."
+  end
 end
 
 karpenter_version = "1.15.1"
