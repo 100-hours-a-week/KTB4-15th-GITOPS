@@ -17,13 +17,14 @@ karpenter:
     lookddak.io/node-pool: system
 
   controller:
+    # 실사용(2026-11-05 kubectl top): 리더 9m/152Mi, 대기 1m/28Mi
+    # CPU limit은 두지 않는다 (스케일 계산 시 스로틀링 방지, System Node 여유 CPU 사용)
     resources:
       requests:
-        cpu: 1
-        memory: 1Gi
+        cpu: 100m
+        memory: 256Mi
       limits:
-        cpu: 1
-        memory: 1Gi
+        memory: 512Mi
 
   serviceMonitor:
     enabled: false

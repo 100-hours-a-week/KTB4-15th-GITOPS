@@ -500,8 +500,8 @@ unless controller_values["replicas"] == 2 &&
 end
 
 expected_resources = {
-  "requests" => { "cpu" => 1, "memory" => "1Gi" },
-  "limits" => { "cpu" => 1, "memory" => "1Gi" }
+  "requests" => { "cpu" => "100m", "memory" => "256Mi" },
+  "limits" => { "memory" => "512Mi" }
 }
 unless controller_values.dig("controller", "resources") == expected_resources
   abort "#{controller_values_file}: Controller Resource는 CPU 1, Memory 1Gi로 명시해야 합니다."

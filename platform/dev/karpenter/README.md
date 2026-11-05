@@ -19,7 +19,7 @@ EKS dev에서 Application Node를 자동 공급할 Karpenter의 CRD·Controller�
 - 배치 위치: `lookddak.io/node-pool=system` Label이 있는 Managed Node Group
 - Replica: 2개
 - 가용성: 공식 Chart의 서로 다른 Node 배치, AZ 분산과 PDB 정책 유지
-- Resource: Pod당 CPU `1`, Memory `1Gi`를 request와 limit에 동일하게 설정
+- Resource: requests CPU `100m`·Memory `256Mi`, limits Memory `512Mi` (CPU limit 없음). 2026-11-05 실사용 리더 9m/152Mi 기준, System Node CPU requests 98%로 Gateway 롤링이 막혀 낮춤
 - 로그: `info`
 
 ## Argo CD 동기화
