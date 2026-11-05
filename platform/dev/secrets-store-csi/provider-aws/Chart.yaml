@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-secrets-store-csi-provider-aws
+description: LookDDak EKS dev AWS Secrets and Configuration Provider 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: secrets-store-csi-driver-provider-aws
+    version: 3.1.4
+    repository: https://aws.github.io/secrets-store-csi-driver-provider-aws

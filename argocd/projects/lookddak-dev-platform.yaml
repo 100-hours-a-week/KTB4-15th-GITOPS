@@ -25,6 +25,8 @@ spec:
       kind: ClusterRoleBinding
     - group: apiregistration.k8s.io
       kind: APIService
+    - group: storage.k8s.io
+      kind: CSIDriver
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration
     - group: admissionregistration.k8s.io

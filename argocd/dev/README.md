@@ -13,6 +13,7 @@ EKS dev에 설치된 Argo CD가 GitOps 저장소의 dev 목표 상태를 읽어 
 - Root Application과 Domain ApplicationSet은 Git 변경을 자동 동기화한다.
 - `argocd-application.yaml`은 기존 Argo CD 설치 Chart를 `argocd` Application으로 자동 관리한다. 전용 Project는 `lookddak-dev-argocd`이며 대상 Namespace는 `argocd`다.
 - `metrics-server-application.yaml`은 Metrics Server를 `kube-system`의 ARM64 System Node에 자동 배포한다.
+- `secrets-store-csi-driver-application.yaml`과 `secrets-store-csi-provider-aws-application.yaml`은 모든 Linux Node에 Secret 파일 마운트 기반을 자동 배포한다.
 - Workload ApplicationSet은 각 workload values의 `gitops.autoSync`가 `true`인 Application에만 Auto Sync 정책을 추가한다.
 - 배포 대상은 각 도메인의 `lookddak-*` Namespace이며, Argo CD가 실행되는 클러스터 내부 주소를 사용한다.
 
@@ -21,8 +22,8 @@ EKS dev에 설치된 Argo CD가 GitOps 저장소의 dev 목표 상태를 읽어 
 Root Application은 Sync Wave를 사용해 다음 순서로 리소스를 준비한다.
 
 1. `lookddak-dev`, `lookddak-dev-platform`, `lookddak-dev-argocd` AppProject (`-2`)
-2. dev 도메인 Namespace 5개 및 Karpenter CRD Application (`-1`)
-3. Domain·Workload ApplicationSet, Karpenter Controller와 Metrics Server Application (`0`)
+2. dev 도메인 Namespace 5개, Karpenter CRD와 Secrets Store CSI Driver Application (`-1`)
+3. Domain·Workload ApplicationSet, Karpenter Controller, Metrics Server와 AWS Provider Application (`0`)
 4. Karpenter NodePool Application과 Argo CD 자기 관리 Application (`1`)
 
 NodePool Application은 `platform/dev/karpenter/nodepool`의 EC2NodeClass와 NodePool만 자동 반영한다. Root의 Sync Wave는 Child Application 선언 순서이며, 별도 Application의 배포 완료까지 보장하지 않는다. 기존 CRD·Controller가 정상인지 확인한 후 NodePool 구성을 Merge한다.
