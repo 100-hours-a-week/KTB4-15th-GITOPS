@@ -160,6 +160,13 @@ environments.each do |environment|
       abort "#{file}: 지원하지 않는 workload.type '#{type}'입니다." unless %w[deployment cronjob].include?(type)
       abort "#{file}: 지원하지 않는 imageGroup입니다." unless %w[fe be ai crawler].include?(values.fetch("imageGroup"))
 
+      if environment == "dev"
+        auto_sync = values.fetch("gitops").fetch("autoSync")
+        unless [true, false].include?(auto_sync)
+          abort "#{file}: gitops.autoSync는 true 또는 false여야 합니다."
+        end
+      end
+
       application_names << "#{environment}-#{name}"
     end
   end
@@ -733,8 +740,25 @@ unless dev_domain_set.dig("spec", "template", "spec", "project") == "lookddak-de
   abort "dev ApplicationSet은 lookddak-dev AppProject를 사용해야 합니다."
 end
 
-unless dev_workload_set.dig("spec", "template", "spec", "syncPolicy", "automated", "enabled") == false
-  abort "실배포 값 확정 전에는 dev Workload Auto Sync가 비활성화되어야 합니다."
+workload_sync_policy = dev_workload_set.dig("spec", "template", "spec", "syncPolicy") || {}
+if workload_sync_policy.key?("automated")
+  abort "dev Workload Auto Sync는 워크로드별 templatePatch로만 설정해야 합니다."
+end
+unless workload_sync_policy["syncOptions"] == ["PruneLast=true"]
+  abort "dev Workload Application에는 PruneLast=true가 필요합니다."
+end
+
+workload_template_patch = dev_workload_set.dig("spec", "templatePatch").to_s
+required_patch_fragments = [
+  "{{- if .gitops.autoSync }}",
+  "automated:",
+  "enabled: true",
+  "prune: true",
+  "selfHeal: true",
+  "allowEmpty: false"
+]
+unless required_patch_fragments.all? { |fragment| workload_template_patch.include?(fragment) }
+  abort "dev Workload ApplicationSet에 워크로드별 Auto Sync templatePatch가 필요합니다."
 end
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"

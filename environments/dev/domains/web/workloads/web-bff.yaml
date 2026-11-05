@@ -1,3 +1,6 @@
+gitops:
+  autoSync: true
+
 workload:
   name: web-bff
   type: deployment

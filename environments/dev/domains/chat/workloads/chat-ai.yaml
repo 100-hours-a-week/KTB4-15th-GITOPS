@@ -1,3 +1,6 @@
+gitops:
+  autoSync: false
+
 workload:
   name: chat-ai
   type: deployment

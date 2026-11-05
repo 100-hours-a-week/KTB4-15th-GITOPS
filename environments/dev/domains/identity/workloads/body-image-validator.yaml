@@ -1,3 +1,6 @@
+gitops:
+  autoSync: false
+
 workload:
   name: body-image-validator
   type: deployment

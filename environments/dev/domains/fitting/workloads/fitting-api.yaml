@@ -1,3 +1,6 @@
+gitops:
+  autoSync: false
+
 workload:
   name: fitting-api
   type: deployment

@@ -36,10 +36,16 @@ spec:
         server: https://kubernetes.default.svc
         namespace: 'lookddak-{{ index .path.segments 3 }}'
       syncPolicy:
+        syncOptions:
+          - PruneLast=true
+  # 워크로드 값에서 명시적으로 허용한 Application에만 Auto Sync를 적용한다.
+  templatePatch: |
+    {{- if .gitops.autoSync }}
+    spec:
+      syncPolicy:
         automated:
-          enabled: false
+          enabled: true
           prune: true
           selfHeal: true
           allowEmpty: false
-        syncOptions:
-          - PruneLast=true
+    {{- end }}
