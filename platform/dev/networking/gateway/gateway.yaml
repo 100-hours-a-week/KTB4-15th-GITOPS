@@ -49,6 +49,24 @@ spec:
             matchExpressions:
               - key: lookddak.com/domain
                 operator: Exists
+    # V3 검증 도메인 (CloudFront v3-dev.lookddak.com). V2 → V3 전환 후 https(dev.lookddak.com)로 옮긴다
+    - name: https-v3-dev
+      port: 443
+      protocol: HTTPS
+      hostname: v3-dev.lookddak.com
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: dev-lookddak-com-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - key: lookddak.com/domain
+                operator: Exists
     # 운영 도구: 각 도구 Namespace의 HTTPRoute만 붙을 수 있다
     - name: https-argocd
       port: 443
