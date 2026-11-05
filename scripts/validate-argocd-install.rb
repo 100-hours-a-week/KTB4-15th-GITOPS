@@ -45,5 +45,15 @@ end
 unless secret.dig("metadata", "annotations", "argocd.argoproj.io/sync-options") == "Prune=false,Delete=false"
   abort "Argo CD 런타임 Secret 삭제 방지 설정이 필요합니다."
 end
-abort "Argo CD 외부 진입·NetworkPolicy는 이번 작업에서 생성하지 않습니다." if resources.any? { |item| %w[Ingress HTTPRoute Gateway NetworkPolicy].include?(item["kind"]) }
-puts "Argo CD 설치 검증 완료: 실행 구성요소 5개·Hook 1개 System 배치, CRD 3개·런타임 Secret 보호"
+abort "Argo CD Ingress·Gateway·NetworkPolicy는 생성하지 않습니다." if resources.any? { |item| %w[Ingress Gateway NetworkPolicy].include?(item["kind"]) }
+routes = resources.select { |item| item["kind"] == "HTTPRoute" }
+expected_parent = { "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway", "namespace" => "istio-ingress", "sectionName" => "https-argocd" }
+unless routes.length == 1 &&
+       routes[0].dig("spec", "parentRefs") == [expected_parent] &&
+       routes[0].dig("spec", "hostnames") == ["argocd.dev.lookddak.com"] &&
+       routes[0].dig("spec", "rules").flat_map { |rule| rule["backendRefs"] } == [{ "name" => "argocd-server", "port" => 80 }]
+  abort "Argo CD HTTPRoute는 공용 Gateway https-argocd Listener에서 argocd-server:80으로만 연결해야 합니다."
+end
+params = resources.find { |item| item["kind"] == "ConfigMap" && item.dig("metadata", "name") == "argocd-cmd-params-cm" }
+abort "Gateway에서 TLS를 종료하므로 server.insecure가 필요합니다." unless params&.dig("data", "server.insecure") == "true"
+puts "Argo CD 설치 검증 완료: 실행 구성요소 5개·Hook 1개 System 배치, CRD 3개·런타임 Secret 보호, HTTPRoute 1개"

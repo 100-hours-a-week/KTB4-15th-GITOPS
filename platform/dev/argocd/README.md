@@ -12,8 +12,9 @@ EKS dev에 설치된 Argo CD 자체의 버전과 Helm 설정을 관리한다. �
 - 모든 Argo CD Pod를 `lookddak.io/node-pool=system` Node에 배치한다.
 - 실행 구성요소와 Redis 초기화 Hook에 `CriticalAddonsOnly=true:NoSchedule` Toleration을 적용한다. System Node Taint는 네트워크 담당자와 준비를 마친 후 CLOUD에서 별도로 반영한다.
 - dev 환경에서는 Application Controller, ApplicationSet Controller, Repo Server, Server와 Redis를 각각 단일 Replica로 실행한다.
-- Argo CD Server는 `ClusterIP`로 유지하고 Ingress를 생성하지 않는다.
-- Argo CD 외부 기준 URL은 `https://argocd-dev.lookddak.com`으로 선언한다.
+- Argo CD Server는 `ClusterIP`로 유지하고 Ingress를 생성하지 않는다. 외부 진입은 공용 Istio Gateway의 HTTPRoute로 한다.
+- Argo CD 외부 기준 URL은 `https://argocd.dev.lookddak.com`으로 선언한다.
+- TLS는 Istio Gateway에서 종료하므로 `server.insecure: true`로 argocd-server가 HTTP(80)로 받는다. CLI는 `argocd login argocd.dev.lookddak.com --grpc-web`으로 접속한다.
 - 최초 구축 단계에서는 Argo CD 기본 로컬 관리자 로그인을 명시적으로 활성화하고 Dex를 비활성화한다. GitHub OAuth는 후속 작업에서 별도로 구성한다.
 - Discord 장애 알림은 후속 작업에서 구성하므로 Notifications Controller를 비활성화한다.
 - Cilium 정책은 별도 플랫폼 설정에서 관리하므로 Chart의 NetworkPolicy 생성을 비활성화한다.
@@ -21,13 +22,15 @@ EKS dev에 설치된 Argo CD 자체의 버전과 Helm 설정을 관리한다. �
 
 ## 외부 접속 경계
 
-이 Chart는 Argo CD가 외부 링크와 로그인 Redirect의 기준으로 사용할 URL만 선언한다. 실제 외부 네트워크 경로는 이 작업에서 생성하지 않는다.
+이 Chart는 외부 기준 URL과 `templates/httproute.yaml`을 선언한다. Gateway·인증서·NLB는 `platform/dev/networking/gateway`, CloudFront는 KTB4-15th-CLOUD에서 관리한다.
 
 ```text
-argocd-dev.lookddak.com
-→ 기존 외부 진입 경로
-→ Istio Gateway·Gateway API HTTPRoute
-→ argocd-server ClusterIP Service
+argocd.dev.lookddak.com
+→ CloudFront (VPC Origin)
+→ 내부 NLB (TCP 443)
+→ Istio Gateway https-argocd Listener (TLS 종료)
+→ HTTPRoute argocd/argocd-server
+→ argocd-server ClusterIP Service :80
 ```
 
 Istio Gateway, HTTPRoute, DNS, 인증서와 앞단 Load Balancer 설정은 네트워크 담당 작업에서 구성한다. 따라서 Argo CD Chart 자체의 Ingress는 계속 비활성화한다.
@@ -92,7 +95,6 @@ System Node 격리 원칙과 네트워크 담당자 인계 내용은 [System Nod
 
 - GitHub OAuth 기반 Dex 로그인과 RBAC
 - Discord Webhook 기반 장애 알림
-- `argocd-dev.lookddak.com`용 Gateway API HTTPRoute와 TLS 연결
 
 다음 값은 Git에 원문으로 저장하지 않는다.
 
