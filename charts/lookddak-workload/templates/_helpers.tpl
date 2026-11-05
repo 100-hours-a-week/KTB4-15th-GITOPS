@@ -1,15 +1,15 @@
-{{/* Resolve the workload name. */}}
+{{/* 워크로드 이름을 결정한다. */}}
 {{- define "lookddak-workload.name" -}}
 {{- required "workload.name is required" .Values.workload.name | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
-{{/* Stable labels used by workload selectors. */}}
+{{/* 워크로드 선택자에서 사용하는 고정 라벨이다. */}}
 {{- define "lookddak-workload.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "lookddak-workload.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/* Labels shared by all resources created by this chart. */}}
+{{/* 이 차트가 생성하는 모든 리소스의 공통 라벨이다. */}}
 {{- define "lookddak-workload.labels" -}}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{ include "lookddak-workload.selectorLabels" . }}
@@ -21,7 +21,7 @@ lookddak.io/runtime-role: {{ .Values.workload.runtimeRole | quote }}
 {{- end }}
 {{- end }}
 
-{{/* Resolve a shared image group to an immutable ECR image reference. */}}
+{{/* 공통 이미지 그룹을 변경할 수 없는 ECR 이미지 주소로 변환한다. */}}
 {{- define "lookddak-workload.image" -}}
 {{- $groupName := required "imageGroup is required" .Values.imageGroup -}}
 {{- $group := index .Values.images $groupName -}}
@@ -33,7 +33,7 @@ lookddak.io/runtime-role: {{ .Values.workload.runtimeRole | quote }}
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
-{{/* Resolve an explicit, chart-created, or default ServiceAccount name. */}}
+{{/* 명시한 값, 차트가 생성한 값 또는 기본값으로 서비스 계정 이름을 결정한다. */}}
 {{- define "lookddak-workload.serviceAccountName" -}}
 {{- if .Values.serviceAccount.name -}}
 {{- .Values.serviceAccount.name -}}
