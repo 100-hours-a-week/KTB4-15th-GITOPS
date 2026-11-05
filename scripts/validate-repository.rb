@@ -626,6 +626,16 @@ unless actual_dev_namespaces == (dev_namespaces + platform_namespaces).sort
   abort "dev Namespace 구성이 설계와 다릅니다. 예상=#{(dev_namespaces + platform_namespaces).sort}, 실제=#{actual_dev_namespaces}"
 end
 
+# 도메인 Namespace만 Istio Ambient에 등록한다 (플랫폼 Namespace는 메시 밖)
+dev_namespace_files.each do |file|
+  labels = load_yaml(file).dig("metadata", "labels") || {}
+  if labels.key?("lookddak.com/domain")
+    abort "#{file}: 도메인 Namespace는 istio.io/dataplane-mode: ambient가 필요합니다." unless labels["istio.io/dataplane-mode"] == "ambient"
+  elsif labels.key?("istio.io/dataplane-mode")
+    abort "#{file}: 플랫폼 Namespace는 Ambient에 등록하지 않습니다."
+  end
+end
+
 dev_domain_set = load_yaml("argocd/dev/domain-applicationset.yaml")
 dev_workload_set = load_yaml("argocd/dev/workload-applicationset.yaml")
 
