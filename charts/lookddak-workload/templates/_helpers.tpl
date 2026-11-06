@@ -43,3 +43,34 @@ lookddak.io/runtime-role: {{ .Values.workload.runtimeRole | quote }}
 default
 {{- end -}}
 {{- end }}
+
+{{/* Secret 시작 스크립트 ConfigMap 이름을 결정한다. */}}
+{{- define "lookddak-workload.secretStartupConfigMapName" -}}
+{{- printf "%s-secret-startup" (include "lookddak-workload.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{/* Secret 시작 기능의 필수 값과 안전한 환경변수·파일 이름을 검증한다. */}}
+{{- define "lookddak-workload.validateSecretStartup" -}}
+{{- if .Values.secrets.startup.enabled -}}
+  {{- if not .Values.secrets.enabled -}}
+    {{- fail "secrets.enabled must be true when secrets.startup.enabled is true" -}}
+  {{- end -}}
+  {{- if not .Values.secrets.startup.environment -}}
+    {{- fail "secrets.startup.environment is required when Secret startup is enabled" -}}
+  {{- end -}}
+  {{- if not .Values.secrets.startup.command -}}
+    {{- fail "secrets.startup.command is required when Secret startup is enabled" -}}
+  {{- end -}}
+  {{- $_ := required "secrets.startup.scriptMountPath is required when Secret startup is enabled" .Values.secrets.startup.scriptMountPath -}}
+  {{- range .Values.secrets.startup.environment -}}
+    {{- $name := required "secrets.startup.environment[].name is required" .name -}}
+    {{- $fileName := required "secrets.startup.environment[].fileName is required" .fileName -}}
+    {{- if not (regexMatch "^[A-Za-z_][A-Za-z0-9_]*$" $name) -}}
+      {{- fail (printf "invalid Secret environment variable name: %s" $name) -}}
+    {{- end -}}
+    {{- if not (regexMatch "^[A-Za-z0-9._-]+$" $fileName) -}}
+      {{- fail (printf "invalid Secret file name: %s" $fileName) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}

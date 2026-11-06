@@ -14,6 +14,23 @@ service:
 serviceAccount:
   create: true
 
+secrets:
+  enabled: true
+  secretProviderClassName: fixture-cronjob
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: /fixture/crawler/database-url
+        objectType: ssmparameter
+        objectAlias: DATABASE_URL
+  startup:
+    enabled: true
+    environment:
+      - name: DATABASE_URL
+        fileName: DATABASE_URL
+    command:
+      - /app/run-crawler
+
 cronJob:
   schedule: 0 4 * * *
   restartPolicy: OnFailure

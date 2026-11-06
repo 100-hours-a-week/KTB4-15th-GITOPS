@@ -33,3 +33,27 @@ pdb:
 
 serviceAccount:
   create: true
+
+secrets:
+  enabled: true
+  secretProviderClassName: fixture-autoscaled
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: /fixture/ai/api-key
+        objectType: ssmparameter
+        objectAlias: RUNWARE_API_KEY
+  startup:
+    enabled: true
+    environment:
+      - name: RUNWARE_API_KEY
+        fileName: RUNWARE_API_KEY
+    command:
+      - python
+      - -m
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
