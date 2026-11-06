@@ -24,3 +24,5 @@ authorizationPolicy:
   enabled: false
   gatewayPrincipals:
     - cluster.local/ns/istio-ingress/sa/lookddak-gateway-istio
+  # 서비스 계정과 대상 워크로드·포트를 지정한 추가 허용 규칙이다.
+  workloadIngress: []
