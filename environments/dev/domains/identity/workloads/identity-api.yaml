@@ -1,5 +1,5 @@
 gitops:
-  autoSync: false
+  autoSync: true
 
 workload:
   name: identity-api
@@ -8,8 +8,71 @@ workload:
 
 imageGroup: be
 
+container:
+  port: 8080
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: prod
+    - name: AWS_REGION
+      value: ap-northeast-2
+    - name: AWS_S3_BUCKET
+      value: lookddak-dev-images-686496667254-ap-northeast-2
+    - name: AI_SERVER_URL
+      value: http://body-image-validator:80
+    - name: CORS_ALLOWED_ORIGINS
+      value: https://v3-dev.lookddak.com
+    - name: SENTRY_ENVIRONMENT
+      value: dev
+    - name: SSE_SERVER_PORT
+      value: "8081"
+    - name: JAVA_TOOL_OPTIONS
+      value: >-
+        -XX:MaxRAMPercentage=75.0
+        -XX:InitialRAMPercentage=25.0
+        -XX:MaxMetaspaceSize=256m
+        -XX:+UseContainerSupport
+        -Dnetworkaddress.cache.ttl=10
+
+replicaCount: 2
+
+deployment:
+  terminationGracePeriodSeconds: 60
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+probes:
+  liveness:
+    httpGet:
+      path: /actuator/health/liveness
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    httpGet:
+      path: /actuator/health/readiness
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 6
+
 service:
   enabled: true
+  port: 80
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
 
 routing:
   enabled: true
@@ -37,3 +100,42 @@ routing:
 serviceAccount:
   create: true
   roleArn: arn:aws:iam::686496667254:role/lookddak-dev-v3-identity-api
+
+secrets:
+  enabled: true
+  secretProviderClassName: identity-api
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: /lookddak/dev/v3/mysql/jdbc-url
+        objectType: ssmparameter
+        objectAlias: DB_URL
+      - objectName: /lookddak/dev/v3/mysql/app/username
+        objectType: ssmparameter
+        objectAlias: DB_USERNAME
+      - objectName: /lookddak/dev/v3/mysql/app/password
+        objectType: ssmparameter
+        objectAlias: DB_PASSWORD
+      - objectName: /lookddak/dev/spring/jwt-secret
+        objectType: ssmparameter
+        objectAlias: JWT_SECRET
+      - objectName: /lookddak/dev/internal/ai-api-key
+        objectType: ssmparameter
+        objectAlias: AI_INTERNAL_API_KEY
+  startup:
+    enabled: true
+    environment:
+      - name: DB_URL
+        fileName: DB_URL
+      - name: DB_USERNAME
+        fileName: DB_USERNAME
+      - name: DB_PASSWORD
+        fileName: DB_PASSWORD
+      - name: JWT_SECRET
+        fileName: JWT_SECRET
+      - name: AI_INTERNAL_API_KEY
+        fileName: AI_INTERNAL_API_KEY
+    command:
+      - java
+      - -XX:+ExitOnOutOfMemoryError
+      - org.springframework.boot.loader.launch.JarLauncher

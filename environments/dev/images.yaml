@@ -5,7 +5,7 @@ images:
     digest: sha256:f7e76d22444fdec1706556c2417a9811d47f712690a6a0c7616abb140e440367
   be:
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-spring
-    digest: sha256:58e5660f4016c656310293c0b99e4a201296e60a851aeb6c4db6a7b46d574610
+    digest: sha256:eda0d14fd122854eb030c210ea6a3ef8f760bf30f133c5941027acd0163dc494
   ai:
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-fastapi
     digest: sha256:7fee575b0dafea705cd5e6385c2a5920d91a9277a567ab7db5c25fe67e41e18e
