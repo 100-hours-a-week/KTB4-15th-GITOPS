@@ -1,0 +1,26 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-dev-identity-api-egress
+spec:
+  description: "Dev identity-api의 MySQL 및 AWS API 연결 허용"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-identity
+      k8s:app.kubernetes.io/name: identity-api
+  egress:
+    # 공통 도메인 정책의 CoreDNS 관측을 사용해 RDS 주소 변경을 따라간다.
+    - toFQDNs:
+        - matchName: lookddak-dev-v2-mysql.cd8ekqeiua7b.ap-northeast-2.rds.amazonaws.com
+      toPorts:
+        - ports:
+            - port: "3306"
+              protocol: TCP
+    # 애플리케이션의 IRSA 인증과 Dev 이미지 버킷 접근에 필요한 주소만 허용한다.
+    - toFQDNs:
+        - matchName: sts.ap-northeast-2.amazonaws.com
+        - matchName: lookddak-dev-images-686496667254-ap-northeast-2.s3.ap-northeast-2.amazonaws.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
