@@ -34,4 +34,28 @@ spec:
         - source:
             principals:
               {{- toYaml .Values.authorizationPolicy.gatewayPrincipals | nindent 14 }}
+{{- range .Values.authorizationPolicy.workloadIngress }}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ required "authorizationPolicy.workloadIngress[].name 값이 필요합니다" .name | quote }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "lookddak-domain.labels" $ | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ required "authorizationPolicy.workloadIngress[].targetWorkload 값이 필요합니다" .targetWorkload | quote }}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - {{ required "authorizationPolicy.workloadIngress[].sourcePrincipal 값이 필요합니다" .sourcePrincipal | quote }}
+      to:
+        - operation:
+            ports:
+              - {{ required "authorizationPolicy.workloadIngress[].targetPort 값이 필요합니다" .targetPort | quote }}
+{{- end }}
 {{- end }}
