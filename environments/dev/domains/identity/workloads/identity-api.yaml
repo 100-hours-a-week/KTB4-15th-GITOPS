@@ -107,13 +107,13 @@ secrets:
   mountPath: /mnt/secrets-store
   parameters:
     objects: |
-      - objectName: /lookddak/dev/v2/mysql/jdbc-url
+      - objectName: /lookddak/dev/v3/mysql/jdbc-url
         objectType: ssmparameter
         objectAlias: DB_URL
-      - objectName: /lookddak/dev/rds/app/username
+      - objectName: /lookddak/dev/v3/mysql/app/username
         objectType: ssmparameter
         objectAlias: DB_USERNAME
-      - objectName: /lookddak/dev/rds/app/password
+      - objectName: /lookddak/dev/v3/mysql/app/password
         objectType: ssmparameter
         objectAlias: DB_PASSWORD
       - objectName: /lookddak/dev/spring/jwt-secret
