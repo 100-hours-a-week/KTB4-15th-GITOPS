@@ -30,3 +30,4 @@ routing:
 
 serviceAccount:
   create: true
+  roleArn: arn:aws:iam::686496667254:role/lookddak-dev-v3-chat-api
