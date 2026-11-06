@@ -23,5 +23,15 @@ secrets:
   mountPath: /mnt/secrets-store
   parameters:
     objects: |
-      - objectName: fixture-secret
-        objectType: secretsmanager
+      - objectName: /fixture/be/database-url
+        objectType: ssmparameter
+        objectAlias: DATABASE_URL
+  startup:
+    enabled: true
+    environment:
+      - name: DATABASE_URL
+        fileName: DATABASE_URL
+    command:
+      - java
+      - -jar
+      - /app/app.jar

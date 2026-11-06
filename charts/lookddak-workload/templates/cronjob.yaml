@@ -23,6 +23,17 @@ spec:
           containers:
             - name: {{ include "lookddak-workload.name" . }}
               image: {{ include "lookddak-workload.image" . | quote }}
+              {{- if .Values.secrets.startup.enabled }}
+              command:
+                - /bin/sh
+                - {{ printf "%s/load-secrets.sh" .Values.secrets.startup.scriptMountPath | quote }}
+              args:
+                {{- range .Values.secrets.startup.environment }}
+                - {{ printf "%s=%s/%s" .name $.Values.secrets.mountPath .fileName | quote }}
+                {{- end }}
+                - "--"
+                {{- toYaml .Values.secrets.startup.command | nindent 16 }}
+              {{- else }}
               {{- with .Values.container.command }}
               command:
                 {{- toYaml . | nindent 16 }}
@@ -30,6 +41,7 @@ spec:
               {{- with .Values.container.args }}
               args:
                 {{- toYaml . | nindent 16 }}
+              {{- end }}
               {{- end }}
               {{- if or .Values.workload.runtimeRole .Values.container.env }}
               env:
@@ -50,6 +62,11 @@ spec:
                 - name: secrets-store-inline
                   mountPath: {{ required "secrets.mountPath is required when secrets are enabled" .Values.secrets.mountPath | quote }}
                   readOnly: true
+                {{- if .Values.secrets.startup.enabled }}
+                - name: secret-startup-script
+                  mountPath: {{ .Values.secrets.startup.scriptMountPath | quote }}
+                  readOnly: true
+                {{- end }}
               {{- end }}
           {{- if .Values.secrets.enabled }}
           volumes:
@@ -59,5 +76,11 @@ spec:
                 readOnly: true
                 volumeAttributes:
                   secretProviderClass: {{ required "secrets.secretProviderClassName is required when secrets are enabled" .Values.secrets.secretProviderClassName | quote }}
+            {{- if .Values.secrets.startup.enabled }}
+            - name: secret-startup-script
+              configMap:
+                name: {{ include "lookddak-workload.secretStartupConfigMapName" . }}
+                defaultMode: 0555
+            {{- end }}
           {{- end }}
 {{- end }}
