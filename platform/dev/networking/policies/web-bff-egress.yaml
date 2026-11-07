@@ -1,0 +1,18 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-dev-web-bff-egress
+spec:
+  description: "Dev web-bff의 29CM 상품 이미지 최적화 요청 허용"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-web
+      k8s:app.kubernetes.io/name: web-bff
+  egress:
+    # Next.js Image Optimizer가 상품 원본 이미지를 가져올 때만 사용한다
+    - toFQDNs:
+        - matchName: img.29cm.co.kr
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
