@@ -1,5 +1,5 @@
 gitops:
-  autoSync: false
+  autoSync: true
 
 workload:
   name: fitting-worker
@@ -8,8 +8,79 @@ workload:
 
 imageGroup: be
 
+container:
+  port: 8080
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: prod
+    - name: AWS_REGION
+      value: ap-northeast-2
+    # 공용 Spring 이미지의 필수 설정만 채우며 Worker Role에는 S3 권한을 주지 않는다.
+    - name: AWS_S3_BUCKET
+      value: lookddak-dev-images-686496667254-ap-northeast-2
+    - name: AI_SERVER_URL
+      value: http://vton-orchestrator:80
+    - name: CORS_ALLOWED_ORIGINS
+      value: https://v3-dev.lookddak.com
+    - name: SENTRY_ENVIRONMENT
+      value: dev
+    - name: SSE_SERVER_PORT
+      value: "8081"
+    - name: BE_FITTING_REQUEST_QUEUE_URL
+      value: https://sqs.ap-northeast-2.amazonaws.com/686496667254/lookddak-dev-v3-be-fitting-request
+    - name: BE_FITTING_RESPONSE_QUEUE_URL
+      value: https://sqs.ap-northeast-2.amazonaws.com/686496667254/lookddak-dev-v3-be-fitting-response
+    - name: FITTING_OUTBOX_ENABLED
+      value: "true"
+    - name: FITTING_RESULT_CONSUMER_ENABLED
+      value: "true"
+    - name: JAVA_TOOL_OPTIONS
+      value: >-
+        -XX:MaxRAMPercentage=75.0
+        -XX:InitialRAMPercentage=25.0
+        -XX:MaxMetaspaceSize=256m
+        -XX:+UseContainerSupport
+        -Dnetworkaddress.cache.ttl=10
+
+replicaCount: 2
+
+deployment:
+  terminationGracePeriodSeconds: 120
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+probes:
+  liveness:
+    httpGet:
+      path: /actuator/health/liveness
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    httpGet:
+      path: /actuator/health/readiness
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 6
+
 service:
   enabled: false
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
 
 routing:
   enabled: false
@@ -17,3 +88,37 @@ routing:
 serviceAccount:
   create: true
   roleArn: arn:aws:iam::686496667254:role/lookddak-dev-v3-fitting-worker
+
+secrets:
+  enabled: true
+  secretProviderClassName: fitting-worker
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: /lookddak/dev/v3/mysql/jdbc-url
+        objectType: ssmparameter
+        objectAlias: DB_URL
+      - objectName: /lookddak/dev/v3/mysql/app/username
+        objectType: ssmparameter
+        objectAlias: DB_USERNAME
+      - objectName: /lookddak/dev/v3/mysql/app/password
+        objectType: ssmparameter
+        objectAlias: DB_PASSWORD
+      - objectName: /lookddak/dev/spring/jwt-secret
+        objectType: ssmparameter
+        objectAlias: JWT_SECRET
+  startup:
+    enabled: true
+    environment:
+      - name: DB_URL
+        fileName: DB_URL
+      - name: DB_USERNAME
+        fileName: DB_USERNAME
+      - name: DB_PASSWORD
+        fileName: DB_PASSWORD
+      - name: JWT_SECRET
+        fileName: JWT_SECRET
+    command:
+      - java
+      - -XX:+ExitOnOutOfMemoryError
+      - org.springframework.boot.loader.launch.JarLauncher

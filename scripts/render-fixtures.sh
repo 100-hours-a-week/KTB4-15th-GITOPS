@@ -47,6 +47,22 @@ helm template commerce-domain charts/lookddak-domain \
   -f environments/dev/domains/commerce/domain.yaml \
   > "$output_dir/commerce-domain-dev.yaml"
 
+# 실제 Fitting values도 함께 렌더링해 역할별 Queue·Secret·Route 설정을 검증한다.
+for workload in fitting-api fitting-worker vton-orchestrator; do
+  helm template "$workload" charts/lookddak-workload \
+    --namespace lookddak-fitting \
+    --kube-version 1.36.0 \
+    -f environments/dev/images.yaml \
+    -f "environments/dev/domains/fitting/workloads/$workload.yaml" \
+    > "$output_dir/$workload-dev.yaml"
+done
+
+helm template fitting-domain charts/lookddak-domain \
+  --namespace lookddak-fitting \
+  --kube-version 1.36.0 \
+  -f environments/dev/domains/fitting/domain.yaml \
+  > "$output_dir/fitting-domain-dev.yaml"
+
 helm template fixture-domain charts/lookddak-domain \
   -f ci/fixtures/domain-policy.yaml \
   > "$output_dir/domain-policy.yaml"

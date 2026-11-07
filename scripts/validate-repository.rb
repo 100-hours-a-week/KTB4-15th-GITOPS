@@ -1025,6 +1025,111 @@ unless crawler_parameter_names == %w[/lookddak/dev/v2/postgresql/app/database-ur
   abort "#{price_crawler_file}: Crawler Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
 end
 
+# Fitting 도메인: API, BE Queue Worker, AI Orchestrator를 역할별로 분리해 한 PR에서 활성화한다.
+be_request_queue_url = "https://sqs.ap-northeast-2.amazonaws.com/686496667254/lookddak-dev-v3-be-fitting-request"
+ai_response_queue_url = "https://sqs.ap-northeast-2.amazonaws.com/686496667254/lookddak-dev-v3-ai-fitting-response"
+be_response_queue_url = "https://sqs.ap-northeast-2.amazonaws.com/686496667254/lookddak-dev-v3-be-fitting-response"
+
+fitting_api_file = "environments/dev/domains/fitting/workloads/fitting-api.yaml"
+fitting_api = load_yaml(fitting_api_file)
+unless fitting_api.dig("gitops", "autoSync") == true &&
+       fitting_api.dig("workload", "runtimeRole") == "fitting-api" &&
+       fitting_api["replicaCount"] == 2 &&
+       fitting_api.dig("container", "port") == 8080 &&
+       fitting_api.dig("deployment", "terminationGracePeriodSeconds") == 330 &&
+       fitting_api.dig("service", "enabled") == true &&
+       fitting_api.dig("service", "port") == 80 &&
+       fitting_api.dig("routing", "enabled") == true &&
+       fitting_api.dig("pdb", "maxUnavailable") == 1 &&
+       fitting_api.dig("secrets", "secretProviderClassName") == "fitting-api" &&
+       fitting_api.dig("container", "env")&.include?({ "name" => "FITTING_OUTBOX_ENABLED", "value" => "false" }) &&
+       fitting_api.dig("container", "env")&.include?({ "name" => "FITTING_RESULT_CONSUMER_ENABLED", "value" => "false" }) &&
+       File.file?("platform/dev/networking/policies/fitting-api-egress.yaml")
+  abort "#{fitting_api_file}: Fitting API의 Auto Sync·Replica·SSE 종료·Worker 비활성·Secret 설정이 필요합니다."
+end
+
+fitting_api_parameter_names = fitting_api.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
+expected_fitting_api_parameters = %w[
+  /lookddak/dev/v3/mysql/jdbc-url
+  /lookddak/dev/v3/mysql/app/username
+  /lookddak/dev/v3/mysql/app/password
+  /lookddak/dev/spring/jwt-secret
+  /lookddak/dev/internal/ai-api-key
+]
+unless fitting_api_parameter_names == expected_fitting_api_parameters
+  abort "#{fitting_api_file}: Fitting API Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
+end
+
+fitting_worker_file = "environments/dev/domains/fitting/workloads/fitting-worker.yaml"
+fitting_worker = load_yaml(fitting_worker_file)
+unless fitting_worker.dig("gitops", "autoSync") == true &&
+       fitting_worker.dig("workload", "runtimeRole") == "fitting-worker" &&
+       fitting_worker["replicaCount"] == 2 &&
+       fitting_worker.dig("container", "port") == 8080 &&
+       fitting_worker.dig("deployment", "terminationGracePeriodSeconds") == 120 &&
+       fitting_worker.dig("service", "enabled") == false &&
+       fitting_worker.dig("routing", "enabled") == false &&
+       fitting_worker.dig("pdb", "maxUnavailable") == 1 &&
+       fitting_worker.dig("secrets", "secretProviderClassName") == "fitting-worker" &&
+       fitting_worker.dig("container", "env")&.include?({ "name" => "BE_FITTING_REQUEST_QUEUE_URL", "value" => be_request_queue_url }) &&
+       fitting_worker.dig("container", "env")&.include?({ "name" => "BE_FITTING_RESPONSE_QUEUE_URL", "value" => be_response_queue_url }) &&
+       fitting_worker.dig("container", "env")&.include?({ "name" => "FITTING_OUTBOX_ENABLED", "value" => "true" }) &&
+       fitting_worker.dig("container", "env")&.include?({ "name" => "FITTING_RESULT_CONSUMER_ENABLED", "value" => "true" }) &&
+       File.file?("platform/dev/networking/policies/fitting-worker-egress.yaml")
+  abort "#{fitting_worker_file}: Fitting Worker의 Auto Sync·V3 Queue·Worker 활성·Secret 설정이 필요합니다."
+end
+
+fitting_worker_parameter_names = fitting_worker.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
+expected_fitting_worker_parameters = %w[
+  /lookddak/dev/v3/mysql/jdbc-url
+  /lookddak/dev/v3/mysql/app/username
+  /lookddak/dev/v3/mysql/app/password
+  /lookddak/dev/spring/jwt-secret
+]
+unless fitting_worker_parameter_names == expected_fitting_worker_parameters
+  abort "#{fitting_worker_file}: Fitting Worker Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
+end
+
+vton_file = "environments/dev/domains/fitting/workloads/vton-orchestrator.yaml"
+vton = load_yaml(vton_file)
+vton_env = vton.dig("container", "env") || []
+required_vton_flags = %w[
+  VIRTUAL_FITTING_REQUEST_WORKER_ENABLED
+  VIRTUAL_FITTING_POSTPROCESS_WORKER_ENABLED
+  VIRTUAL_FITTING_RESULT_PUBLISHER_ENABLED
+  VIRTUAL_FITTING_WATCHDOG_ENABLED
+]
+unless vton.dig("gitops", "autoSync") == true &&
+       vton.dig("workload", "runtimeRole") == "vton-orchestrator" &&
+       vton["replicaCount"] == 2 &&
+       vton.dig("container", "port") == 8000 &&
+       vton.dig("deployment", "terminationGracePeriodSeconds") == 330 &&
+       vton.dig("service", "enabled") == true &&
+       vton.dig("service", "port") == 80 &&
+       vton.dig("routing", "enabled") == true &&
+       vton.dig("pdb", "maxUnavailable") == 1 &&
+       vton.dig("secrets", "secretProviderClassName") == "vton-orchestrator" &&
+       vton_env.include?({ "name" => "BE_FITTING_REQUEST_QUEUE_URL", "value" => be_request_queue_url }) &&
+       vton_env.include?({ "name" => "AI_FITTING_RESPONSE_QUEUE_URL", "value" => ai_response_queue_url }) &&
+       vton_env.include?({ "name" => "BE_FITTING_RESPONSE_QUEUE_URL", "value" => be_response_queue_url }) &&
+       required_vton_flags.all? { |name| vton_env.include?({ "name" => name, "value" => "true" }) } &&
+       vton.dig("secrets", "startup", "command").join(" ").include?("https://v3-dev.lookddak.com/api/v2/webhooks/runware?token=${WEBHOOK_TOKEN}") &&
+       File.file?("platform/dev/networking/policies/vton-orchestrator-egress.yaml")
+  abort "#{vton_file}: VTON Orchestrator의 Auto Sync·V3 Queue·Worker·Webhook·Secret 설정이 필요합니다."
+end
+
+vton_parameter_names = vton.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
+expected_vton_parameters = %w[
+  /lookddak/dev/v2/postgresql/app/database-url
+  /lookddak/dev/internal/ai-api-key
+  /lookddak/dev/fastapi/runware-vton-api-key
+  /lookddak/dev/fastapi/runware-llm-api-key
+  /lookddak/dev/fastapi/webhook-token
+]
+unless vton_parameter_names == expected_vton_parameters
+  abort "#{vton_file}: VTON Orchestrator는 V3 Callback에 필요한 최소 Parameter만 마운트해야 합니다."
+end
+
 # web-bff → BE는 lookddak-web waypoint를 거친다 (platform/dev/networking/internal-api)
 # 도메인 Namespace에 web-bff 신원을 직접 허용하지 않는다
 Dir["environments/dev/domains/*/domain.yaml"].sort.each do |file|
