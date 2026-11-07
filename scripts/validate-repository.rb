@@ -137,7 +137,6 @@ internal_api_files = %w[
   platform/dev/networking/internal-api/api-httproute.yaml
   platform/dev/networking/internal-api/reference-grants.yaml
   platform/dev/networking/policies/web-waypoint.yaml
-  platform/dev/networking/policies/domain-egress.yaml
   argocd/dev/internal-api-application.yaml
 ].freeze
 
@@ -825,7 +824,6 @@ dev_workload_namespaces = Dir["environments/dev/domains/*/workloads/*.yaml"].to_
   [File.basename(file, ".yaml"), "lookddak-#{file.split('/')[3]}"]
 end
 Dir["platform/dev/networking/policies/*-egress.yaml"].sort.each do |file|
-  next if File.basename(file) == "domain-egress.yaml"
   workload = File.basename(file, "-egress.yaml")
   policy = load_yaml(file)
   expected_selector = { "k8s:io.kubernetes.pod.namespace" => dev_workload_namespaces[workload], "k8s:app.kubernetes.io/name" => workload }
@@ -837,21 +835,6 @@ Dir["platform/dev/networking/policies/*-egress.yaml"].sort.each do |file|
          (policy.dig("spec", "egress") || []).all? { |rule| rule["toFQDNs"] && rule.keys.sort == %w[toFQDNs toPorts] }
     abort "#{file}: 워크로드 egress 정책은 lookddak-dev-<워크로드>-egress 이름으로 해당 워크로드 Pod만 선택하고 FQDN만 허용해야 합니다."
   end
-end
-
-# egress: 워크로드 networkEgress 값은 대상별 정책이 있는 것만 허용
-egress_policy_targets = YAML.load_stream(File.read("platform/dev/networking/policies/domain-egress.yaml")).compact.map do |policy|
-  key = (policy.dig("spec", "endpointSelector", "matchLabels") || {}).keys.find { |label| label.start_with?("egress.lookddak.com/") }
-  abort "#{policy.dig('metadata', 'name')}: egress.lookddak.com/<대상> 라벨로 Pod를 선택해야 합니다." unless key
-  unless policy.dig("spec", "endpointSelector", "matchExpressions") == [{ "key" => "k8s:io.cilium.k8s.namespace.labels.lookddak.com/domain", "operator" => "Exists" }] &&
-         (policy.dig("spec", "egress") || []).all? { |rule| rule["toFQDNs"] && !rule.key?("toCIDR") && !rule.key?("toEntities") }
-    abort "#{policy.dig('metadata', 'name')}: 도메인 Namespace Pod만 선택하고 목적지는 FQDN이어야 합니다."
-  end
-  key.delete_prefix("egress.lookddak.com/")
-end.sort
-Dir["environments/*/domains/*/workloads/*.yaml"].sort.each do |file|
-  unknown = (load_yaml(file)["networkEgress"] || []) - egress_policy_targets
-  abort "#{file}: 정책이 없는 networkEgress 대상입니다: #{unknown}. 허용=#{egress_policy_targets}" unless unknown.empty?
 end
 
 dev_domain_set = load_yaml("argocd/dev/domain-applicationset.yaml")
@@ -919,7 +902,7 @@ unless commerce_api.dig("gitops", "autoSync") == true &&
        commerce_api.dig("service", "port") == 80 &&
        commerce_api.dig("pdb", "maxUnavailable") == 1 &&
        commerce_api.dig("secrets", "secretProviderClassName") == "commerce-api" &&
-       commerce_api["networkEgress"] == ["mysql"]
+       File.file?("platform/dev/networking/policies/commerce-api-egress.yaml")
   abort "#{commerce_api_file}: Commerce API의 Auto Sync·Replica·Port·PDB·Secret 설정이 필요합니다."
 end
 
@@ -952,7 +935,7 @@ expected_cron_safety = {
 unless price_crawler.dig("gitops", "autoSync") == true &&
        price_crawler.dig("container", "env")&.include?({ "name" => "PRICE_REFRESH_BACKEND_BASE_URL", "value" => "http://commerce-api" }) &&
        price_crawler.dig("secrets", "secretProviderClassName") == "price-crawler" &&
-       price_crawler["networkEgress"] == %w[postgresql 29cm] &&
+       File.file?("platform/dev/networking/policies/price-crawler-egress.yaml") &&
        cron_job["nameSuffix"] == "apply" &&
        cron_job["schedule"] == "0 11 * * *" &&
        expected_cron_safety.all? { |key, value| cron_job[key] == value } &&
