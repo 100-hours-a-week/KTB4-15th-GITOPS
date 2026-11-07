@@ -1,0 +1,20 @@
+# 내부 API(Service api) 입구 인가: web-bff 신원만 허용 (waypoint L7)
+# - 대상 API는 waypoint 신원만 보므로, 실제 호출자 통제는 waypoint 입구에서 한다
+# - targetRefs 정책은 waypoint만 적용하고 ztunnel은 무시한다 → Namespace 인가 정책과 겹치지 않음
+# - ALLOW가 생기면 매칭되지 않는 신원은 waypoint가 403으로 거부한다
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: api-allow-web-bff
+  namespace: lookddak-web
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: api
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/lookddak-web/sa/web-bff
