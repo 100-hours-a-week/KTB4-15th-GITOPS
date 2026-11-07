@@ -10,9 +10,11 @@ imageGroup: fe
 container:
   port: 3000
   env:
-    # 서버가 인증과 회원 API를 호출할 때 사용하는 내부 기본 주소다.
+    # 서버(SSR)가 BE API를 호출하는 내부 기본 주소다.
+    # lookddak-web의 waypoint가 경로를 보고 identity·chat·commerce·fitting API로 나눈다
+    # (platform/dev/networking/internal-api)
     - name: API_BASE_URL
-      value: http://identity-api.lookddak-identity.svc.cluster.local/api/v1/
+      value: http://api.lookddak-web.svc.cluster.local/api/v1/
 
 replicaCount: 2
 
