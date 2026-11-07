@@ -950,15 +950,6 @@ unless chat_ai_parameter_names == expected_chat_ai_parameters
   abort "#{chat_ai_file}: Chat AI Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
 end
 
-chat_domain = load_yaml("environments/dev/domains/chat/domain.yaml")
-unless chat_domain.dig("authorizationPolicy", "workloadIngress") == [{
-  "name" => "allow-web-bff-to-chat-api",
-  "targetWorkload" => "chat-api",
-  "sourcePrincipal" => "cluster.local/ns/lookddak-web/sa/web-bff",
-  "targetPort" => "8080"
-}]
-  abort "Chat API에는 web-bff ServiceAccount의 내부 API 호출만 추가 허용해야 합니다."
-end
 
 # Commerce 도메인: API 2개 Pod와 apply/deliver CronJob 2개를 한 PR에서 함께 활성화한다.
 commerce_api_file = "environments/dev/domains/commerce/workloads/commerce-api.yaml"
@@ -1022,14 +1013,11 @@ unless crawler_parameter_names == %w[/lookddak/dev/v2/postgresql/app/database-ur
   abort "#{price_crawler_file}: Crawler Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
 end
 
-commerce_domain = load_yaml("environments/dev/domains/commerce/domain.yaml")
-unless commerce_domain.dig("authorizationPolicy", "workloadIngress") == [{
-  "name" => "allow-web-bff-to-commerce-api",
-  "targetWorkload" => "commerce-api",
-  "sourcePrincipal" => "cluster.local/ns/lookddak-web/sa/web-bff",
-  "targetPort" => "8080"
-}]
-  abort "Commerce API에는 web-bff ServiceAccount의 내부 API 호출만 추가 허용해야 합니다."
+# web-bff → BE는 lookddak-web waypoint를 거친다 (platform/dev/networking/internal-api)
+# 도메인 Namespace에 web-bff 신원을 직접 허용하지 않는다
+Dir["environments/dev/domains/*/domain.yaml"].sort.each do |file|
+  direct = (load_yaml(file).dig("authorizationPolicy", "workloadIngress") || []).select { |item| item["sourcePrincipal"] == "cluster.local/ns/lookddak-web/sa/web-bff" }
+  abort "#{file}: web-bff는 waypoint 경유로 호출하므로 web-bff 신원을 직접 허용하지 않습니다: #{direct.map { |item| item['name'] }}" unless direct.empty?
 end
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"
