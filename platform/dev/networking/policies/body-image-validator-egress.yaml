@@ -3,7 +3,7 @@ kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: lookddak-dev-body-image-validator-egress
 spec:
-  description: "Dev body-image-validator의 Modal 원격 검증 연결 허용"
+  description: "Dev body-image-validator의 Modal 원격 검증 및 AWS API(S3) 연결 허용"
   endpointSelector:
     matchLabels:
       k8s:io.kubernetes.pod.namespace: lookddak-identity
@@ -12,6 +12,15 @@ spec:
     # 공통 도메인 정책의 DNS 관측을 사용해 원격 검증 호스트로만 HTTPS를 허용한다.
     - toFQDNs:
         - matchName: lookddak--lookddak-body-image-staging.us-east.modal.run
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # IRSA STS, 검증 통과 이미지 업로드(body-images/*, AI body_image_validation/service.py)
+    - toFQDNs:
+        - matchName: sts.ap-northeast-2.amazonaws.com
+        - matchName: sts.amazonaws.com
+        - matchName: lookddak-dev-images-686496667254-ap-northeast-2.s3.ap-northeast-2.amazonaws.com
       toPorts:
         - ports:
             - port: "443"

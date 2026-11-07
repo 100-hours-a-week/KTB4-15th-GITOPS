@@ -13,6 +13,20 @@ service:
 
 routing:
   enabled: true
+  # Runware VTON 결과 Webhook만 외부에 연다 (팀원 계획 §3-7). 나머지 API는 Cluster 내부 전용
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lookddak-gateway
+      namespace: istio-ingress
+      sectionName: https-v3-dev
+  hostnames:
+    - v3-dev.lookddak.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v2/webhooks/runware
 
 serviceAccount:
   create: true

@@ -820,6 +820,25 @@ unless internal_application.dig("spec", "project") == "lookddak-dev" &&
   abort "argocd/dev/internal-api-application.yaml: 내부 API Application 설정이 예상과 다릅니다."
 end
 
+# 워크로드별 egress 정책: 파일 이름 = 워크로드, 해당 워크로드 Pod만 선택, 목적지는 FQDN만
+dev_workload_namespaces = Dir["environments/dev/domains/*/workloads/*.yaml"].to_h do |file|
+  [File.basename(file, ".yaml"), "lookddak-#{file.split('/')[3]}"]
+end
+Dir["platform/dev/networking/policies/*-egress.yaml"].sort.each do |file|
+  next if File.basename(file) == "domain-egress.yaml"
+  workload = File.basename(file, "-egress.yaml")
+  policy = load_yaml(file)
+  expected_selector = { "k8s:io.kubernetes.pod.namespace" => dev_workload_namespaces[workload], "k8s:app.kubernetes.io/name" => workload }
+  unless dev_workload_namespaces.key?(workload) &&
+         policy["kind"] == "CiliumClusterwideNetworkPolicy" &&
+         policy.dig("metadata", "name") == "lookddak-dev-#{workload}-egress" &&
+         policy.dig("spec", "endpointSelector", "matchLabels") == expected_selector &&
+         !policy.dig("spec", "endpointSelector", "matchExpressions") &&
+         (policy.dig("spec", "egress") || []).all? { |rule| rule["toFQDNs"] && rule.keys.sort == %w[toFQDNs toPorts] }
+    abort "#{file}: 워크로드 egress 정책은 lookddak-dev-<워크로드>-egress 이름으로 해당 워크로드 Pod만 선택하고 FQDN만 허용해야 합니다."
+  end
+end
+
 # egress: 워크로드 networkEgress 값은 대상별 정책이 있는 것만 허용
 egress_policy_targets = YAML.load_stream(File.read("platform/dev/networking/policies/domain-egress.yaml")).compact.map do |policy|
   key = (policy.dig("spec", "endpointSelector", "matchLabels") || {}).keys.find { |label| label.start_with?("egress.lookddak.com/") }
