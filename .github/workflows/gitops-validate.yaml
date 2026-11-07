@@ -40,7 +40,9 @@ jobs:
           fi
 
       - name: Dev 이미지 변경 검증기 테스트
-        run: ruby scripts/test-validate-dev-image-change.rb
+        run: |
+          ruby scripts/test-validate-dev-image-change.rb
+          ruby scripts/test-update-dev-image.rb
 
       - name: Helm 설치
         uses: azure/setup-helm@v5.0.1

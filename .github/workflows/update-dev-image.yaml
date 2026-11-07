@@ -1,0 +1,221 @@
+name: Update Dev Image
+
+run-name: >-
+  Dev image update -
+  ${{ github.event_name == 'workflow_dispatch' && inputs.image_key || github.event.client_payload.image_key }} -
+  ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.client_payload.source_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 배포 환경
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+      image_key:
+        description: 갱신할 이미지 그룹
+        required: true
+        type: choice
+        options:
+          - fe
+          - be
+          - ai
+          - crawler
+      digest:
+        description: ECR 이미지 Digest (sha256:...)
+        required: true
+        type: string
+      source_repository:
+        description: 원본 애플리케이션 저장소
+        required: true
+        type: choice
+        options:
+          - 100-hours-a-week/KTB4-15th-FE
+          - 100-hours-a-week/KTB4-15th-BE
+          - 100-hours-a-week/KTB4-15th-AI
+          - 100-hours-a-week/KTB4-15th-Crawler
+      source_sha:
+        description: 원본 애플리케이션 Commit SHA (40자리)
+        required: true
+        type: string
+      source_run_url:
+        description: 원본 GitHub Actions 실행 URL
+        required: true
+        type: string
+
+  repository_dispatch:
+    types:
+      - dev-image-published
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    update-dev-image-${{
+      github.event_name == 'workflow_dispatch' && inputs.image_key ||
+      github.event.client_payload.image_key || github.run_id
+    }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update Dev Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: GitHub App Token 발급
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.DEV_IMAGE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.DEV_IMAGE_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: KTB4-15th-GITOPS
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
+      - name: 저장소 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 입력 검증 및 Digest 갱신
+        id: update
+        env:
+          ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.event.client_payload.environment }}
+          IMAGE_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.image_key || github.event.client_payload.image_key }}
+          DIGEST: ${{ github.event_name == 'workflow_dispatch' && inputs.digest || github.event.client_payload.digest }}
+          SOURCE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.source_repository || github.event.client_payload.source_repository }}
+          SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.client_payload.source_sha }}
+          SOURCE_RUN_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.source_run_url || github.event.client_payload.source_run_url }}
+          PR_BODY_FILE: ${{ runner.temp }}/dev-image-pr-body.md
+        run: ruby scripts/update-dev-image.rb
+
+      - name: 동일 Digest 결과 기록
+        if: steps.update.outputs.changed != 'true'
+        env:
+          IMAGE_KEY: ${{ steps.update.outputs.image_key }}
+          DIGEST: ${{ steps.update.outputs.new_digest }}
+        run: |
+          {
+            echo "### Dev 이미지 갱신 생략"
+            echo "- 이미지 그룹: \`$IMAGE_KEY\`"
+            echo "- 현재 Digest와 요청 Digest가 동일합니다: \`$DIGEST\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 자동화 브랜치 Commit·Push
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BRANCH: ${{ steps.update.outputs.branch }}
+          IMAGE_KEY: ${{ steps.update.outputs.image_key }}
+          SOURCE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.source_repository || github.event.client_payload.source_repository }}
+          SOURCE_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.source_sha || github.event.client_payload.source_sha }}
+        run: |
+          mapfile -t changed_files < <(git diff --name-only)
+          if [[ "${#changed_files[@]}" -ne 1 || "${changed_files[0]}" != "environments/dev/images.yaml" ]]; then
+            echo "허용되지 않은 파일 변경: ${changed_files[*]}"
+            exit 1
+          fi
+
+          git config user.name "lookddak-dev-image-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+          git fetch origin "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" || true
+          git switch -C "$BRANCH"
+          git add -- environments/dev/images.yaml
+          git diff --cached --check
+          git commit \
+            -m "chore(dev): $IMAGE_KEY 이미지 digest 갱신" \
+            -m "source: $SOURCE_REPOSITORY@$SOURCE_SHA"
+          git push --force-with-lease origin "HEAD:refs/heads/$BRANCH"
+
+      - name: PR 생성·갱신
+        if: steps.update.outputs.changed == 'true'
+        id: pull-request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BRANCH: ${{ steps.update.outputs.branch }}
+          TITLE: ${{ steps.update.outputs.title }}
+          BODY_FILE: ${{ steps.update.outputs.body_file }}
+        run: |
+          PR_NUMBER=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$BRANCH" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [[ -z "$PR_NUMBER" ]]; then
+            PR_URL=$(gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$BRANCH" \
+              --title "$TITLE" \
+              --body-file "$BODY_FILE")
+            PR_NUMBER=${PR_URL##*/}
+          else
+            gh pr edit "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" \
+              --body-file "$BODY_FILE"
+            PR_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUMBER}"
+          fi
+
+          gh label create automated-dev-image \
+            --repo "$GITHUB_REPOSITORY" \
+            --color 5319E7 \
+            --description "Dev 이미지 Digest 자동 갱신" \
+            --force
+          gh pr edit "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --add-label automated-dev-image
+
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: GitOps CI 통과 후 Auto Merge 예약
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ steps.pull-request.outputs.number }}
+        run: |
+          AUTO_MERGE_ENABLED=$(gh pr view "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json autoMergeRequest \
+            --jq '.autoMergeRequest != null')
+
+          if [[ "$AUTO_MERGE_ENABLED" == "true" ]]; then
+            echo "PR #$PR_NUMBER에는 이미 Auto Merge가 예약되어 있습니다."
+          else
+            gh pr merge "$PR_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --auto \
+              --squash
+          fi
+
+      - name: 결과 요약
+        if: steps.update.outputs.changed == 'true'
+        env:
+          IMAGE_KEY: ${{ steps.update.outputs.image_key }}
+          OLD_DIGEST: ${{ steps.update.outputs.old_digest }}
+          NEW_DIGEST: ${{ steps.update.outputs.new_digest }}
+          PR_URL: ${{ steps.pull-request.outputs.url }}
+        run: |
+          {
+            echo "### Dev 이미지 PR 자동화 결과"
+            echo "- 이미지 그룹: \`$IMAGE_KEY\`"
+            echo "- 기존 Digest: \`$OLD_DIGEST\`"
+            echo "- 신규 Digest: \`$NEW_DIGEST\`"
+            echo "- PR: $PR_URL"
+            echo "- 상태: GitOps CI 통과 후 Squash Auto Merge 예약"
+          } >> "$GITHUB_STEP_SUMMARY"

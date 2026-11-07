@@ -141,7 +141,13 @@ internal_api_files = %w[
   argocd/dev/internal-api-application.yaml
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files].flatten.each do |file|
+dev_image_automation_files = %w[
+  .github/workflows/update-dev-image.yaml
+  scripts/update-dev-image.rb
+  scripts/test-update-dev-image.rb
+].freeze
+
+[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, dev_image_automation_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
