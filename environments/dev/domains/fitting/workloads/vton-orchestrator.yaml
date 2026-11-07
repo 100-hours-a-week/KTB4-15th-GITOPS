@@ -17,3 +17,11 @@ routing:
 serviceAccount:
   create: true
   roleArn: arn:aws:iam::686496667254:role/lookddak-dev-v3-vton-orchestrator
+
+# 도메인 밖 egress (platform/dev/networking/policies/domain-egress.yaml)
+networkEgress:
+  - postgresql
+  - aws-sts
+  - s3
+  - sqs
+  - runware

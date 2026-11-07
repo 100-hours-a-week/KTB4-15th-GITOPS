@@ -17,3 +17,8 @@ routing:
 serviceAccount:
   create: true
   roleArn: arn:aws:iam::686496667254:role/lookddak-dev-v3-chat-ai
+
+# 도메인 밖 egress (platform/dev/networking/policies/domain-egress.yaml)
+networkEgress:
+  - postgresql
+  - runware

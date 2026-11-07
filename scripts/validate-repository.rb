@@ -137,6 +137,7 @@ internal_api_files = %w[
   platform/dev/networking/internal-api/api-httproute.yaml
   platform/dev/networking/internal-api/reference-grants.yaml
   platform/dev/networking/policies/web-waypoint.yaml
+  platform/dev/networking/policies/domain-egress.yaml
   argocd/dev/internal-api-application.yaml
 ].freeze
 
@@ -817,6 +818,21 @@ unless internal_application.dig("spec", "project") == "lookddak-dev" &&
        internal_application.dig("spec", "source", "path") == "platform/dev/networking/internal-api" &&
        internal_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-web" }
   abort "argocd/dev/internal-api-application.yaml: 내부 API Application 설정이 예상과 다릅니다."
+end
+
+# egress: 워크로드 networkEgress 값은 대상별 정책이 있는 것만 허용
+egress_policy_targets = YAML.load_stream(File.read("platform/dev/networking/policies/domain-egress.yaml")).compact.map do |policy|
+  key = (policy.dig("spec", "endpointSelector", "matchLabels") || {}).keys.find { |label| label.start_with?("egress.lookddak.com/") }
+  abort "#{policy.dig('metadata', 'name')}: egress.lookddak.com/<대상> 라벨로 Pod를 선택해야 합니다." unless key
+  unless policy.dig("spec", "endpointSelector", "matchExpressions") == [{ "key" => "k8s:io.cilium.k8s.namespace.labels.lookddak.com/domain", "operator" => "Exists" }] &&
+         (policy.dig("spec", "egress") || []).all? { |rule| rule["toFQDNs"] && !rule.key?("toCIDR") && !rule.key?("toEntities") }
+    abort "#{policy.dig('metadata', 'name')}: 도메인 Namespace Pod만 선택하고 목적지는 FQDN이어야 합니다."
+  end
+  key.delete_prefix("egress.lookddak.com/")
+end.sort
+Dir["environments/*/domains/*/workloads/*.yaml"].sort.each do |file|
+  unknown = (load_yaml(file)["networkEgress"] || []) - egress_policy_targets
+  abort "#{file}: 정책이 없는 networkEgress 대상입니다: #{unknown}. 허용=#{egress_policy_targets}" unless unknown.empty?
 end
 
 dev_domain_set = load_yaml("argocd/dev/domain-applicationset.yaml")
