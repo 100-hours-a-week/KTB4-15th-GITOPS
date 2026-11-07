@@ -2,4 +2,4 @@ apiVersion: v2
 name: lookddak-workload
 description: Common Helm chart for LookDDak application workloads
 type: application
-version: 0.3.0
+version: 0.4.0

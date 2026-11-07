@@ -61,9 +61,6 @@ spec:
         metadata:
           labels:
             {{- include "lookddak-workload.labels" $root | nindent 12 }}
-            {{- range $root.Values.networkEgress }}
-            egress.lookddak.com/{{ . }}: "true"
-            {{- end }}
         spec:
           {{- with $root.Values.scheduling.nodeSelector }}
           nodeSelector:

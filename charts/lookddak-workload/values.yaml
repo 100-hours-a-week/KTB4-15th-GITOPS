@@ -28,10 +28,6 @@ container:
   args: []
   env: []
 
-# 도메인 Namespace 밖으로 나가는 대상 (Pod 라벨 egress.lookddak.com/<대상>: "true")
-# 대상별 CiliumNetworkPolicy: platform/dev/networking/policies/domain-egress.yaml
-# 허용 값: mysql, postgresql, aws-sts, s3, sqs, runware, 29cm
-networkEgress: []
 
 # 계속 실행되는 워크로드의 공통 롤링 배포와 종료 기본값이다.
 # SSE 연결이나 백그라운드 작업 종료에 시간이 더 필요하면
