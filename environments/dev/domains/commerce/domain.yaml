@@ -11,8 +11,3 @@ ciliumNetworkPolicy:
   enabled: false
 authorizationPolicy:
   enabled: true
-  workloadIngress:
-    - name: allow-web-bff-to-commerce-api
-      targetWorkload: commerce-api
-      sourcePrincipal: cluster.local/ns/lookddak-web/sa/web-bff
-      targetPort: "8080"
