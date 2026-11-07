@@ -32,5 +32,19 @@ secrets:
       - /app/run-crawler
 
 cronJob:
+  nameSuffix: apply
   schedule: 0 4 * * *
-  restartPolicy: OnFailure
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  backoffLimit: 3
+  activeDeadlineSeconds: 3600
+  restartPolicy: Never
+  extraJobs:
+    - nameSuffix: deliver
+      schedule: 40 4 * * *
+      command:
+        - /app/run-crawler
+        - --deliver

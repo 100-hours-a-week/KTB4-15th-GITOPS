@@ -1,11 +1,26 @@
 gitops:
-  autoSync: false
+  autoSync: true
 
 workload:
   name: price-crawler
   type: cronjob
 
 imageGroup: crawler
+
+container:
+  env:
+    - name: PRICE_REFRESH_BACKEND_BASE_URL
+      value: http://commerce-api
+    - name: TZ
+      value: Asia/Seoul
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
 
 service:
   enabled: false
@@ -21,3 +36,50 @@ serviceAccount:
 networkEgress:
   - postgresql
   - 29cm
+
+secrets:
+  enabled: true
+  secretProviderClassName: price-crawler
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: /lookddak/dev/v2/postgresql/app/database-url
+        objectType: ssmparameter
+        objectAlias: DATABASE_URL
+      - objectName: /lookddak/dev/internal/price-refresh-backend-auth-headers
+        objectType: ssmparameter
+        objectAlias: PRICE_REFRESH_BACKEND_AUTH_HEADERS_JSON
+  startup:
+    enabled: true
+    environment:
+      - name: DATABASE_URL
+        fileName: DATABASE_URL
+      - name: PRICE_REFRESH_BACKEND_AUTH_HEADERS_JSON
+        fileName: PRICE_REFRESH_BACKEND_AUTH_HEADERS_JSON
+    command:
+      - python
+      - -m
+      - price_refresh
+      - --apply
+
+cronJob:
+  nameSuffix: apply
+  schedule: "0 11 * * *"
+  timeZone: Asia/Seoul
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  backoffLimit: 3
+  activeDeadlineSeconds: 3600
+  restartPolicy: Never
+  extraJobs:
+    # 수집 완료 예상 시각 뒤 1회 전송하고, 같은 날 실패분을 한 번 더 처리한다.
+    - nameSuffix: deliver
+      schedule: "40 11,13 * * *"
+      command:
+        - python
+        - -m
+        - price_refresh
+        - --deliver
