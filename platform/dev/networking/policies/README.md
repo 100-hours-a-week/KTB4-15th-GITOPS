@@ -9,6 +9,7 @@
 | `domain-baseline.yaml` | CCNP `lookddak-domain-baseline` | `lookddak.com/domain` Namespace Pod 기본 차단. 허용: Ambient probe `169.254.7.127/32`, Gateway → 15008, CoreDNS 53(DNS 관측) |
 | `domain-same-namespace.yaml` | CCNP `lookddak-<domain>-same-namespace` ×5 | 같은 Namespace Pod 간 15008 |
 | `domain-egress.yaml` | CCNP 7개 (opt-in) | 워크로드 `networkEgress` → Pod 라벨 `egress.lookddak.com/<대상>`. mysql·postgresql(RDS FQDN), aws-sts·s3·sqs, runware, 29cm |
+| `<워크로드>-egress.yaml` | CCNP (워크로드마다 1개) | 해당 워크로드 Pod(`app.kubernetes.io/name`)만 DB·AWS API·외부 API FQDN 허용. S3는 dev 이미지 버킷 호스트만 |
 | `web-waypoint.yaml` | CCNP 2개 | lookddak-web waypoint → istiod 15012·도메인 Pod 15008, 도메인 Pod ← waypoint 15008 |
 | `hubble-relay.yaml` | CNP `kube-system/hubble-relay` | Relay 4245는 hubble-ui만 (Relay 서버 TLS 꺼짐) |
 

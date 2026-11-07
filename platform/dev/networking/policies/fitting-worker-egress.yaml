@@ -1,0 +1,27 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-dev-fitting-worker-egress
+spec:
+  description: "Dev fitting-worker의 MySQL 및 AWS API(SQS) 연결 허용"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-fitting
+      k8s:app.kubernetes.io/name: fitting-worker
+  egress:
+    # Dev MySQL RDS(V3 DB). 공통 도메인 정책의 CoreDNS 관측으로 RDS 주소 변경을 따라간다
+    - toFQDNs:
+        - matchName: lookddak-dev-v2-mysql.cd8ekqeiua7b.ap-northeast-2.rds.amazonaws.com
+      toPorts:
+        - ports:
+            - port: "3306"
+              protocol: TCP
+    # IRSA STS, 피팅 큐(Send·Receive)
+    - toFQDNs:
+        - matchName: sts.ap-northeast-2.amazonaws.com
+        - matchName: sts.amazonaws.com
+        - matchName: sqs.ap-northeast-2.amazonaws.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
