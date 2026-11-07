@@ -1,89 +1,142 @@
 {{- if eq .Values.workload.type "cronjob" }}
+{{- $root := . -}}
+{{- $baseJob := omit .Values.cronJob "extraJobs" -}}
+{{- $jobs := list $baseJob -}}
+{{- range .Values.cronJob.extraJobs -}}
+  {{- $jobs = append $jobs (mergeOverwrite (deepCopy $baseJob) .) -}}
+{{- end -}}
+{{- $jobNames := dict -}}
+{{- range $index, $job := $jobs }}
+{{- $suffix := $job.nameSuffix | default "" -}}
+{{- if and (gt $index 0) (not $suffix) -}}
+  {{- fail "cronJob.extraJobs[].nameSuffix is required" -}}
+{{- end -}}
+{{- if and $suffix (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $suffix)) -}}
+  {{- fail (printf "invalid cronJob nameSuffix: %s" $suffix) -}}
+{{- end -}}
+{{- $jobName := include "lookddak-workload.name" $root -}}
+{{- if $suffix -}}
+  {{- $jobName = printf "%s-%s" $jobName $suffix | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- if hasKey $jobNames $jobName -}}
+  {{- fail (printf "duplicate CronJob name: %s" $jobName) -}}
+{{- end -}}
+{{- $_ := set $jobNames $jobName true -}}
+{{- if gt $index 0 }}
+---
+{{- end }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "lookddak-workload.name" . }}
+  name: {{ $jobName }}
   labels:
-    {{- include "lookddak-workload.labels" . | nindent 4 }}
+    {{- include "lookddak-workload.labels" $root | nindent 4 }}
 spec:
-  schedule: {{ required "cronJob.schedule is required for cronjob workloads" .Values.cronJob.schedule | quote }}
+  schedule: {{ required "cronJob.schedule is required for cronjob workloads" $job.schedule | quote }}
+  {{- with $job.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  suspend: {{ $job.suspend | default false }}
+  {{- with $job.concurrencyPolicy }}
+  concurrencyPolicy: {{ . }}
+  {{- end }}
+  {{- if ne $job.startingDeadlineSeconds nil }}
+  startingDeadlineSeconds: {{ $job.startingDeadlineSeconds }}
+  {{- end }}
+  {{- if ne $job.successfulJobsHistoryLimit nil }}
+  successfulJobsHistoryLimit: {{ $job.successfulJobsHistoryLimit }}
+  {{- end }}
+  {{- if ne $job.failedJobsHistoryLimit nil }}
+  failedJobsHistoryLimit: {{ $job.failedJobsHistoryLimit }}
+  {{- end }}
   jobTemplate:
     spec:
+      {{- if ne $job.backoffLimit nil }}
+      backoffLimit: {{ $job.backoffLimit }}
+      {{- end }}
+      {{- if ne $job.activeDeadlineSeconds nil }}
+      activeDeadlineSeconds: {{ $job.activeDeadlineSeconds }}
+      {{- end }}
       template:
         metadata:
           labels:
-            {{- include "lookddak-workload.labels" . | nindent 12 }}
-            {{- range .Values.networkEgress }}
+            {{- include "lookddak-workload.labels" $root | nindent 12 }}
+            {{- range $root.Values.networkEgress }}
             egress.lookddak.com/{{ . }}: "true"
             {{- end }}
         spec:
-          {{- with .Values.scheduling.nodeSelector }}
+          {{- with $root.Values.scheduling.nodeSelector }}
           nodeSelector:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          serviceAccountName: {{ include "lookddak-workload.serviceAccountName" . }}
-          restartPolicy: {{ required "cronJob.restartPolicy is required for cronjob workloads" .Values.cronJob.restartPolicy }}
+          serviceAccountName: {{ include "lookddak-workload.serviceAccountName" $root }}
+          restartPolicy: {{ required "cronJob.restartPolicy is required for cronjob workloads" $job.restartPolicy }}
           containers:
-            - name: {{ include "lookddak-workload.name" . }}
-              image: {{ include "lookddak-workload.image" . | quote }}
-              {{- if .Values.secrets.startup.enabled }}
+            - name: {{ $jobName }}
+              image: {{ include "lookddak-workload.image" $root | quote }}
+              {{- if $root.Values.secrets.startup.enabled }}
               command:
                 - /bin/sh
-                - {{ printf "%s/load-secrets.sh" .Values.secrets.startup.scriptMountPath | quote }}
+                - {{ printf "%s/load-secrets.sh" $root.Values.secrets.startup.scriptMountPath | quote }}
               args:
-                {{- range .Values.secrets.startup.environment }}
-                - {{ printf "%s=%s/%s" .name $.Values.secrets.mountPath .fileName | quote }}
+                {{- range $root.Values.secrets.startup.environment }}
+                - {{ printf "%s=%s/%s" .name $root.Values.secrets.mountPath .fileName | quote }}
                 {{- end }}
                 - "--"
-                {{- toYaml .Values.secrets.startup.command | nindent 16 }}
+                {{- if $job.command }}
+                {{- toYaml $job.command | nindent 16 }}
+                {{- else }}
+                {{- toYaml $root.Values.secrets.startup.command | nindent 16 }}
+                {{- end }}
               {{- else }}
-              {{- with .Values.container.command }}
+              {{- with ($job.command | default $root.Values.container.command) }}
               command:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
-              {{- with .Values.container.args }}
+              {{- with ($job.args | default $root.Values.container.args) }}
               args:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
               {{- end }}
-              {{- if or .Values.workload.runtimeRole .Values.container.env }}
+              {{- if or $root.Values.workload.runtimeRole $root.Values.container.env }}
               env:
-                {{- if .Values.workload.runtimeRole }}
+                {{- if $root.Values.workload.runtimeRole }}
                 - name: LOOKDDAK_RUNTIME_ROLE
-                  value: {{ .Values.workload.runtimeRole | quote }}
+                  value: {{ $root.Values.workload.runtimeRole | quote }}
                 {{- end }}
-                {{- with .Values.container.env }}
+                {{- with $root.Values.container.env }}
                 {{- toYaml . | nindent 16 }}
                 {{- end }}
               {{- end }}
-              {{- with .Values.resources }}
+              {{- with $root.Values.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
-              {{- if .Values.secrets.enabled }}
+              {{- if $root.Values.secrets.enabled }}
               volumeMounts:
                 - name: secrets-store-inline
-                  mountPath: {{ required "secrets.mountPath is required when secrets are enabled" .Values.secrets.mountPath | quote }}
+                  mountPath: {{ required "secrets.mountPath is required when secrets are enabled" $root.Values.secrets.mountPath | quote }}
                   readOnly: true
-                {{- if .Values.secrets.startup.enabled }}
+                {{- if $root.Values.secrets.startup.enabled }}
                 - name: secret-startup-script
-                  mountPath: {{ .Values.secrets.startup.scriptMountPath | quote }}
+                  mountPath: {{ $root.Values.secrets.startup.scriptMountPath | quote }}
                   readOnly: true
                 {{- end }}
               {{- end }}
-          {{- if .Values.secrets.enabled }}
+          {{- if $root.Values.secrets.enabled }}
           volumes:
             - name: secrets-store-inline
               csi:
                 driver: secrets-store.csi.k8s.io
                 readOnly: true
                 volumeAttributes:
-                  secretProviderClass: {{ required "secrets.secretProviderClassName is required when secrets are enabled" .Values.secrets.secretProviderClassName | quote }}
-            {{- if .Values.secrets.startup.enabled }}
+                  secretProviderClass: {{ required "secrets.secretProviderClassName is required when secrets are enabled" $root.Values.secrets.secretProviderClassName | quote }}
+            {{- if $root.Values.secrets.startup.enabled }}
             - name: secret-startup-script
               configMap:
-                name: {{ include "lookddak-workload.secretStartupConfigMapName" . }}
+                name: {{ include "lookddak-workload.secretStartupConfigMapName" $root }}
                 defaultMode: 0555
             {{- end }}
           {{- end }}
+{{- end }}
 {{- end }}

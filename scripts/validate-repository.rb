@@ -889,4 +889,76 @@ unless required_patch_fragments.all? { |fragment| workload_template_patch.includ
   abort "dev Workload ApplicationSet에 워크로드별 Auto Sync templatePatch가 필요합니다."
 end
 
+# Commerce 도메인: API 2개 Pod와 apply/deliver CronJob 2개를 한 PR에서 함께 활성화한다.
+commerce_api_file = "environments/dev/domains/commerce/workloads/commerce-api.yaml"
+commerce_api = load_yaml(commerce_api_file)
+unless commerce_api.dig("gitops", "autoSync") == true &&
+       commerce_api.dig("workload", "runtimeRole") == "commerce-api" &&
+       commerce_api["replicaCount"] == 2 &&
+       commerce_api.dig("container", "port") == 8080 &&
+       commerce_api.dig("service", "enabled") == true &&
+       commerce_api.dig("service", "port") == 80 &&
+       commerce_api.dig("pdb", "maxUnavailable") == 1 &&
+       commerce_api.dig("secrets", "secretProviderClassName") == "commerce-api" &&
+       commerce_api["networkEgress"] == ["mysql"]
+  abort "#{commerce_api_file}: Commerce API의 Auto Sync·Replica·Port·PDB·Secret 설정이 필요합니다."
+end
+
+commerce_parameter_names = commerce_api.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
+expected_commerce_parameters = %w[
+  /lookddak/dev/v3/mysql/jdbc-url
+  /lookddak/dev/v3/mysql/app/username
+  /lookddak/dev/v3/mysql/app/password
+  /lookddak/dev/spring/jwt-secret
+  /lookddak/dev/spring/internal-api-key
+]
+unless commerce_parameter_names == expected_commerce_parameters
+  abort "#{commerce_api_file}: Commerce API Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
+end
+
+price_crawler_file = "environments/dev/domains/commerce/workloads/price-crawler.yaml"
+price_crawler = load_yaml(price_crawler_file)
+cron_job = price_crawler.fetch("cronJob")
+expected_cron_safety = {
+  "timeZone" => "Asia/Seoul",
+  "suspend" => false,
+  "concurrencyPolicy" => "Forbid",
+  "startingDeadlineSeconds" => 3600,
+  "successfulJobsHistoryLimit" => 1,
+  "failedJobsHistoryLimit" => 3,
+  "backoffLimit" => 3,
+  "activeDeadlineSeconds" => 3600,
+  "restartPolicy" => "Never"
+}
+unless price_crawler.dig("gitops", "autoSync") == true &&
+       price_crawler.dig("container", "env")&.include?({ "name" => "PRICE_REFRESH_BACKEND_BASE_URL", "value" => "http://commerce-api" }) &&
+       price_crawler.dig("secrets", "secretProviderClassName") == "price-crawler" &&
+       price_crawler["networkEgress"] == %w[postgresql 29cm] &&
+       cron_job["nameSuffix"] == "apply" &&
+       cron_job["schedule"] == "0 11 * * *" &&
+       expected_cron_safety.all? { |key, value| cron_job[key] == value } &&
+       price_crawler.dig("secrets", "startup", "command") == %w[python -m price_refresh --apply] &&
+       cron_job["extraJobs"] == [{
+         "nameSuffix" => "deliver",
+         "schedule" => "40 11,13 * * *",
+         "command" => %w[python -m price_refresh --deliver]
+       }]
+  abort "#{price_crawler_file}: apply/deliver CronJob 일정·명령·안전 설정이 설계와 다릅니다."
+end
+
+crawler_parameter_names = price_crawler.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
+unless crawler_parameter_names == %w[/lookddak/dev/v2/postgresql/app/database-url /lookddak/dev/internal/price-refresh-backend-auth-headers]
+  abort "#{price_crawler_file}: Crawler Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
+end
+
+commerce_domain = load_yaml("environments/dev/domains/commerce/domain.yaml")
+unless commerce_domain.dig("authorizationPolicy", "workloadIngress") == [{
+  "name" => "allow-web-bff-to-commerce-api",
+  "targetWorkload" => "commerce-api",
+  "sourcePrincipal" => "cluster.local/ns/lookddak-web/sa/web-bff",
+  "targetPort" => "8080"
+}]
+  abort "Commerce API에는 web-bff ServiceAccount의 내부 API 호출만 추가 허용해야 합니다."
+end
+
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"

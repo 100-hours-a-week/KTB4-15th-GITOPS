@@ -26,6 +26,27 @@ helm template fixture-cronjob charts/lookddak-workload \
   -f ci/fixtures/cronjob.yaml \
   > "$output_dir/cronjob.yaml"
 
+# 실제 Commerce values도 렌더링해 미완성 필수값과 두 Crawler CronJob을 CI에서 검증한다.
+helm template commerce-api charts/lookddak-workload \
+  --namespace lookddak-commerce \
+  --kube-version 1.36.0 \
+  -f environments/dev/images.yaml \
+  -f environments/dev/domains/commerce/workloads/commerce-api.yaml \
+  > "$output_dir/commerce-api-dev.yaml"
+
+helm template price-crawler charts/lookddak-workload \
+  --namespace lookddak-commerce \
+  --kube-version 1.36.0 \
+  -f environments/dev/images.yaml \
+  -f environments/dev/domains/commerce/workloads/price-crawler.yaml \
+  > "$output_dir/price-crawler-dev.yaml"
+
+helm template commerce-domain charts/lookddak-domain \
+  --namespace lookddak-commerce \
+  --kube-version 1.36.0 \
+  -f environments/dev/domains/commerce/domain.yaml \
+  > "$output_dir/commerce-domain-dev.yaml"
+
 helm template fixture-domain charts/lookddak-domain \
   -f ci/fixtures/domain-policy.yaml \
   > "$output_dir/domain-policy.yaml"
