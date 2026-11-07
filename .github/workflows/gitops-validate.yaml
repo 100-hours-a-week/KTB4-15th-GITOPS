@@ -26,44 +26,71 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Dev 이미지 전용 PR 판별·검증
+        id: change
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            ruby scripts/validate-dev-image-change.rb "$BASE_SHA"
+          else
+            echo "image_only=false" >> "$GITHUB_OUTPUT"
+            echo "수동 실행: 전체 GitOps 검증을 실행합니다."
+          fi
+
+      - name: Dev 이미지 변경 검증기 테스트
+        run: ruby scripts/test-validate-dev-image-change.rb
+
       - name: Helm 설치
         uses: azure/setup-helm@v5.0.1
         with:
           version: v4.2.3
 
       - name: Argo CD Helm Repository 등록
+        if: steps.change.outputs.image_only != 'true'
         run: helm repo add argo https://argoproj.github.io/argo-helm
 
       - name: Metrics Server Helm Repository 등록
+        if: steps.change.outputs.image_only != 'true'
         run: helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
 
       - name: AWS Load Balancer Controller Helm Repository 등록
+        if: steps.change.outputs.image_only != 'true'
         run: helm repo add eks https://aws.github.io/eks-charts
 
       - name: Istio Helm Repository 등록
+        if: steps.change.outputs.image_only != 'true'
         run: helm repo add istio https://blob.istio.io/istio-release/charts
 
       - name: cert-manager Helm Repository 등록
+        if: steps.change.outputs.image_only != 'true'
         run: helm repo add jetstack https://charts.jetstack.io
 
       - name: Argo CD Helm 의존성 준비
+        if: steps.change.outputs.image_only != 'true'
         run: helm dependency build platform/dev/argocd
 
       - name: Karpenter Helm 의존성 준비
+        if: steps.change.outputs.image_only != 'true'
         run: |
           helm dependency build platform/dev/karpenter/crd
           helm dependency build platform/dev/karpenter/controller
 
       - name: Metrics Server Helm 의존성 준비
+        if: steps.change.outputs.image_only != 'true'
         run: helm dependency build platform/dev/metrics-server
 
       - name: AWS Load Balancer Controller Helm 의존성 준비
+        if: steps.change.outputs.image_only != 'true'
         run: helm dependency build platform/dev/networking/aws-load-balancer-controller
 
       - name: cert-manager Helm 의존성 준비
+        if: steps.change.outputs.image_only != 'true'
         run: helm dependency build platform/dev/cert-manager/controller
 
       - name: Istio Helm 의존성 준비
+        if: steps.change.outputs.image_only != 'true'
         run: |
           for chart in base istiod cni ztunnel; do
             helm dependency build "platform/dev/networking/istio/$chart"
@@ -75,7 +102,8 @@ jobs:
       - name: 저장소 구조 검사
         run: ruby scripts/validate-repository.rb
 
-      - name: Helm Chart 검사
+      - name: 전체 Helm Chart 검사
+        if: steps.change.outputs.image_only != 'true'
         run: |
           helm lint charts/lookddak-workload
           helm lint charts/lookddak-domain
@@ -89,17 +117,36 @@ jobs:
           done
           helm lint platform/dev/cert-manager/controller --namespace kube-system --kube-version 1.36.0
 
+      - name: 이미지 영향 Workload Chart 검사
+        if: steps.change.outputs.image_only == 'true'
+        run: helm lint charts/lookddak-workload
+
       - name: Helm Fixture 렌더링
+        if: steps.change.outputs.image_only != 'true'
         run: scripts/render-fixtures.sh "$RUNNER_TEMP/rendered"
 
+      - name: 이미지 영향 Workload 렌더링
+        if: steps.change.outputs.image_only == 'true'
+        env:
+          IMAGE_GROUP: ${{ steps.change.outputs.image_group }}
+        run: scripts/render-dev-image-workloads.sh "$IMAGE_GROUP" "$RUNNER_TEMP/rendered"
+
       - name: Argo CD System 배치·자기 관리 보호 설정 검사
+        if: steps.change.outputs.image_only != 'true'
         run: ruby scripts/validate-argocd-install.rb "$RUNNER_TEMP/rendered/argocd-dev.yaml"
 
-      - name: Helm Manifest 변경점 출력
-        if: github.event_name == 'pull_request'
+      - name: 전체 Helm Manifest 변경점 출력
+        if: github.event_name == 'pull_request' && steps.change.outputs.image_only != 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: scripts/diff-rendered-manifests.sh "$BASE_SHA" "$RUNNER_TEMP/manifest-diff"
+
+      - name: 이미지 영향 Manifest 변경점 출력
+        if: github.event_name == 'pull_request' && steps.change.outputs.image_only == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          IMAGE_GROUP: ${{ steps.change.outputs.image_group }}
+        run: scripts/diff-dev-image-manifests.sh "$BASE_SHA" "$IMAGE_GROUP" "$RUNNER_TEMP/manifest-diff"
 
       - name: Kubernetes Schema 검사
         run: |
@@ -113,6 +160,7 @@ jobs:
             /manifests
 
       - name: Karpenter NodePool·EC2NodeClass Schema 검사
+        if: steps.change.outputs.image_only != 'true'
         run: |
           ruby scripts/extract-karpenter-schemas.rb \
             "$RUNNER_TEMP/rendered/karpenter-crd-dev.yaml" "$RUNNER_TEMP/karpenter-schemas"
@@ -127,6 +175,7 @@ jobs:
             /manifests/karpenter-nodepool-dev.yaml
 
       - name: Argo CD 리소스 Schema 검사
+        if: steps.change.outputs.image_only != 'true'
         run: |
           docker run --rm \
             -v "$PWD:/workspace:ro" \
