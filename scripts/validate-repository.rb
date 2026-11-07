@@ -891,6 +891,75 @@ unless required_patch_fragments.all? { |fragment| workload_template_patch.includ
   abort "dev Workload ApplicationSet에 워크로드별 Auto Sync templatePatch가 필요합니다."
 end
 
+# Chat 도메인: API와 AI 각 2개 Pod를 한 PR에서 함께 활성화한다.
+chat_api_file = "environments/dev/domains/chat/workloads/chat-api.yaml"
+chat_api = load_yaml(chat_api_file)
+unless chat_api.dig("gitops", "autoSync") == true &&
+       chat_api.dig("workload", "runtimeRole") == "chat-api" &&
+       chat_api["replicaCount"] == 2 &&
+       chat_api.dig("container", "port") == 8080 &&
+       chat_api.dig("deployment", "terminationGracePeriodSeconds") == 330 &&
+       chat_api.dig("service", "enabled") == true &&
+       chat_api.dig("service", "port") == 80 &&
+       chat_api.dig("pdb", "maxUnavailable") == 1 &&
+       chat_api.dig("secrets", "secretProviderClassName") == "chat-api" &&
+       chat_api.dig("container", "env")&.include?({ "name" => "CHAT_REDIS_ENABLED", "value" => "false" }) &&
+       chat_api.dig("container", "env")&.include?({ "name" => "MANAGEMENT_HEALTH_REDIS_ENABLED", "value" => "false" }) &&
+       File.file?("platform/dev/networking/policies/chat-api-egress.yaml")
+  abort "#{chat_api_file}: Chat API의 Auto Sync·Replica·SSE 종료·Redis 비활성·Secret 설정이 필요합니다."
+end
+
+chat_api_parameter_names = chat_api.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
+expected_chat_api_parameters = %w[
+  /lookddak/dev/v3/mysql/jdbc-url
+  /lookddak/dev/v3/mysql/app/username
+  /lookddak/dev/v3/mysql/app/password
+  /lookddak/dev/spring/jwt-secret
+  /lookddak/dev/internal/ai-api-key
+]
+unless chat_api_parameter_names == expected_chat_api_parameters
+  abort "#{chat_api_file}: Chat API Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
+end
+
+chat_ai_file = "environments/dev/domains/chat/workloads/chat-ai.yaml"
+chat_ai = load_yaml(chat_ai_file)
+unless chat_ai.dig("gitops", "autoSync") == true &&
+       chat_ai.dig("workload", "runtimeRole") == "chat-ai" &&
+       chat_ai["replicaCount"] == 2 &&
+       chat_ai.dig("container", "port") == 8000 &&
+       chat_ai.dig("deployment", "terminationGracePeriodSeconds") == 120 &&
+       chat_ai.dig("service", "enabled") == true &&
+       chat_ai.dig("service", "port") == 80 &&
+       chat_ai.dig("routing", "enabled") == false &&
+       chat_ai.dig("pdb", "maxUnavailable") == 1 &&
+       chat_ai.dig("secrets", "secretProviderClassName") == "chat-ai" &&
+       File.file?("platform/dev/networking/policies/chat-ai-egress.yaml")
+  abort "#{chat_ai_file}: Chat AI의 Auto Sync·Replica·내부 Service·PDB·Secret·egress 설정이 필요합니다."
+end
+
+chat_ai_parameter_names = chat_ai.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
+expected_chat_ai_parameters = %w[
+  /lookddak/dev/v2/postgresql/app/database-url
+  /lookddak/dev/v2/postgresql/app/checkpoint-dsn
+  /lookddak/dev/internal/ai-api-key
+  /lookddak/dev/fastapi/runware-llm-api-key
+  /lookddak/dev/fastapi/runware-vton-api-key
+  /lookddak/dev/fastapi/openAI-api-key
+]
+unless chat_ai_parameter_names == expected_chat_ai_parameters
+  abort "#{chat_ai_file}: Chat AI Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
+end
+
+chat_domain = load_yaml("environments/dev/domains/chat/domain.yaml")
+unless chat_domain.dig("authorizationPolicy", "workloadIngress") == [{
+  "name" => "allow-web-bff-to-chat-api",
+  "targetWorkload" => "chat-api",
+  "sourcePrincipal" => "cluster.local/ns/lookddak-web/sa/web-bff",
+  "targetPort" => "8080"
+}]
+  abort "Chat API에는 web-bff ServiceAccount의 내부 API 호출만 추가 허용해야 합니다."
+end
+
 # Commerce 도메인: API 2개 Pod와 apply/deliver CronJob 2개를 한 PR에서 함께 활성화한다.
 commerce_api_file = "environments/dev/domains/commerce/workloads/commerce-api.yaml"
 commerce_api = load_yaml(commerce_api_file)
