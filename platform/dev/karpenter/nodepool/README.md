@@ -58,12 +58,16 @@ Karpenter의 상한 검사는 동시 공급 시 일시적으로 초과할 수 �
 
 ## 회수와 교체
 
-- `WhenEmpty`: 일반 Workload Pod가 없는 Node만 비용 절감 대상으로 회수한다. DaemonSet만 남은 Node도 회수 대상이 될 수 있다.
+- `WhenEmptyOrUnderutilized`: 빈 Node뿐 아니라 일반 Workload Pod를 다른 Node에 재배치할 수 있는 저사용률 Node도 통합 대상으로 검토한다. Karpenter는 Pod의 requests·NodeSelector·TopologySpreadConstraints와 Kubernetes Eviction API의 PDB 허용 여부를 만족할 때만 Pod를 이동한 뒤 Node를 회수한다.
 - `consolidateAfter: 5m`: Pod 증감 직후 반복 회수를 줄이기 위한 Dev 초기 대기값이다.
 - Disruption Budget `nodes: "1"`: Karpenter의 자발적 교체·회수를 한 번에 1대로 제한한다. 장애 등 모든 종류의 중단을 막는 값은 아니다.
 - `expireAfter: Never`: 초기 검증 중 시간 만료로 Node가 교체되지 않게 한다. 정기 교체 주기는 SSE·Worker 종료 처리 검증 후 결정한다. AMI·SG 등 설정 변경에 따른 Drift 교체와 수동 삭제는 별개다.
 
-SSE를 유지 중인 Node를 비용 절감 목적으로 이동시키지 않도록 초기에는 빈 Node 회수만 사용한다. KEDA가 Pod를 0개로 줄여도 Gateway·Waypoint 등 일반 Pod가 계속 남으면 Node는 빈 상태가 아니므로 0대가 보장되지 않는다.
+Node를 먼저 강제 종료하는 정책이 아니다. 통합 가능한 경우 Karpenter가 대상 Node의 신규 Scheduling을 막고 Pod를 Eviction한 뒤, Deployment 등 Controller가 남은 Node에 대체 Pod를 배치하도록 한다. 다른 Node의 여유 자원이 부족하거나 AZ 분산·PDB 등 제약을 지킬 수 없으면 기존 Node를 유지한다.
+
+2026-11-07 Dev 조회에서는 롤링 업데이트 중 생성된 `c6g.large` 1대에 `identity-api` Pod 하나가 남았고, 같은 AZ의 `web-bff` Node에 합산 requests가 들어갈 여유가 있었다. `WhenEmpty`는 이 Node를 비우지 않아 5대를 유지했으므로, 재배치 가능한 저사용률 Node까지 통합하도록 정책을 확장한다. SSE·Worker처럼 장기 연결이나 처리 중 작업이 있는 Workload는 종료 유예시간과 PDB를 먼저 검증한 뒤 Auto Sync를 활성화한다.
+
+KEDA가 Pod를 0개로 줄여도 Gateway·Waypoint 등 일반 Pod가 계속 남고 다른 Node로 재배치할 수 없으면 Application Node 0대가 보장되지 않는다.
 
 ## 반영과 확인
 
@@ -81,9 +85,13 @@ kubectl describe nodepool general-purpose
 kubectl get nodeclaims
 kubectl get nodes -l lookddak.io/node-pool=general-purpose -o wide
 kubectl get nodes -l lookddak.io/node-pool=general-purpose -L kubernetes.io/arch,node.kubernetes.io/instance-type
+kubectl get pods -A -o wide --field-selector spec.nodeName=<통합-대상-Node>
+kubectl get events -A --field-selector involvedObject.kind=NodeClaim --sort-by=.lastTimestamp
 ```
 
 완료 기준은 NodeClass와 NodePool의 `Ready=True`다. NodeClass에서는 AMI·Subnet·SG·Instance Profile 조회 조건도 확인한다. 두 리소스가 Ready여도 대상 Pending Pod가 없으면 EC2가 생성되지 않는 것이 정상이다. 실제 Node 생성·Cilium Taint 해제·Node Ready는 별도 공급 테스트에서 검증한다.
+
+정책 반영 후에는 NodeClaim Event에서 `Unconsolidatable` 또는 통합 결정을 확인하고, Pod가 Ready 상태를 유지한 채 저사용률 Node가 줄어드는지 관찰한다. Node 수가 줄지 않아도 자원·Topology·PDB 제약으로 재배치할 수 없다면 정상이다. 수동 `kubectl delete node`, NodeClaim 삭제와 EC2 종료는 검증 절차에 포함하지 않는다.
 
 Argo CD UI에서는 `lookddak-dev-karpenter-nodepool`의 Tree·리소스 상세·Events를 확인한다. NodePool을 Git에서 삭제해 Prune하면 해당 Pool의 Node도 종료될 수 있으므로 삭제 PR에는 전체 Pod 영향을 확인해야 한다.
 

@@ -714,8 +714,8 @@ end
 unless nodepool.dig("spec", "limits") == { "cpu" => "32", "memory" => "64Gi" }
   abort "Dev 초기 공급 상한은 CPU 32·Memory 64Gi입니다. 부하 테스트 후 정책과 검증을 함께 갱신하세요."
 end
-unless nodepool.dig("spec", "disruption") == { "consolidationPolicy" => "WhenEmpty", "consolidateAfter" => "5m", "budgets" => [{ "nodes" => "1" }] } && node_template["expireAfter"] == "Never"
-  abort "초기 회수 정책은 WhenEmpty·5분 대기·동시 1대이며 시간 만료는 비활성화합니다."
+unless nodepool.dig("spec", "disruption") == { "consolidationPolicy" => "WhenEmptyOrUnderutilized", "consolidateAfter" => "5m", "budgets" => [{ "nodes" => "1" }] } && node_template["expireAfter"] == "Never"
+  abort "회수 정책은 WhenEmptyOrUnderutilized·5분 대기·동시 1대이며 시간 만료는 비활성화합니다."
 end
 unless nodeclass.dig("spec", "instanceProfile") == "lookddak-dev-karpenter-node" && !nodeclass.fetch("spec").key?("role")
   abort "Terraform에서 생성한 Karpenter Node Instance Profile을 사용해야 합니다."
