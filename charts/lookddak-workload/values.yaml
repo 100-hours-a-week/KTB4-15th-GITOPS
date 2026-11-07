@@ -107,4 +107,14 @@ routing:
 
 cronJob:
   schedule: ""
+  timeZone: ""
+  suspend: false
+  concurrencyPolicy: ""
+  startingDeadlineSeconds: null
+  successfulJobsHistoryLimit: null
+  failedJobsHistoryLimit: null
+  backoffLimit: null
+  activeDeadlineSeconds: null
   restartPolicy: ""
+  # 같은 이미지와 Secret을 사용하지만 실행 시각·명령이 다른 작업을 추가한다.
+  extraJobs: []
