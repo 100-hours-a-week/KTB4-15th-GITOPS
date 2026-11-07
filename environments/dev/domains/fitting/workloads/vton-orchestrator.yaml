@@ -1,5 +1,5 @@
 gitops:
-  autoSync: false
+  autoSync: true
 
 workload:
   name: vton-orchestrator
@@ -8,8 +8,77 @@ workload:
 
 imageGroup: ai
 
+container:
+  port: 8000
+  env:
+    - name: AWS_REGION
+      value: ap-northeast-2
+    - name: S3_BUCKET
+      value: lookddak-dev-images-686496667254-ap-northeast-2
+    # 공용 AI 이미지의 전신 이미지 로컬 모델은 VTON 전용 Pod에서 올리지 않는다.
+    - name: BODY_IMAGE_VALIDATION_MODE
+      value: remote
+    - name: BE_FITTING_REQUEST_QUEUE_URL
+      value: https://sqs.ap-northeast-2.amazonaws.com/686496667254/lookddak-dev-v3-be-fitting-request
+    - name: AI_FITTING_RESPONSE_QUEUE_URL
+      value: https://sqs.ap-northeast-2.amazonaws.com/686496667254/lookddak-dev-v3-ai-fitting-response
+    - name: BE_FITTING_RESPONSE_QUEUE_URL
+      value: https://sqs.ap-northeast-2.amazonaws.com/686496667254/lookddak-dev-v3-be-fitting-response
+    - name: VIRTUAL_FITTING_REQUEST_WORKER_ENABLED
+      value: "true"
+    - name: VIRTUAL_FITTING_POSTPROCESS_WORKER_ENABLED
+      value: "true"
+    - name: VIRTUAL_FITTING_RESULT_PUBLISHER_ENABLED
+      value: "true"
+    - name: VIRTUAL_FITTING_WATCHDOG_ENABLED
+      value: "true"
+    - name: WEB_CONCURRENCY
+      value: "1"
+    - name: MALLOC_ARENA_MAX
+      value: "2"
+    - name: UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN
+      value: "300"
+
+replicaCount: 2
+
+deployment:
+  terminationGracePeriodSeconds: 330
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+probes:
+  liveness:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    httpGet:
+      path: /health
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 6
+
 service:
   enabled: true
+  port: 80
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
 
 routing:
   enabled: true
@@ -31,3 +100,44 @@ routing:
 serviceAccount:
   create: true
   roleArn: arn:aws:iam::686496667254:role/lookddak-dev-v3-vton-orchestrator
+
+secrets:
+  enabled: true
+  secretProviderClassName: vton-orchestrator
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: /lookddak/dev/v2/postgresql/app/database-url
+        objectType: ssmparameter
+        objectAlias: DATABASE_URL
+      - objectName: /lookddak/dev/internal/ai-api-key
+        objectType: ssmparameter
+        objectAlias: INTERNAL_API_KEY
+      - objectName: /lookddak/dev/fastapi/runware-vton-api-key
+        objectType: ssmparameter
+        objectAlias: RUNWARE_VTON_API_KEY
+      - objectName: /lookddak/dev/fastapi/runware-llm-api-key
+        objectType: ssmparameter
+        objectAlias: RUNWARE_LLM_API_KEY
+      - objectName: /lookddak/dev/fastapi/webhook-token
+        objectType: ssmparameter
+        objectAlias: WEBHOOK_TOKEN
+  startup:
+    enabled: true
+    environment:
+      - name: DATABASE_URL
+        fileName: DATABASE_URL
+      - name: INTERNAL_API_KEY
+        fileName: INTERNAL_API_KEY
+      - name: RUNWARE_VTON_API_KEY
+        fileName: RUNWARE_VTON_API_KEY
+      - name: RUNWARE_LLM_API_KEY
+        fileName: RUNWARE_LLM_API_KEY
+      - name: WEBHOOK_TOKEN
+        fileName: WEBHOOK_TOKEN
+    command:
+      - /bin/sh
+      - -c
+      - |-
+        export VIRTUAL_FITTING_RUNWARE_WEBHOOK_URL="https://v3-dev.lookddak.com/api/v2/webhooks/runware?token=${WEBHOOK_TOKEN}"
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000
