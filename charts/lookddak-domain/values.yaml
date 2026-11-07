@@ -24,5 +24,7 @@ authorizationPolicy:
   enabled: false
   gatewayPrincipals:
     - cluster.local/ns/istio-ingress/sa/lookddak-gateway-istio
+    # web-bff 내부 API 라우팅 waypoint (platform/dev/networking/internal-api)
+    - cluster.local/ns/lookddak-web/sa/waypoint
   # 서비스 계정과 대상 워크로드·포트를 지정한 추가 허용 규칙이다.
   workloadIngress: []
