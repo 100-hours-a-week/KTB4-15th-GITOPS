@@ -3,7 +3,7 @@ kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: lookddak-dev-chat-ai-egress
 spec:
-  description: "Dev chat-ai의 PostgreSQL 및 Runware LLM 연결 허용"
+  description: "Dev chat-ai의 PostgreSQL, Runware LLM, OpenAI 임베딩 연결 허용"
   endpointSelector:
     matchLabels:
       k8s:io.kubernetes.pod.namespace: lookddak-chat
@@ -16,9 +16,10 @@ spec:
         - ports:
             - port: "5432"
               protocol: TCP
-    # Runware LLM API
+    # Runware LLM API(채팅 생성), OpenAI 임베딩(상품 검색, EMBEDDING_MODEL=text-embedding-3-small)
     - toFQDNs:
         - matchName: api.runware.ai
+        - matchName: api.openai.com
       toPorts:
         - ports:
             - port: "443"
