@@ -20,6 +20,9 @@ spec:
     metadata:
       labels:
         {{- include "lookddak-workload.labels" . | nindent 8 }}
+        {{- range .Values.networkEgress }}
+        egress.lookddak.com/{{ . }}: "true"
+        {{- end }}
     spec:
       {{- if ne .Values.deployment.terminationGracePeriodSeconds nil }}
       terminationGracePeriodSeconds: {{ .Values.deployment.terminationGracePeriodSeconds }}

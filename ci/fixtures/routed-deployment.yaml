@@ -44,5 +44,9 @@ routing:
             type: PathPrefix
             value: /fixture
 
+networkEgress:
+  - mysql
+  - aws-sts
+
 serviceAccount:
   create: true
