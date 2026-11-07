@@ -136,6 +136,7 @@ internal_api_files = %w[
   platform/dev/networking/internal-api/api-service.yaml
   platform/dev/networking/internal-api/api-httproute.yaml
   platform/dev/networking/internal-api/reference-grants.yaml
+  platform/dev/networking/internal-api/authorization-policy.yaml
   platform/dev/networking/policies/web-waypoint.yaml
   argocd/dev/internal-api-application.yaml
 ].freeze
@@ -812,6 +813,17 @@ internal_route = load_yaml("platform/dev/networking/internal-api/api-httproute.y
 backend_namespaces = internal_route.dig("spec", "rules").flat_map { |rule| rule["backendRefs"].map { |ref| ref["namespace"] } }.uniq.sort
 grant_namespaces = YAML.load_stream(File.read("platform/dev/networking/internal-api/reference-grants.yaml")).compact.map { |grant| grant.dig("metadata", "namespace") }.sort
 abort "내부 API backend Namespace마다 ReferenceGrant가 필요합니다. backend=#{backend_namespaces}, grant=#{grant_namespaces}" unless backend_namespaces == grant_namespaces
+internal_authz = load_yaml("platform/dev/networking/internal-api/authorization-policy.yaml")
+internal_authz_targets = internal_authz.dig("spec", "targetRefs")
+internal_authz_principals = Array(internal_authz.dig("spec", "rules")).flat_map { |rule| Array(rule["from"]).flat_map { |from| Array(from.dig("source", "principals")) } }
+unless internal_authz["kind"] == "AuthorizationPolicy" &&
+       internal_authz.dig("metadata", "namespace") == "lookddak-web" &&
+       internal_authz.dig("spec", "action") == "ALLOW" &&
+       internal_authz_targets == [{ "group" => "", "kind" => "Service", "name" => "api" }] &&
+       internal_authz_principals == ["cluster.local/ns/lookddak-web/sa/web-bff"] &&
+       !internal_authz.dig("spec", "selector")
+  abort "platform/dev/networking/internal-api/authorization-policy.yaml: 내부 API 인가는 Service api 대상, web-bff 신원만 허용해야 합니다."
+end
 internal_application = load_yaml("argocd/dev/internal-api-application.yaml")
 unless internal_application.dig("spec", "project") == "lookddak-dev" &&
        internal_application.dig("spec", "source", "path") == "platform/dev/networking/internal-api" &&
