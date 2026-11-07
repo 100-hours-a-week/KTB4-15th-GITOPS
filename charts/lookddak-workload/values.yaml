@@ -30,7 +30,7 @@ container:
 
 # 도메인 Namespace 밖으로 나가는 대상 (Pod 라벨 egress.lookddak.com/<대상>: "true")
 # 대상별 CiliumNetworkPolicy: platform/dev/networking/policies/domain-egress.yaml
-# 허용 값: mysql, postgresql, aws-sts, s3, sqs, runware, 29cm
+# 허용 값: mysql, postgresql, aws-sts, s3, sqs, runware, 29cm, modal
 networkEgress: []
 
 # 계속 실행되는 워크로드의 공통 롤링 배포와 종료 기본값이다.

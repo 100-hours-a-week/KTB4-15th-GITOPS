@@ -127,3 +127,4 @@ secrets:
 networkEgress:
   - aws-sts
   - s3
+  - modal
