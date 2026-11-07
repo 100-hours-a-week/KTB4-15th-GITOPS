@@ -8,6 +8,7 @@
 |---|---|---|
 | `domain-baseline.yaml` | CCNP `lookddak-domain-baseline` | `lookddak.com/domain` Namespace Pod 기본 차단. 허용: Ambient probe `169.254.7.127/32`, Gateway → 15008, CoreDNS 53(DNS 관측) |
 | `domain-same-namespace.yaml` | CCNP `lookddak-<domain>-same-namespace` ×5 | 같은 Namespace Pod 간 15008 |
+| `web-waypoint.yaml` | CCNP 2개 | lookddak-web waypoint → istiod 15012·도메인 Pod 15008, 도메인 Pod ← waypoint 15008 |
 | `hubble-relay.yaml` | CNP `kube-system/hubble-relay` | Relay 4245는 hubble-ui만 (Relay 서버 TLS 꺼짐) |
 
 ## Ambient와 함께 쓸 때

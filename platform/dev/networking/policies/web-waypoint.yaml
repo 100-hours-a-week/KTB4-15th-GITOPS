@@ -1,0 +1,50 @@
+# lookddak-web 내부 API waypoint 네트워크 정책
+# - waypoint Pod도 도메인 Namespace에 있어 baseline(기본 차단)에 선택된다
+# - waypoint는 메시 우회 Pod라 kubelet probe는 host에서 직접 온다 (Cilium 기본 허용)
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-web-waypoint-egress
+spec:
+  description: "web waypoint → istiod(xDS), 도메인 API Pod(HBONE)"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-web
+      gateway.networking.k8s.io/gateway-name: waypoint
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: istio-system
+            app: istiod
+      toPorts:
+        - ports:
+            - port: "15012"
+              protocol: TCP
+    - toEndpoints:
+        - matchExpressions:
+            - key: k8s:io.cilium.k8s.namespace.labels.lookddak.com/domain
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-domain-from-web-waypoint
+spec:
+  description: "도메인 API Pod ← web waypoint(HBONE)"
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.cilium.k8s.namespace.labels.lookddak.com/domain
+        operator: Exists
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-web
+            gateway.networking.k8s.io/gateway-name: waypoint
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP

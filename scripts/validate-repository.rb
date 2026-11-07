@@ -130,7 +130,17 @@ mesh_security_files = %w[
   charts/lookddak-domain/templates/authorization-policy.yaml
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files].flatten.each do |file|
+internal_api_files = %w[
+  platform/dev/networking/internal-api/README.md
+  platform/dev/networking/internal-api/waypoint.yaml
+  platform/dev/networking/internal-api/api-service.yaml
+  platform/dev/networking/internal-api/api-httproute.yaml
+  platform/dev/networking/internal-api/reference-grants.yaml
+  platform/dev/networking/policies/web-waypoint.yaml
+  argocd/dev/internal-api-application.yaml
+].freeze
+
+[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -793,6 +803,20 @@ unless mesh_application.dig("spec", "project") == "lookddak-dev-platform" &&
 end
 Dir["environments/dev/domains/*/domain.yaml"].sort.each do |file|
   abort "#{file}: dev 도메인은 Istio 인가 기본값(authorizationPolicy.enabled)이 필요합니다." unless load_yaml(file).dig("authorizationPolicy", "enabled") == true
+end
+
+# 내부 API 라우팅: waypoint 사용 Service, 대상 Namespace ReferenceGrant
+internal_service = load_yaml("platform/dev/networking/internal-api/api-service.yaml")
+abort "내부 API Service는 waypoint를 사용하고 Pod를 선택하지 않아야 합니다." unless internal_service.dig("metadata", "labels", "istio.io/use-waypoint") == "waypoint" && !internal_service.dig("spec", "selector")
+internal_route = load_yaml("platform/dev/networking/internal-api/api-httproute.yaml")
+backend_namespaces = internal_route.dig("spec", "rules").flat_map { |rule| rule["backendRefs"].map { |ref| ref["namespace"] } }.uniq.sort
+grant_namespaces = YAML.load_stream(File.read("platform/dev/networking/internal-api/reference-grants.yaml")).compact.map { |grant| grant.dig("metadata", "namespace") }.sort
+abort "내부 API backend Namespace마다 ReferenceGrant가 필요합니다. backend=#{backend_namespaces}, grant=#{grant_namespaces}" unless backend_namespaces == grant_namespaces
+internal_application = load_yaml("argocd/dev/internal-api-application.yaml")
+unless internal_application.dig("spec", "project") == "lookddak-dev" &&
+       internal_application.dig("spec", "source", "path") == "platform/dev/networking/internal-api" &&
+       internal_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-web" }
+  abort "argocd/dev/internal-api-application.yaml: 내부 API Application 설정이 예상과 다릅니다."
 end
 
 dev_domain_set = load_yaml("argocd/dev/domain-applicationset.yaml")

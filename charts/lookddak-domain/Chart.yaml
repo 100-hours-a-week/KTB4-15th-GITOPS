@@ -2,4 +2,4 @@ apiVersion: v2
 name: lookddak-domain
 description: Common Helm chart for LookDDak namespace-level policies
 type: application
-version: 0.2.0
+version: 0.3.0
