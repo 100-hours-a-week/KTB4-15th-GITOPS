@@ -11,4 +11,4 @@ images:
     digest: sha256:7fee575b0dafea705cd5e6385c2a5920d91a9277a567ab7db5c25fe67e41e18e
   crawler:
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-crawler
-    digest: sha256:07c8759a1647537af88e4ea47c0ca7d7c420a057f40c71413ffbc721ff58a5f8
+    digest: sha256:80f8c39f299854f7a78aa1bc77e16f9c465b3502418372f7fc0c4336d61ba6b1
