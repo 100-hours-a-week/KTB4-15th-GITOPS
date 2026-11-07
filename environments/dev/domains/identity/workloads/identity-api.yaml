@@ -139,3 +139,9 @@ secrets:
       - java
       - -XX:+ExitOnOutOfMemoryError
       - org.springframework.boot.loader.launch.JarLauncher
+
+# 도메인 밖 egress (platform/dev/networking/policies/domain-egress.yaml)
+networkEgress:
+  - mysql
+  - aws-sts
+  - s3

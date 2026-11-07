@@ -122,3 +122,8 @@ secrets:
       - 0.0.0.0
       - --port
       - "8000"
+
+# 도메인 밖 egress (platform/dev/networking/policies/domain-egress.yaml)
+networkEgress:
+  - aws-sts
+  - s3
