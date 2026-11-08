@@ -1,0 +1,38 @@
+# lookddak-redis Istio 인가 (ztunnel L4)
+# - ALLOW가 하나라도 있으면 매칭되지 않는 요청은 거부된다
+# - 같은 NS: Redis 노드 간 6379(복제·명령)·16379(cluster bus), Redis Operator → Redis 6379
+# - chat-api: 6379만
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-redis-cluster-internal
+  namespace: lookddak-redis
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces:
+              - lookddak-redis
+      to:
+        - operation:
+            ports:
+              - "6379"
+              - "16379"
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-chat-api
+  namespace: lookddak-redis
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/lookddak-chat/sa/chat-api
+      to:
+        - operation:
+            ports:
+              - "6379"
