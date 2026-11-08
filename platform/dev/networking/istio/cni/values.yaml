@@ -3,3 +3,8 @@ cni:
   # Cilium(CNI)의 conflist에 체이닝된다 (Cilium cni.exclusive=false 필요, 설정 완료).
   profile: ambient
   # DaemonSet: 모든 Node에서 실행 (차트 기본 Toleration: 모든 NoSchedule·NoExecute 허용)
+  # requests를 실측 기준으로 축소 (차트 기본 100m/100Mi). limit 없음
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
