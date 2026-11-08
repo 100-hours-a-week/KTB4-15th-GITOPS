@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-redis-operator
+description: LookDDak EKS dev Redis Operator(OT-CONTAINER-KIT) 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: redis-operator
+    version: 0.27.0
+    repository: https://ot-container-kit.github.io/helm-charts
