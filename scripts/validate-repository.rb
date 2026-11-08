@@ -25,6 +25,8 @@ dev_namespaces = %w[
   lookddak-chat
   lookddak-fitting
 ].freeze
+notification_subscription = "notifications.argoproj.io/subscribe.on-deploy-failed.awssqs"
+notification_queue = "lookddak-alert-queue"
 
 argocd_files = %w[
   platform/dev/argocd/Chart.yaml
@@ -231,6 +233,9 @@ end
 unless dev_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2"
   abort "#{dev_project_file}: Root 동기화 전에 적용할 sync-wave -2가 필요합니다."
 end
+unless dev_project.dig("metadata", "annotations", notification_subscription) == notification_queue
+  abort "#{dev_project_file}: 모든 Dev 워크로드의 배포 실패 SQS 구독이 필요합니다."
+end
 
 root_file = "argocd/dev/root-application.yaml"
 abort "필수 파일 누락: #{root_file}" unless File.file?(root_file)
@@ -277,6 +282,9 @@ unless argocd_project.dig("spec", "sourceRepos") == [gitops_repository] && argoc
 end
 unless argocd_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2"
   abort "Argo CD 전용 Project는 Application보다 먼저 선언해야 합니다."
+end
+unless argocd_project.dig("metadata", "annotations", notification_subscription) == notification_queue
+  abort "Argo CD 전용 Project의 배포 실패 SQS 구독이 필요합니다."
 end
 expected_argocd_cluster_resources = [
   { "group" => "apiextensions.k8s.io", "kind" => "CustomResourceDefinition" },
@@ -344,6 +352,18 @@ end
 
 unless platform_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2"
   abort "#{platform_project_file}: 플랫폼 Application 전에 적용할 sync-wave -2가 필요합니다."
+end
+unless platform_project.dig("metadata", "annotations", notification_subscription) == notification_queue
+  abort "#{platform_project_file}: 플랫폼 배포 실패 SQS 구독이 필요합니다."
+end
+
+image_workflow = File.read(".github/workflows/update-dev-image.yaml")
+%w[source-repository source-sha source-actions image-key digest].each do |field|
+  abort "자동 이미지 Merge commit에 #{field} 메타데이터가 필요합니다." unless image_workflow.scan("#{field}:").length >= 2
+end
+unless image_workflow.include?('--subject "chore(dev): $IMAGE_KEY 이미지 digest 갱신"') &&
+       image_workflow.include?('--body "$MERGE_BODY"')
+  abort "자동 이미지 Squash Merge에서 배포 추적 메타데이터를 보존해야 합니다."
 end
 
 istio_version = "1.31.3"
