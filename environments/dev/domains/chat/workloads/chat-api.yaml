@@ -26,10 +26,15 @@ container:
       value: dev
     - name: SSE_SERVER_PORT
       value: "8081"
-    # 애플리케이션용 Redis가 아직 없으므로 로컬 SSE fallback으로 최초 배포한다.
+    # Dev Redis Cluster의 leader Service를 seed endpoint로 사용한다.
+    # BE는 단일 Redis가 아니라 Redis Cluster topology와 MOVED 응답을 처리해야 한다.
+    - name: REDIS_HOST
+      value: redis-cache-master.lookddak-redis.svc.cluster.local
+    - name: REDIS_PORT
+      value: "6379"
     - name: CHAT_REDIS_ENABLED
-      value: "false"
-    # Redis 기능이 꺼진 동안 localhost:6379를 Actuator readiness에 포함하지 않는다.
+      value: "true"
+    # Redis 장애 시 local/DB fallback으로 서비스하므로 readiness에서 Redis를 제외한다.
     - name: MANAGEMENT_HEALTH_REDIS_ENABLED
       value: "false"
     - name: JAVA_TOOL_OPTIONS
