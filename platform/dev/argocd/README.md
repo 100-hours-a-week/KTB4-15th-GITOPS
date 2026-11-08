@@ -16,7 +16,7 @@ EKS dev에 설치된 Argo CD 자체의 버전과 Helm 설정을 관리한다. �
 - Argo CD 외부 기준 URL은 `https://argocd.dev.lookddak.com`으로 선언한다.
 - TLS는 Istio Gateway에서 종료하므로 `server.insecure: true`로 argocd-server가 HTTP(80)로 받는다. CLI는 `argocd login argocd.dev.lookddak.com --grpc-web`으로 접속한다.
 - 최초 구축 단계에서는 Argo CD 기본 로컬 관리자 로그인을 명시적으로 활성화하고 Dex를 비활성화한다. GitHub OAuth는 후속 작업에서 별도로 구성한다.
-- Discord 장애 알림은 후속 작업에서 구성하므로 Notifications Controller를 비활성화한다.
+- Notifications Controller는 전용 IRSA로 기존 `lookddak-alert-queue`에 Sync 실패·Health Degraded·Sync Unknown만 전송한다. Discord 전송·재시도·DLQ는 CLOUD의 기존 Alert Lambda가 담당하며 성공 알림은 보내지 않는다.
 - Cilium 정책은 별도 플랫폼 설정에서 관리하므로 Chart의 NetworkPolicy 생성을 비활성화한다.
 - CPU·메모리 request와 limit은 관측 기준이 없으므로 이 단계에서 임의로 지정하지 않는다.
 
@@ -81,9 +81,30 @@ CI는 Secret 참조와 실제 Secret Manifest를 구분한다. `ignoreDifference
 kubectl get applications -n argocd lookddak-dev-root argocd
 kubectl get pods -n argocd -o wide
 kubectl get deployments,statefulsets -n argocd
+kubectl get serviceaccount -n argocd argocd-notifications-controller -o yaml
+kubectl get configmap -n argocd argocd-notifications-cm -o yaml
+kubectl logs -n argocd deployment/argocd-notifications-controller
 ```
 
-`argocd` Application이 `Synced/Healthy`이고 활성 Pod 5개가 준비되었는지 확인한다. Pod Template의 System NodeSelector·Toleration, 기존 관리자 로그인도 확인한다. 실제 정상 상태는 main Merge 후 검증하며 로컬 렌더링 통과만으로 배포 완료라고 판단하지 않는다.
+`argocd` Application이 `Synced/Healthy`이고 Notifications Controller를 포함한 활성 Pod 6개가 준비되었는지 확인한다. Pod Template의 System NodeSelector·Toleration, 기존 관리자 로그인도 확인한다. 실제 정상 상태는 main Merge 후 검증하며 로컬 렌더링 통과만으로 배포 완료라고 판단하지 않는다.
+
+## 배포 실패 알림
+
+```text
+Argo CD Notifications Controller
+→ lookddak-alert-queue
+→ lookddak-discord-alert Lambda
+→ 팀 Discord Critical 채널
+```
+
+- Cloud 저장소의 Argo CD 전용 IRSA와 Lambda `custom.argocd` parser를 먼저 적용해야 한다.
+- `lookddak-dev`, `lookddak-dev-platform`, `lookddak-dev-argocd` AppProject가 `on-deploy-failed` Trigger를 구독한다.
+- Trigger는 Sync `Error/Failed`, Health `Degraded`, Sync `Unknown`만 포함한다.
+- 동일 revision의 반복 알림은 `oncePer`로 제한한다.
+- 성공·Healthy·복구 알림과 자동 image digest revert는 이 구성에 포함하지 않는다.
+- Crawler CronJob이 나중에 생성한 Job의 실행 실패는 Argo CD 배포 실패와 별개이므로 향후 Runtime 모니터링에서 다룬다.
+
+Cloud 적용 후에는 임시 Dev 테스트 Application으로 실패 알림 1건과 정상 복구 알림 0건을 확인한다. 실제 서비스 워크로드의 image digest를 고의로 손상시키는 방식은 사용하지 않는다.
 
 System Node 격리 원칙과 네트워크 담당자 인계 내용은 [System Node 격리 정책](system-node-isolation.md)을 참고한다.
 
@@ -94,7 +115,7 @@ System Node 격리 원칙과 네트워크 담당자 인계 내용은 [System Nod
 다음 기능은 최초 부트스트랩 이후 별도 Issue로 구성한다.
 
 - GitHub OAuth 기반 Dex 로그인과 RBAC
-- Discord Webhook 기반 장애 알림
+- Prometheus·Alertmanager 기반 Pod·Job 런타임 장애 알림
 
 다음 값은 Git에 원문으로 저장하지 않는다.
 

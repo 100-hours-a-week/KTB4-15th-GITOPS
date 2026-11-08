@@ -54,7 +54,62 @@ argo-cd:
     replicas: 1
 
   notifications:
-    enabled: false
+    enabled: true
+    argocdUrl: https://argocd.dev.lookddak.com
+    serviceAccount:
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-dev-argocd-notifications
+    extraEnv:
+      - name: AWS_DEFAULT_REGION
+        value: ap-northeast-2
+      - name: TZ
+        value: Asia/Seoul
+    context:
+      environment: dev
+      gitopsRepositoryUrl: https://github.com/100-hours-a-week/KTB4-15th-GITOPS
+    notifiers:
+      service.awssqs: |
+        queue: lookddak-alert-queue
+        region: ap-northeast-2
+    templates:
+      template.lookddak-deploy-failed: |
+        message: |
+          {{$revision := .app.status.sync.revision}}
+          {{if and (not $revision) .app.status.sync.revisions}}{{$revision = index .app.status.sync.revisions 0}}{{end}}
+          {{$commitMessage := ""}}
+          {{if $revision}}{{$commitMessage = (call .repo.GetCommitMetadata $revision).Message}}{{end}}
+          {{$sourceRepository := trimPrefix "source-repository: " (regexFind `source-repository: [^\r\n]+` $commitMessage)}}
+          {{$sourceSha := trimPrefix "source-sha: " (regexFind `source-sha: [^\r\n]+` $commitMessage)}}
+          {{$sourceActions := trimPrefix "source-actions: " (regexFind `source-actions: [^\r\n]+` $commitMessage)}}
+          {{$digest := trimPrefix "digest: " (regexFind `digest: sha256:[a-f0-9]{64}` $commitMessage)}}
+          {
+            "source": "custom.argocd",
+            "detail-type": "Argo CD Deployment Failure",
+            "detail": {
+              "environment": {{toJson .context.environment}},
+              "application": {{toJson .app.metadata.name}},
+              "project": {{toJson .app.spec.project}},
+              "namespace": {{toJson .app.spec.destination.namespace}},
+              "workload": {{toJson (trimPrefix "dev-" .app.metadata.name)}},
+              "syncStatus": {{toJson .app.status.sync.status}},
+              "healthStatus": {{toJson .app.status.health.status}},
+              "phase": {{if .app.status.operationState}}{{toJson .app.status.operationState.phase}}{{else}}""{{end}},
+              "message": {{if .app.status.operationState}}{{toJson .app.status.operationState.message}}{{else}}{{toJson (printf "Application health is %s and sync status is %s" .app.status.health.status .app.status.sync.status)}}{{end}},
+              "revision": {{toJson $revision}},
+              "digest": {{toJson $digest}},
+              "argocdUrl": {{toJson (printf "%s/applications/argocd/%s" .context.argocdUrl .app.metadata.name)}},
+              "gitopsUrl": {{if $revision}}{{toJson (printf "%s/commit/%s" .context.gitopsRepositoryUrl $revision)}}{{else}}""{{end}},
+              "sourceCommitUrl": {{if and $sourceRepository $sourceSha}}{{toJson (printf "https://github.com/%s/commit/%s" $sourceRepository $sourceSha)}}{{else}}""{{end}},
+              "sourceActionsUrl": {{toJson $sourceActions}}
+            }
+          }
+    triggers:
+      trigger.on-deploy-failed: |
+        - description: Sync 실패, Health Degraded 또는 Sync Unknown을 revision당 한 번 알림
+          oncePer: app.status.sync.revision
+          send:
+            - lookddak-deploy-failed
+          when: (app.status.operationState != nil && app.status.operationState.phase in ['Error', 'Failed']) || app.status.health.status == 'Degraded' || app.status.sync.status == 'Unknown'
 
   commitServer:
     enabled: false
