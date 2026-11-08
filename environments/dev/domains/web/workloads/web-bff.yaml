@@ -1,4 +1,5 @@
 gitops:
+  # GitOps main 변경은 GitHub Webhook으로 즉시 감지하고, 주기적 polling은 fallback으로 유지한다.
   autoSync: true
 
 workload:
