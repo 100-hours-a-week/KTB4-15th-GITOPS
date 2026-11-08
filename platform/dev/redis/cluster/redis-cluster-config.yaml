@@ -1,0 +1,15 @@
+# Redis Cluster 추가 설정 (k8s-design/11 §4-5)
+# - 영속화 없음, 데이터 상한 350mb(Pod limit 450Mi의 약 80%), 한 샤드 장애 시 나머지 슬롯 동작
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-cache-config
+  namespace: lookddak-redis
+data:
+  redis-additional.conf: |
+    appendonly no
+    save ""
+    maxmemory 350mb
+    maxmemory-policy volatile-lru
+    cluster-require-full-coverage no
+    cluster-node-timeout 15000

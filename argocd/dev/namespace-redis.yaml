@@ -1,0 +1,15 @@
+# Redis Cluster Namespace (k8s-design/11 §4-5)
+# - 도메인 라벨(lookddak.com/domain)을 붙이지 않는다 → 외부 Gateway allowedRoutes 대상 아님, 도메인 baseline·Chart 인가 미적용
+#   → 전용 정책(policies/redis-network-policy.yaml, redis/cluster/authorization-policy.yaml)으로 대신한다
+# - Ambient 메시 등록: 앱 → Redis, Redis 노드 간(6379·16379), Operator → Redis가 ztunnel mTLS(HBONE 15008)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lookddak-redis
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    lookddak.com/tier: data
+    istio.io/dataplane-mode: ambient

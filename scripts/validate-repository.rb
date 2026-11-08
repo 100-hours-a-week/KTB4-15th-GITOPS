@@ -327,8 +327,8 @@ abort "#{platform_project_file}: Project 이름이 예상과 다릅니다." unle
 abort "#{platform_project_file}: 허용 Repository가 예상과 다릅니다." unless platform_project.dig("spec", "sourceRepos") == [gitops_repository]
 
 platform_destinations = platform_project.dig("spec", "destinations")
-unless platform_destinations == %w[kube-system istio-system istio-ingress].map { |namespace| { "server" => in_cluster_server, "namespace" => namespace } }
-  abort "#{platform_project_file}: 플랫폼 배포 대상은 현재 Cluster의 kube-system·istio-system·istio-ingress Namespace여야 합니다."
+unless platform_destinations == %w[kube-system istio-system istio-ingress lookddak-redis].map { |namespace| { "server" => in_cluster_server, "namespace" => namespace } }
+  abort "#{platform_project_file}: 플랫폼 배포 대상은 현재 Cluster의 kube-system·istio-system·istio-ingress·lookddak-redis Namespace여야 합니다."
 end
 
 expected_platform_resources = [
@@ -770,14 +770,19 @@ actual_dev_namespaces = dev_namespace_files.map do |file|
 end.sort
 
 platform_namespaces = %w[istio-system istio-ingress].freeze
-unless actual_dev_namespaces == (dev_namespaces + platform_namespaces).sort
-  abort "dev Namespace 구성이 설계와 다릅니다. 예상=#{(dev_namespaces + platform_namespaces).sort}, 실제=#{actual_dev_namespaces}"
+# 데이터 계층 Namespace: 도메인 라벨 없이 Ambient만 등록 (외부 Gateway Route 연결 불가)
+data_namespaces = %w[lookddak-redis].freeze
+unless actual_dev_namespaces == (dev_namespaces + platform_namespaces + data_namespaces).sort
+  abort "dev Namespace 구성이 설계와 다릅니다. 예상=#{(dev_namespaces + platform_namespaces + data_namespaces).sort}, 실제=#{actual_dev_namespaces}"
 end
 
 # 도메인 Namespace만 Istio Ambient에 등록한다 (플랫폼 Namespace는 메시 밖)
 dev_namespace_files.each do |file|
-  labels = load_yaml(file).dig("metadata", "labels") || {}
-  if labels.key?("lookddak.com/domain")
+  manifest = load_yaml(file)
+  labels = manifest.dig("metadata", "labels") || {}
+  if data_namespaces.include?(manifest.dig("metadata", "name"))
+    abort "#{file}: 데이터 Namespace는 도메인 라벨 없이 tier: data와 Ambient 등록이 필요합니다." unless !labels.key?("lookddak.com/domain") && labels["lookddak.com/tier"] == "data" && labels["istio.io/dataplane-mode"] == "ambient"
+  elsif labels.key?("lookddak.com/domain")
     abort "#{file}: 도메인 Namespace는 istio.io/dataplane-mode: ambient가 필요합니다." unless labels["istio.io/dataplane-mode"] == "ambient"
   elsif labels.key?("istio.io/dataplane-mode")
     abort "#{file}: 플랫폼 Namespace는 Ambient에 등록하지 않습니다."
@@ -856,6 +861,53 @@ unless internal_application.dig("spec", "project") == "lookddak-dev" &&
        internal_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-web" }
   abort "argocd/dev/internal-api-application.yaml: 내부 API Application 설정이 예상과 다릅니다."
 end
+
+# Redis Cluster (platform/dev/redis): CRD 분리, 영속화 없음, 외부 노출 금지, chat-api만 허용
+redis_operator_dependency = (load_yaml("platform/dev/redis/operator/Chart.yaml")["dependencies"] || []).find { |item| item["name"] == "redis-operator" }
+unless redis_operator_dependency && redis_operator_dependency["version"] == "0.27.0" && redis_operator_dependency["repository"] == "https://ot-container-kit.github.io/helm-charts"
+  abort "platform/dev/redis/operator/Chart.yaml: OT-CONTAINER-KIT redis-operator 0.27.0 의존성을 고정해야 합니다."
+end
+redis_operator_values = load_yaml("platform/dev/redis/operator/values.yaml").fetch("redis-operator")
+unless redis_operator_values.dig("redisOperator", "watchNamespace") == "lookddak-redis" && redis_operator_values.dig("rbac", "scope") == "namespace"
+  abort "platform/dev/redis/operator/values.yaml: Operator 감시·RBAC 범위는 lookddak-redis Namespace로 한정해야 합니다."
+end
+redis_crd_names = YAML.load_stream(File.read("platform/dev/redis/crds/crds.yaml")).compact.map { |crd| crd.dig("metadata", "name") }.sort
+abort "platform/dev/redis/crds/crds.yaml: redis-operator CRD 4개가 필요합니다. 실제=#{redis_crd_names}" unless redis_crd_names == %w[redis.redis.redis.opstreelabs.in redisclusters.redis.redis.opstreelabs.in redisreplications.redis.redis.opstreelabs.in redissentinels.redis.redis.opstreelabs.in]
+redis_applications = {
+  "argocd/dev/redis-crds-application.yaml" => { "name" => "lookddak-dev-redis-crds", "path" => "platform/dev/redis/crds", "wave" => "-1", "prune" => false },
+  "argocd/dev/redis-operator-application.yaml" => { "name" => "lookddak-dev-redis-operator", "path" => "platform/dev/redis/operator", "wave" => "0", "prune" => true },
+  "argocd/dev/redis-cluster-application.yaml" => { "name" => "lookddak-dev-redis-cluster", "path" => "platform/dev/redis/cluster", "wave" => "1", "prune" => false }
+}.freeze
+redis_applications.each do |file, expected|
+  application = load_yaml(file)
+  unless application.dig("metadata", "name") == expected["name"] &&
+         application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == expected["wave"] &&
+         application.dig("spec", "project") == "lookddak-dev-platform" &&
+         application.dig("spec", "source", "repoURL") == gitops_repository &&
+         application.dig("spec", "source", "targetRevision") == "main" &&
+         application.dig("spec", "source", "path") == expected["path"] &&
+         application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-redis" } &&
+         application.dig("spec", "syncPolicy", "automated", "prune") == expected["prune"]
+    abort "#{file}: Redis Application 설정이 예상과 다릅니다 (CRD·RedisCluster는 prune 끔)."
+  end
+end
+abort "argocd/dev/redis-operator-application.yaml: CRD는 별도 Application이 관리하므로 skipCrds: true가 필요합니다." unless load_yaml("argocd/dev/redis-operator-application.yaml").dig("spec", "source", "helm", "skipCrds") == true
+redis_cluster = load_yaml("platform/dev/redis/cluster/redis-cluster.yaml")
+unless redis_cluster["kind"] == "RedisCluster" && redis_cluster.dig("spec", "persistenceEnabled") == false && !redis_cluster.dig("spec", "storage") &&
+       redis_cluster.dig("spec", "kubernetesConfig", "image").to_s.match?(/:v\d+\.\d+\.\d+\z/)
+  abort "platform/dev/redis/cluster/redis-cluster.yaml: 영속화·PV 없음, Redis 이미지 버전 태그 고정이 필요합니다."
+end
+redis_external_routes = Dir["{platform,environments}/**/*.yaml"].select do |file|
+  YAML.load_stream(File.read(file)).compact.any? { |doc| doc.is_a?(Hash) && %w[HTTPRoute GRPCRoute TCPRoute TLSRoute].include?(doc["kind"]) && doc.dig("metadata", "namespace") == "lookddak-redis" }
+end
+abort "lookddak-redis에는 Route를 만들지 않습니다(외부 노출 금지): #{redis_external_routes}" unless redis_external_routes.empty?
+redis_policies = YAML.load_stream(File.read("platform/dev/networking/policies/redis-network-policy.yaml")).compact
+redis_ingress_clients = redis_policies.find { |policy| policy.dig("metadata", "name") == "lookddak-redis" }&.dig("spec", "ingress").to_a.flat_map { |rule| rule["fromEndpoints"].to_a }.map { |endpoint| endpoint["matchLabels"] }
+unless redis_ingress_clients.sort_by(&:to_s) == [{ "k8s:io.kubernetes.pod.namespace" => "lookddak-redis" }, { "k8s:io.kubernetes.pod.namespace" => "lookddak-chat", "k8s:app.kubernetes.io/name" => "chat-api" }].sort_by(&:to_s)
+  abort "platform/dev/networking/policies/redis-network-policy.yaml: Redis ingress는 같은 Namespace와 chat-api만 허용해야 합니다. 실제=#{redis_ingress_clients}"
+end
+redis_authz_principals = YAML.load_stream(File.read("platform/dev/redis/cluster/authorization-policy.yaml")).compact.flat_map { |policy| policy.dig("spec", "rules").to_a.flat_map { |rule| rule["from"].to_a.flat_map { |from| from.dig("source", "principals").to_a } } }
+abort "platform/dev/redis/cluster/authorization-policy.yaml: 외부 신원은 chat-api만 허용합니다. 실제=#{redis_authz_principals}" unless redis_authz_principals == ["cluster.local/ns/lookddak-chat/sa/chat-api"]
 
 # 워크로드별 egress 정책: 파일 이름 = 워크로드, 해당 워크로드 Pod만 선택, 목적지는 FQDN만
 dev_workload_namespaces = Dir["environments/dev/domains/*/workloads/*.yaml"].to_h do |file|

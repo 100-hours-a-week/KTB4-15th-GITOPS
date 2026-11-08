@@ -1,0 +1,82 @@
+# lookddak-redis(Redis) 네트워크 정책 — 도메인 baseline을 쓰지 않으므로 기본 차단과 허용을 직접 둔다
+# - 이 정책이 선택한 Pod는 ingress·egress 모두 기본 차단된다 (policyEnforcementMode: default)
+# - Ambient: Pod 간 통신은 HBONE(15008). Redis 포트(6379, 16379)는 터널 안 → 포트 단위 통제는 Istio 인가
+# - 허용 클라이언트: lookddak-chat/chat-api (BE 코드 기준, 2026-11-08)
+# - Redis Operator도 이 Namespace에 둔다 → Operator → Redis는 같은 NS 허용으로 처리
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-redis
+spec:
+  description: "lookddak-redis 기본 차단, 같은 NS·chat-api HBONE·probe·DNS 허용"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-redis
+  ingress:
+    # Ambient: kubelet probe는 istio-cni가 169.254.7.127로 SNAT한다
+    - fromCIDR:
+        - 169.254.7.127/32
+    # Redis 노드 간(6379 복제·명령, 16379 cluster bus) → HBONE
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-redis
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+    # 클라이언트: chat-api → HBONE
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-chat
+            k8s:app.kubernetes.io/name: chat-api
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+  egress:
+    # Redis Operator(같은 NS) → Kubernetes API (CR·StatefulSet·Pod 감시)
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-redis
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-dev-chat-api-to-redis
+spec:
+  description: "chat-api → lookddak-redis Redis(HBONE)"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-chat
+      k8s:app.kubernetes.io/name: chat-api
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: lookddak-redis
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP

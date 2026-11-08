@@ -1,0 +1,46 @@
+# Redis Cluster — dev
+
+설계: `work/k8s-design/11-Redis.md` §4-5·4-6, `18-Redis-Operator.md`
+
+| 항목 | 값 |
+|---|---|
+| 구성 | Redis Cluster `redis-cache` 마스터 3 · 레플리카 3, Redis v7.2.17 (BSD) |
+| 영속화·PV | 없음 (`appendonly no`, `save ""`, emptyDir). 복구는 레플리카 승격 + Operator 재합류 |
+| 메모리 | Pod requests = limit 450Mi, `maxmemory 350mb`, `volatile-lru` |
+| 인증 | 비밀번호 없음 (dev). Cilium + mTLS STRICT + Istio 인가로 통제 |
+| 노드 | Redis 전용 NodePool `lookddak.io/node-pool=redis`, taint `lookddak.io/dedicated=redis:NoSchedule` (NodePool은 Karpenter 작업에서 추가) |
+| 클라이언트 | `lookddak-chat/chat-api`만 6379 허용 |
+| Operator | OT-CONTAINER-KIT `redis-operator` 0.27.0, 감시 범위 `lookddak-redis`, RBAC Namespace 범위 |
+
+## 디렉터리와 Application
+
+| 경로 | Application | wave | 비고 |
+|---|---|---|---|
+| `crds/crds.yaml` | `lookddak-dev-redis-crds` | -1 | 차트 `crds/` 그대로. **prune 끔**, ServerSideApply |
+| `operator/` | `lookddak-dev-redis-operator` | 0 | Helm, `skipCrds: true` |
+| `cluster/` | `lookddak-dev-redis-cluster` | 1 | RedisCluster, 추가 설정 ConfigMap, Istio 인가. **prune 끔** |
+| `../networking/policies/redis-network-policy.yaml` | `lookddak-dev-network-policies` | 3 | Cilium 기본 차단·허용 |
+
+- CRD와 RedisCluster는 prune을 끈다: Git에서 파일이 빠지거나 Application이 바뀌어도 Redis가 삭제되지 않는다. 삭제는 PR + 수동 확인으로만 한다
+- Operator 차트를 올릴 때는 `crds/crds.yaml`도 같은 버전으로 교체한다 (`helm pull ot-helm/redis-operator --version <버전> --untar` → `crds/crds.yaml` 복사)
+
+## 네트워크·인가
+
+| 구간 | Cilium | Istio 인가 |
+|---|---|---|
+| Redis 노드 간 (복제·cluster bus) | 같은 NS 15008 | 같은 NS → 6379, 16379 |
+| Operator → Redis | 같은 NS 15008 | 같은 NS → 6379 |
+| Operator → Kubernetes API | `kube-apiserver` 443 | — (메시 밖 목적지) |
+| chat-api → Redis | chat-api egress + Redis ingress 15008 | `lookddak-chat/sa/chat-api` → 6379 |
+| kubelet probe | `169.254.7.127/32` | — (ztunnel 우회) |
+
+## 확인 (Merge 후)
+
+```bash
+kubectl -n argocd get applications lookddak-dev-redis-crds lookddak-dev-redis-operator lookddak-dev-redis-cluster
+kubectl get crd | grep opstreelabs
+kubectl -n lookddak-redis get pod,rediscluster -o wide
+```
+
+- Redis 전용 NodePool이 없으면 Redis Pod는 Pending이 정상이다
+- 검증 시나리오: `work/k8s-design/18-Redis-Operator.md` §4

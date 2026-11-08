@@ -1,0 +1,30 @@
+redis-operator:
+  redisOperator:
+    # 이미지 태그는 차트 appVersion(0.27.0)을 따른다
+    imagePullPolicy: IfNotPresent
+    # 감시 범위를 lookddak-redis로 한정한다 (클러스터 전체 감시 안 함)
+    watchNamespace: lookddak-redis
+    # 마스터·레플리카 분리용 webhook(masterSlaveAntiAffinity)은 검증 후 결정 (k8s-design/18 T1)
+    webhook: false
+    metrics:
+      enabled: true
+
+  # Role/RoleBinding만 만든다 (ClusterRole 없음). CRD는 클러스터 범위라 별도로 설치한다
+  rbac:
+    enabled: true
+    scope: namespace
+
+  # 차트 기본 500m/500Mi는 과하다. 관측 후 조정
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+  replicas: 1
+
+  # Operator는 general-purpose 노드 (Redis 전용 노드에는 Redis만)
+  nodeSelector:
+    lookddak.io/node-pool: general-purpose
+    kubernetes.io/arch: arm64
