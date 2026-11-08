@@ -21,8 +21,8 @@ spec:
         memory: 450Mi
       limits:
         memory: 450Mi
-  redisExporter:
-    enabled: false
+  # redisExporter 블록 없음 → exporter 사이드카를 만들지 않는다 (수집은 Alloy 내장 prometheus.exporter.redis)
+  # 주의: 블록을 쓰면 CRD가 image를 필수로 요구한다 (enabled: false만으로는 거부됨)
   redisLeader:
     redisConfig:
       additionalRedisConfig: redis-cache-config

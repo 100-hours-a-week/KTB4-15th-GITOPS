@@ -897,6 +897,24 @@ unless redis_cluster["kind"] == "RedisCluster" && redis_cluster.dig("spec", "per
        redis_cluster.dig("spec", "kubernetesConfig", "image").to_s.match?(/:v\d+\.\d+\.\d+\z/)
   abort "platform/dev/redis/cluster/redis-cluster.yaml: 영속화·PV 없음, Redis 이미지 버전 태그 고정이 필요합니다."
 end
+# RedisCluster CR을 보관한 CRD(v1beta2) 스키마로 검사: 필수 필드 누락·알 수 없는 필드
+redis_cluster_crd = YAML.load_stream(File.read("platform/dev/redis/crds/crds.yaml")).compact.find { |crd| crd.dig("metadata", "name") == "redisclusters.redis.redis.opstreelabs.in" }
+redis_cluster_schema = redis_cluster_crd.dig("spec", "versions").find { |version| version["name"] == "v1beta2" }.dig("schema", "openAPIV3Schema", "properties", "spec")
+redis_schema_errors = []
+check_redis_schema = lambda do |schema, value, path|
+  next unless value.is_a?(Hash) && schema.is_a?(Hash)
+  (schema["required"] || []).each { |key| redis_schema_errors << "#{path}.#{key} 필수" unless value.key?(key) }
+  properties = schema["properties"] || {}
+  value.each do |key, child|
+    if properties.key?(key)
+      check_redis_schema.call(properties[key], child, "#{path}.#{key}")
+    elsif !properties.empty? && !schema["x-kubernetes-preserve-unknown-fields"] && !schema.key?("additionalProperties")
+      redis_schema_errors << "#{path}.#{key} 알 수 없는 필드"
+    end
+  end
+end
+check_redis_schema.call(redis_cluster_schema, redis_cluster.fetch("spec"), "spec")
+abort "platform/dev/redis/cluster/redis-cluster.yaml: RedisCluster CRD 스키마와 맞지 않습니다: #{redis_schema_errors}" unless redis_schema_errors.empty?
 redis_external_routes = Dir["{platform,environments}/**/*.yaml"].select do |file|
   YAML.load_stream(File.read(file)).compact.any? { |doc| doc.is_a?(Hash) && %w[HTTPRoute GRPCRoute TCPRoute TLSRoute].include?(doc["kind"]) && doc.dig("metadata", "namespace") == "lookddak-redis" }
 end
