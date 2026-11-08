@@ -41,6 +41,14 @@ spec:
               matchLabels:
                 app: redis-cache-leader
             topologyKey: kubernetes.io/hostname
+    # AZ 분산: 3개를 2a·2c에 2:1로 (한 AZ에 몰리면 AZ 장애 = Redis 전체 장애)
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: redis-cache-leader
     pdb:
       enabled: true
       maxUnavailable: 1
@@ -62,6 +70,14 @@ spec:
               matchLabels:
                 app: redis-cache-follower
             topologyKey: kubernetes.io/hostname
+    # AZ 분산: 3개를 2a·2c에 2:1로 (한 AZ에 몰리면 AZ 장애 = Redis 전체 장애)
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: redis-cache-follower
     pdb:
       enabled: true
       maxUnavailable: 1
