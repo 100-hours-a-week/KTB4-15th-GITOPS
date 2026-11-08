@@ -766,8 +766,9 @@ unless redis_nodepool["kind"] == "NodePool" && redis_nodepool.dig("metadata", "n
   abort "platform/dev/karpenter/nodepool/redis-nodepool.yaml: Redis NodePool은 redis Label·Taint, c7g.medium·arm64·On-Demand·2a/2c, WhenEmpty, 상한 3대여야 합니다."
 end
 redis_cluster_scheduling = load_yaml("platform/dev/redis/cluster/redis-cluster.yaml").fetch("spec").values_at("redisLeader", "redisFollower")
-unless redis_cluster_scheduling.all? { |role| role["nodeSelector"] == { "lookddak.io/node-pool" => "redis" } && role["tolerations"] == [{ "key" => "lookddak.io/dedicated", "operator" => "Equal", "value" => "redis", "effect" => "NoSchedule" }] }
-  abort "platform/dev/redis/cluster/redis-cluster.yaml: leader·follower는 Redis NodePool Label·Taint와 짝이 맞아야 합니다."
+unless redis_cluster_scheduling.all? { |role| role["nodeSelector"] == { "lookddak.io/node-pool" => "redis" } && role["tolerations"] == [{ "key" => "lookddak.io/dedicated", "operator" => "Equal", "value" => "redis", "effect" => "NoSchedule" }] } &&
+       redis_cluster_scheduling.all? { |role| (role["topologySpreadConstraints"] || []).any? { |rule| rule["topologyKey"] == "topology.kubernetes.io/zone" && rule["maxSkew"] == 1 && rule["whenUnsatisfiable"] == "DoNotSchedule" } }
+  abort "platform/dev/redis/cluster/redis-cluster.yaml: leader·follower는 Redis NodePool Label·Taint와 짝이 맞고 AZ 분산(zone maxSkew 1, DoNotSchedule)이 필요합니다."
 end
 
 unless nodeclass.dig("spec", "instanceProfile") == "lookddak-dev-karpenter-node" && !nodeclass.fetch("spec").key?("role")
