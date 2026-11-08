@@ -1,0 +1,52 @@
+# Redis 전용 NodePool (k8s-design/11 §4-6)
+# - Redis Pod(노드당 마스터 1·레플리카 1)만 배치: Label + Taint
+# - c7g.medium 고정 (노드 자원 계산: DaemonSet 320m/378Mi + Redis 2 × 250m/450Mi)
+# - 통합(consolidation)으로 Redis Pod가 이동하지 않도록 WhenEmpty, 시간 만료 없음
+# - 상한 3대 (노드 1대 장애를 견디는 최소 구성)
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: redis
+spec:
+  template:
+    metadata:
+      labels:
+        lookddak.io/node-pool: redis
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: general-purpose
+      expireAfter: Never
+      taints:
+        - key: lookddak.io/dedicated
+          value: redis
+          effect: NoSchedule
+      startupTaints:
+        - key: node.cilium.io/agent-not-ready
+          value: "true"
+          effect: NoExecute
+      requirements:
+        - key: kubernetes.io/os
+          operator: In
+          values: [linux]
+        - key: kubernetes.io/arch
+          operator: In
+          values: [arm64]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: [on-demand]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: [c7g.medium]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: [ap-northeast-2a, ap-northeast-2c]
+  limits:
+    cpu: "3"
+    memory: 6Gi
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 5m
+    budgets:
+      - nodes: "1"
