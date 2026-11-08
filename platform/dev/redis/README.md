@@ -39,13 +39,13 @@
 `chat-api`는 다음 환경변수로 Redis Cluster에 연결한다.
 
 ```yaml
-REDIS_HOST: redis-cache-master.lookddak-redis.svc.cluster.local
-REDIS_PORT: "6379"
+REDIS_CLUSTER_NODES: redis-cache-master.lookddak-redis.svc.cluster.local:6379
 CHAT_REDIS_ENABLED: "true"
 ```
 
 - dev Redis는 비밀번호 인증을 사용하지 않으므로 `REDIS_PASSWORD`를 주입하지 않는다
-- `redis-cache-master`는 3개 leader로 연결되는 seed Service다. BE 클라이언트는 Redis Cluster topology와 `MOVED` 응답을 처리해야 한다
+- `redis-cache-master`는 3개 leader로 연결되는 seed Service다. BE `application.yaml`의 `spring.data.redis.cluster.nodes: ${REDIS_CLUSTER_NODES:localhost:6379}`가 이 값을 읽어 Cluster 모드로 접속하고, Lettuce가 `MOVED`·토폴로지 갱신(adaptive)을 처리한다
+- 단일 주소 env(`REDIS_HOST`·`REDIS_PORT`)는 쓰지 않는다 (Standalone 접속 → `MOVED` 실패). CI가 금지한다
 - Redis는 채팅 Snapshot/Pub/Sub의 복구 계층이며 장애 시 local/DB fallback을 사용하므로 `MANAGEMENT_HEALTH_REDIS_ENABLED=false`를 유지한다
 - 현재 BE `develop`에 Cluster-aware Redis 코드가 병합된 뒤 이 설정을 배포해야 한다
 

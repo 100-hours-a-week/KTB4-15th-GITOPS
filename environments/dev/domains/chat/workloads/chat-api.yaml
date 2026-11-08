@@ -27,11 +27,9 @@ container:
     - name: SSE_SERVER_PORT
       value: "8081"
     # Dev Redis Cluster의 leader Service를 seed endpoint로 사용한다.
-    # BE는 단일 Redis가 아니라 Redis Cluster topology와 MOVED 응답을 처리해야 한다.
-    - name: REDIS_HOST
-      value: redis-cache-master.lookddak-redis.svc.cluster.local
-    - name: REDIS_PORT
-      value: "6379"
+    # BE는 spring.data.redis.cluster.nodes(REDIS_CLUSTER_NODES)로 Cluster 모드 접속하고 MOVED·토폴로지 갱신을 처리한다.
+    - name: REDIS_CLUSTER_NODES
+      value: redis-cache-master.lookddak-redis.svc.cluster.local:6379
     - name: CHAT_REDIS_ENABLED
       value: "true"
     # Redis 장애 시 local/DB fallback으로 서비스하므로 readiness에서 Redis를 제외한다.

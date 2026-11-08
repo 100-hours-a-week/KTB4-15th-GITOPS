@@ -1038,11 +1038,10 @@ unless chat_api.dig("gitops", "autoSync") == true &&
        chat_api.dig("service", "port") == 80 &&
        chat_api.dig("pdb", "maxUnavailable") == 1 &&
        chat_api.dig("secrets", "secretProviderClassName") == "chat-api" &&
-       chat_api.dig("container", "env")&.include?({ "name" => "REDIS_HOST", "value" => "redis-cache-master.lookddak-redis.svc.cluster.local" }) &&
-       chat_api.dig("container", "env")&.include?({ "name" => "REDIS_PORT", "value" => "6379" }) &&
+       chat_api.dig("container", "env")&.include?({ "name" => "REDIS_CLUSTER_NODES", "value" => "redis-cache-master.lookddak-redis.svc.cluster.local:6379" }) &&
        chat_api.dig("container", "env")&.include?({ "name" => "CHAT_REDIS_ENABLED", "value" => "true" }) &&
        chat_api.dig("container", "env")&.include?({ "name" => "MANAGEMENT_HEALTH_REDIS_ENABLED", "value" => "false" }) &&
-       chat_api.dig("container", "env").none? { |entry| entry["name"] == "REDIS_PASSWORD" } &&
+       chat_api.dig("container", "env").none? { |entry| %w[REDIS_PASSWORD REDIS_HOST REDIS_PORT].include?(entry["name"]) } &&
        File.file?("platform/dev/networking/policies/chat-api-egress.yaml")
   abort "#{chat_api_file}: Chat API의 Auto Sync·Replica·SSE 종료·Redis Cluster 연결·Secret 설정이 필요합니다."
 end
