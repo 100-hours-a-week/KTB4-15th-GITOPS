@@ -704,7 +704,7 @@ karpenter_applications.each do |file, expected|
 end
 
 nodepool_application = load_yaml("argocd/dev/karpenter-nodepool-application.yaml")
-unless nodepool_application.dig("spec", "source", "directory", "include") == "{ec2-nodeclass.yaml,nodepool.yaml}"
+unless nodepool_application.dig("spec", "source", "directory", "include") == "{ec2-nodeclass.yaml,nodepool.yaml,redis-nodepool.yaml}"
   abort "NodePool Application은 승인된 EC2NodeClass·NodePool 파일만 배포해야 합니다."
 end
 
@@ -744,6 +744,32 @@ end
 unless nodepool.dig("spec", "disruption") == { "consolidationPolicy" => "WhenEmptyOrUnderutilized", "consolidateAfter" => "5m", "budgets" => [{ "nodes" => "1" }] } && node_template["expireAfter"] == "Never"
   abort "회수 정책은 WhenEmptyOrUnderutilized·5분 대기·동시 1대이며 시간 만료는 비활성화합니다."
 end
+# Redis 전용 NodePool (k8s-design/11 §4-6): Label·Taint로 Redis만 배치, c7g.medium 고정, 통합으로 이동하지 않음, 상한 3대
+redis_nodepool = load_yaml("platform/dev/karpenter/nodepool/redis-nodepool.yaml")
+redis_node_template = redis_nodepool.dig("spec", "template", "spec")
+redis_requirements = redis_node_template.fetch("requirements").to_h { |item| [item.fetch("key"), [item.fetch("operator"), item.fetch("values")]] }
+unless redis_nodepool["kind"] == "NodePool" && redis_nodepool.dig("metadata", "name") == "redis" && !redis_nodepool.dig("metadata", "namespace") && !redis_nodepool.fetch("spec").key?("replicas") &&
+       redis_nodepool.dig("spec", "template", "metadata", "labels", "lookddak.io/node-pool") == "redis" &&
+       redis_node_template["nodeClassRef"] == { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass", "name" => "general-purpose" } &&
+       redis_node_template["taints"] == [{ "key" => "lookddak.io/dedicated", "value" => "redis", "effect" => "NoSchedule" }] &&
+       redis_node_template["startupTaints"] == [{ "key" => "node.cilium.io/agent-not-ready", "value" => "true", "effect" => "NoExecute" }] &&
+       redis_node_template["expireAfter"] == "Never" &&
+       redis_requirements == {
+         "kubernetes.io/os" => ["In", %w[linux]],
+         "kubernetes.io/arch" => ["In", %w[arm64]],
+         "karpenter.sh/capacity-type" => ["In", %w[on-demand]],
+         "node.kubernetes.io/instance-type" => ["In", %w[c7g.medium]],
+         "topology.kubernetes.io/zone" => ["In", %w[ap-northeast-2a ap-northeast-2c]]
+       } &&
+       redis_nodepool.dig("spec", "limits") == { "cpu" => "3", "memory" => "6Gi" } &&
+       redis_nodepool.dig("spec", "disruption") == { "consolidationPolicy" => "WhenEmpty", "consolidateAfter" => "5m", "budgets" => [{ "nodes" => "1" }] }
+  abort "platform/dev/karpenter/nodepool/redis-nodepool.yaml: Redis NodePool은 redis Label·Taint, c7g.medium·arm64·On-Demand·2a/2c, WhenEmpty, 상한 3대여야 합니다."
+end
+redis_cluster_scheduling = load_yaml("platform/dev/redis/cluster/redis-cluster.yaml").fetch("spec").values_at("redisLeader", "redisFollower")
+unless redis_cluster_scheduling.all? { |role| role["nodeSelector"] == { "lookddak.io/node-pool" => "redis" } && role["tolerations"] == [{ "key" => "lookddak.io/dedicated", "operator" => "Equal", "value" => "redis", "effect" => "NoSchedule" }] }
+  abort "platform/dev/redis/cluster/redis-cluster.yaml: leader·follower는 Redis NodePool Label·Taint와 짝이 맞아야 합니다."
+end
+
 unless nodeclass.dig("spec", "instanceProfile") == "lookddak-dev-karpenter-node" && !nodeclass.fetch("spec").key?("role")
   abort "Terraform에서 생성한 Karpenter Node Instance Profile을 사용해야 합니다."
 end

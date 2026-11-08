@@ -8,6 +8,7 @@
 | --- | --- |
 | `ec2-nodeclass.yaml` | Application Node를 생성할 AWS 설정 |
 | `nodepool.yaml` | 인스턴스 조건, Cilium Startup Taint와 공급·회수 정책 |
+| `redis-nodepool.yaml` | Redis 전용 NodePool `redis` (아래 "Redis NodePool") |
 | `../../../../argocd/dev/karpenter-nodepool-application.yaml` | main의 두 YAML을 EKS dev에 자동 동기화 |
 
 ## AWS 연결값
@@ -68,6 +69,21 @@ Node를 먼저 강제 종료하는 정책이 아니다. 통합 가능한 경우 
 2026-11-07 Dev 조회에서는 롤링 업데이트 중 생성된 `c6g.large` 1대에 `identity-api` Pod 하나가 남았고, 같은 AZ의 `web-bff` Node에 합산 requests가 들어갈 여유가 있었다. `WhenEmpty`는 이 Node를 비우지 않아 5대를 유지했으므로, 재배치 가능한 저사용률 Node까지 통합하도록 정책을 확장한다. SSE·Worker처럼 장기 연결이나 처리 중 작업이 있는 Workload는 종료 유예시간과 PDB를 먼저 검증한 뒤 Auto Sync를 활성화한다.
 
 KEDA가 Pod를 0개로 줄여도 Gateway·Waypoint 등 일반 Pod가 계속 남고 다른 Node로 재배치할 수 없으면 Application Node 0대가 보장되지 않는다.
+
+## Redis NodePool
+
+설계: `work/k8s-design/11-Redis.md` §4-6. RedisCluster `lookddak-redis/redis-cache`(마스터 3 · 레플리카 3)만 배치한다.
+
+| 항목 | 값 | 이유 |
+| --- | --- | --- |
+| Label / Taint | `lookddak.io/node-pool=redis`, `lookddak.io/dedicated=redis:NoSchedule` | Redis Pod만 배치. RedisCluster leader·follower의 nodeSelector·toleration과 짝 (CI 검사) |
+| 인스턴스 | `c7g.medium` 고정, arm64, On-Demand, 2a·2c | 노드당 DaemonSet 320m/378Mi + Redis 2 × 250m/450Mi |
+| EC2NodeClass | `general-purpose` 재사용 | AMI·Subnet·SG·디스크 동일 |
+| 회수 | `WhenEmpty`, `consolidateAfter: 5m`, 동시 1대, `expireAfter: Never` | 저사용률 통합으로 Redis Pod가 이동하지 않는다. 노드가 완전히 빌 때만 회수 |
+| 상한 | CPU 3, Memory 6Gi | c7g.medium 3대 = 노드 1대 장애를 견디는 최소 구성 |
+
+- 노드 자원은 추정값으로 산정했다. 노드 생성 후 `kubectl get node -l lookddak.io/node-pool=redis -o custom-columns=...allocatable`로 실제 값을 확인한다
+- DaemonSet이 추가되면(Alloy·node-exporter 등) Redis 노드에 들어가지 않을 수 있다 → 해당 DaemonSet을 Redis 노드에서 제외하거나 인스턴스를 바꾼다
 
 ## 반영과 확인
 
