@@ -73,6 +73,13 @@ jobs:
         if: steps.change.outputs.image_only != 'true'
         run: helm repo add ot-helm https://ot-container-kit.github.io/helm-charts
 
+      - name: 모니터링 Helm Repository 등록
+        if: steps.change.outputs.image_only != 'true'
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add grafana-community https://grafana-community.github.io/helm-charts
+
       - name: Argo CD Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: helm dependency build platform/dev/argocd
@@ -98,6 +105,13 @@ jobs:
       - name: Redis Operator Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: helm dependency build platform/dev/redis/operator
+
+      - name: 모니터링 Helm 의존성 준비
+        if: steps.change.outputs.image_only != 'true'
+        run: |
+          for chart in prometheus loki tempo; do
+            helm dependency build "platform/dev/observability/$chart"
+          done
 
       - name: Istio Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
@@ -127,6 +141,9 @@ jobs:
           done
           helm lint platform/dev/cert-manager/controller --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/redis/operator --namespace lookddak-redis --kube-version 1.36.0
+          for chart in prometheus loki tempo; do
+            helm lint "platform/dev/observability/$chart" --namespace monitoring --kube-version 1.36.0
+          done
 
       - name: 이미지 영향 Workload Chart 검사
         if: steps.change.outputs.image_only == 'true'
