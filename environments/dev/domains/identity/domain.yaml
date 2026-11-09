@@ -11,3 +11,5 @@ ciliumNetworkPolicy:
   enabled: false
 authorizationPolicy:
   enabled: true
+  metricsScrape:
+    enabled: true
