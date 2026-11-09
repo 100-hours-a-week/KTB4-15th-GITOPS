@@ -1477,4 +1477,12 @@ unless scheduling_application.dig("spec", "project") == "lookddak-dev-platform" 
   abort "argocd/dev/scheduling-application.yaml: PriorityClass Application 설정이 예상과 다릅니다."
 end
 
+
+gateway_application = load_yaml("argocd/dev/istio-gateway-application.yaml")
+gateway_include = gateway_application.dig("spec", "source", "directory", "include").to_s.delete("{}").split(",").sort
+gateway_manifests = Dir["platform/dev/networking/gateway/*.yaml"].map { |file| File.basename(file) }.sort
+unless gateway_include == gateway_manifests
+  abort "argocd/dev/istio-gateway-application.yaml: directory.include가 platform/dev/networking/gateway의 매니페스트와 다릅니다. include=#{gateway_include}, 파일=#{gateway_manifests}"
+end
+
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"
