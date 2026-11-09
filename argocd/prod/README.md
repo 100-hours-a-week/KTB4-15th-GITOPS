@@ -27,7 +27,8 @@ EKS prod에 설치된 Argo CD가 GitOps 저장소의 prod 목표 상태를 읽�
 ## 네트워크 정책과 Route 준비 범위
 
 - Root가 관리하는 `network-policies`, `mesh-security`, `internal-api` Application이 기본 차단·mTLS·내부 waypoint를 먼저 구성한다.
-- 외부 HTTPRoute 값은 `lookddak.com`, `www.lookddak.com`과 기존 `lookddak-gateway`의 `https`, `https-www` Listener를 사용한다.
+- 검증 단계의 외부 HTTPRoute는 `v3-prod.lookddak.com`과 기존 `lookddak-gateway`의 `https-v3-prod` Listener만 사용한다.
+- `lookddak.com`, `www.lookddak.com` Listener는 향후 운영 전환용으로 보존하지만 현재 Prod V3 워크로드 Route는 연결하지 않는다.
 - Chat과 Fitting 알림 SSE 경로는 `request: 0s`로 Gateway 요청 시간 제한을 비활성화한다.
 - Redis·모니터링 전용 정책은 해당 구성 배포 시 별도로 추가한다.
 - Domain·Workload ApplicationSet을 Root에 연결하기 전까지 외부 워크로드 HTTPRoute와 Pod는 생성되지 않으며, 현재 운영 V2 트래픽은 바뀌지 않는다.

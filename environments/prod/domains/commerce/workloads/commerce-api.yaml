@@ -12,9 +12,8 @@ service:
 routing:
   enabled: true
   parentRefs:
-    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https}
-    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https-www}
-  hostnames: [lookddak.com, www.lookddak.com]
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https-v3-prod}
+  hostnames: [v3-prod.lookddak.com]
   rules:
     - matches:
         - path: {type: PathPrefix, value: /api/v1/products}

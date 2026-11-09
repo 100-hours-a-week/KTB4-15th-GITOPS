@@ -14,4 +14,5 @@ spec:
   dnsNames:
     - lookddak.com
     - www.lookddak.com
+    - v3-prod.lookddak.com
     - argocd.lookddak.com
