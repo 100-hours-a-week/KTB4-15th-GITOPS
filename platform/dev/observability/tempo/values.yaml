@@ -36,6 +36,20 @@ tempo:
     metricsGenerator:
       enabled: true
       remoteWriteUrl: http://prometheus-server.monitoring.svc.cluster.local/api/v1/write
+      registry:
+        external_labels:
+          source: tempo
+      processor:
+        service_graphs:
+          database_name_attributes:
+            - db.system
+          peer_attributes:
+            - peer.service
+            - db.system
+            - server.address
+        span_metrics:
+          dimensions:
+            - db.system
       storage:
         path: /var/tempo/generator/wal
     overrides:
@@ -43,6 +57,8 @@ tempo:
         metrics_generator:
           processors:
             - service-graphs
+            - span-metrics
+          generate_native_histograms: classic
 
   priorityClassName: lookddak-monitoring-storage
 
