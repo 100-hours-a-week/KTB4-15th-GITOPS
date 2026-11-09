@@ -18,6 +18,10 @@ alloy:
         port: 4318
         targetPort: 4318
         protocol: TCP
+      - name: loki-push
+        port: 3500
+        targetPort: 3500
+        protocol: TCP
     resources:
       requests:
         cpu: 150m
@@ -283,6 +287,46 @@ alloy:
             regex         = "up|apiserver_request_total|apiserver_request_duration_seconds_(sum|count)|apiserver_current_inflight_requests|apiserver_storage_objects"
             action        = "keep"
           }
+        }
+
+        loki.source.api "db_logs" {
+          http {
+            listen_address = "0.0.0.0"
+            listen_port    = 3500
+          }
+          forward_to = [loki.write.default.receiver]
+        }
+
+        discovery.kubernetes "db_log_tailer" {
+          role = "pod"
+          namespaces {
+            names = ["monitoring"]
+          }
+          selectors {
+            role  = "pod"
+            label = "app.kubernetes.io/name=db-log-tailer"
+          }
+        }
+
+        discovery.relabel "db_log_tailer" {
+          targets = discovery.kubernetes.db_log_tailer.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex         = "metrics"
+            action        = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+        }
+
+        prometheus.scrape "db_log_tailer" {
+          targets         = discovery.relabel.db_log_tailer.output
+          job_name        = "db-log-tailer"
+          scrape_interval = "60s"
+          forward_to      = [prometheus.remote_write.default.receiver]
         }
 
         loki.source.kubernetes_events "events" {
