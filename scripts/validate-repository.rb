@@ -1086,6 +1086,7 @@ unless chat_ai.dig("gitops", "autoSync") == true &&
        chat_ai.dig("service", "port") == 80 &&
        chat_ai.dig("routing", "enabled") == false &&
        chat_ai.dig("pdb", "maxUnavailable") == 1 &&
+       chat_ai.dig("secrets", "rolloutOnChange") == true &&
        chat_ai.dig("secrets", "secretProviderClassName") == "chat-ai" &&
        File.file?("platform/dev/networking/policies/chat-ai-egress.yaml")
   abort "#{chat_ai_file}: Chat AI의 Auto Sync·Replica·내부 Service·PDB·Secret·egress 설정이 필요합니다."
@@ -1250,6 +1251,7 @@ unless vton.dig("gitops", "autoSync") == true &&
        vton.dig("service", "port") == 80 &&
        vton.dig("routing", "enabled") == true &&
        vton.dig("pdb", "maxUnavailable") == 1 &&
+       vton.dig("secrets", "rolloutOnChange") == true &&
        vton.dig("secrets", "secretProviderClassName") == "vton-orchestrator" &&
        vton_env.include?({ "name" => "BE_FITTING_REQUEST_QUEUE_URL", "value" => be_request_queue_url }) &&
        vton_env.include?({ "name" => "AI_FITTING_RESPONSE_QUEUE_URL", "value" => ai_response_queue_url }) &&

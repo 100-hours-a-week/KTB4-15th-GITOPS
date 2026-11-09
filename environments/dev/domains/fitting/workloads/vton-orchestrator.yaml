@@ -103,6 +103,7 @@ serviceAccount:
 
 secrets:
   enabled: true
+  rolloutOnChange: true
   secretProviderClassName: vton-orchestrator
   mountPath: /mnt/secrets-store
   parameters:
