@@ -104,6 +104,24 @@ if [[ -f platform/dev/karpenter/controller/Chart.yaml ]]; then
     > "$output_dir/karpenter-controller-dev.yaml"
 fi
 
+if [[ -f platform/prod/karpenter/crd/Chart.yaml ]]; then
+  "$helm_dependency_build" platform/prod/karpenter/crd >/dev/null
+  helm template karpenter-crd platform/prod/karpenter/crd \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    --include-crds \
+    > "$output_dir/karpenter-crd-prod.yaml"
+fi
+
+if [[ -f platform/prod/karpenter/controller/Chart.yaml ]]; then
+  "$helm_dependency_build" platform/prod/karpenter/controller >/dev/null
+  helm template karpenter platform/prod/karpenter/controller \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    --skip-crds \
+    > "$output_dir/karpenter-controller-prod.yaml"
+fi
+
 if [[ -f platform/dev/metrics-server/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/metrics-server >/dev/null
   helm template metrics-server platform/dev/metrics-server \
@@ -112,12 +130,38 @@ if [[ -f platform/dev/metrics-server/Chart.yaml ]]; then
     > "$output_dir/metrics-server-dev.yaml"
 fi
 
+if [[ -f platform/prod/metrics-server/Chart.yaml ]]; then
+  "$helm_dependency_build" platform/prod/metrics-server >/dev/null
+  helm template metrics-server platform/prod/metrics-server \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    > "$output_dir/metrics-server-prod.yaml"
+fi
+
+for component in driver provider-aws; do
+  if [[ -f "platform/prod/secrets-store-csi/$component/Chart.yaml" ]]; then
+    "$helm_dependency_build" "platform/prod/secrets-store-csi/$component" >/dev/null
+    helm template "secrets-store-csi-$component" "platform/prod/secrets-store-csi/$component" \
+      --namespace kube-system \
+      --kube-version 1.36.0 \
+      > "$output_dir/secrets-store-csi-$component-prod.yaml"
+  fi
+done
+
 if [[ -f platform/dev/networking/aws-load-balancer-controller/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/networking/aws-load-balancer-controller >/dev/null
   helm template aws-load-balancer-controller platform/dev/networking/aws-load-balancer-controller \
     --namespace kube-system \
     --kube-version 1.36.0 \
     > "$output_dir/aws-load-balancer-controller-dev.yaml"
+fi
+
+if [[ -f platform/prod/networking/aws-load-balancer-controller/Chart.yaml ]]; then
+  "$helm_dependency_build" platform/prod/networking/aws-load-balancer-controller >/dev/null
+  helm template aws-load-balancer-controller platform/prod/networking/aws-load-balancer-controller \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    > "$output_dir/aws-load-balancer-controller-prod.yaml"
 fi
 
 for chart in base istiod cni ztunnel; do
@@ -130,6 +174,16 @@ for chart in base istiod cni ztunnel; do
   fi
 done
 
+for chart in base istiod cni ztunnel; do
+  if [[ -f "platform/prod/networking/istio/$chart/Chart.yaml" ]]; then
+    "$helm_dependency_build" "platform/prod/networking/istio/$chart" >/dev/null
+    helm template "istio-$chart" "platform/prod/networking/istio/$chart" \
+      --namespace istio-system \
+      --kube-version 1.36.0 \
+      > "$output_dir/istio-$chart-prod.yaml"
+  fi
+done
+
 if [[ -f platform/dev/cert-manager/controller/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/cert-manager/controller >/dev/null
   helm template cert-manager platform/dev/cert-manager/controller \
@@ -138,10 +192,24 @@ if [[ -f platform/dev/cert-manager/controller/Chart.yaml ]]; then
     > "$output_dir/cert-manager-dev.yaml"
 fi
 
+if [[ -f platform/prod/cert-manager/controller/Chart.yaml ]]; then
+  "$helm_dependency_build" platform/prod/cert-manager/controller >/dev/null
+  helm template cert-manager platform/prod/cert-manager/controller \
+    --namespace kube-system \
+    --kube-version 1.36.0 \
+    > "$output_dir/cert-manager-prod.yaml"
+fi
+
 # 정적 NodePool 리소스도 Schema와 PR Manifest Diff 검증에 포함한다.
 if [[ -f platform/dev/karpenter/nodepool/nodepool.yaml ]]; then
   cp platform/dev/karpenter/nodepool/ec2-nodeclass.yaml "$output_dir/karpenter-ec2nodeclass-dev.yaml"
   cp platform/dev/karpenter/nodepool/nodepool.yaml "$output_dir/karpenter-nodepool-dev.yaml"
+fi
+
+
+if [[ -f platform/prod/karpenter/nodepool/nodepool.yaml ]]; then
+  cp platform/prod/karpenter/nodepool/ec2-nodeclass.yaml "$output_dir/karpenter-ec2nodeclass-prod.yaml"
+  cp platform/prod/karpenter/nodepool/nodepool.yaml "$output_dir/karpenter-nodepool-prod.yaml"
 fi
 
 echo "Manifest 준비 완료: 공통 Fixture·Argo CD·Karpenter·Metrics Server·AWS LB Controller·Istio·cert-manager Chart 및 NodePool 선언"
