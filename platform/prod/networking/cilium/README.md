@@ -21,6 +21,7 @@ EKS prod(`lookddak-prod`)의 Cilium Bootstrap 설정을 관리한다. Cilium은 
 - Operator IRSA: `arn:aws:iam::686496667254:role/lookddak-prod-cilium-operator`
 - API Access Host: `lookddak-prod-monitoring` EC2, SSM Document `lookddak-prod-api-port-forward`
 - Hubble: Agent Flow 수집만 활성화하며 Relay·UI는 CoreDNS 완료 후 관측 PR에서 활성화
+- Metrics: Cilium Agent·Operator·Hubble Prometheus endpoint만 활성화하며 실제 수집은 Prod 관측 PR에서 연결
 
 ## 최초 Bootstrap
 

@@ -196,13 +196,16 @@ unless prod_cilium.dig("cni", "exclusive") == false &&
        prod_cilium.dig("socketLB", "hostNamespaceOnly") == true &&
        prod_cilium.dig("bpf", "hostLegacyRouting") == true &&
        prod_cilium.dig("envoy", "enabled") == false &&
+       prod_cilium.dig("prometheus", "enabled") == true &&
        prod_cilium.dig("hubble", "enabled") == true &&
+       (prod_cilium.dig("hubble", "metrics", "enabled") || []).include?("flow:sourceContext=namespace;destinationContext=namespace") &&
        prod_cilium.dig("hubble", "relay", "enabled") == false &&
        prod_cilium.dig("hubble", "ui", "enabled") == false
   abort "#{prod_cilium_values_file}: Istio Ambient 공존과 kubelet probe 대응 설정이 필요합니다."
 end
 prod_cilium_operator = prod_cilium.fetch("operator")
 unless prod_cilium_operator["replicas"] == 2 &&
+       prod_cilium_operator.dig("prometheus", "enabled") == true &&
        prod_cilium_operator.dig("nodeSelector", "lookddak.io/node-pool") == "system" &&
        (prod_cilium_operator["tolerations"] || []).any? { |item| item["key"] == "node.kubernetes.io/not-ready" } &&
        (prod_cilium_operator["tolerations"] || []).any? { |item| item["key"] == "CriticalAddonsOnly" }

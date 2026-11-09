@@ -31,8 +31,13 @@ socketLB:
 bpf:
   hostLegacyRouting: true
 
+prometheus:
+  enabled: true
+
 operator:
   replicas: 2
+  prometheus:
+    enabled: true
   nodeSelector:
     kubernetes.io/os: linux
     lookddak.io/node-pool: system
@@ -55,6 +60,13 @@ envoy:
 # Agent의 Network Flow 수집 기반만 켠다. Relay·UI는 CoreDNS 완료 후 관측 PR에서 활성화한다.
 hubble:
   enabled: true
+  metrics:
+    enabled:
+      - dns:query;ignoreAAAA
+      - drop:sourceContext=namespace;destinationContext=namespace
+      - tcp
+      - flow:sourceContext=namespace;destinationContext=namespace
+      - policy:sourceContext=namespace;destinationContext=namespace
   relay:
     enabled: false
   ui:
