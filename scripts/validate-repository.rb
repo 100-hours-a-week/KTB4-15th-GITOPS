@@ -143,7 +143,7 @@ internal_api_files = %w[
   argocd/dev/internal-api-application.yaml
 ].freeze
 
-monitoring_charts = %w[prometheus loki tempo alloy-node kube-state-metrics].freeze
+monitoring_charts = %w[prometheus loki tempo alloy-node kube-state-metrics alloy-cluster].freeze
 monitoring_files = (
   monitoring_charts.flat_map { |chart| %W[platform/dev/observability/#{chart}/Chart.yaml platform/dev/observability/#{chart}/Chart.lock platform/dev/observability/#{chart}/values.yaml argocd/dev/#{chart}-application.yaml] } +
   %w[
@@ -152,6 +152,11 @@ monitoring_files = (
     platform/dev/storage/storageclass-gp3.yaml
     argocd/dev/storage-application.yaml
     argocd/dev/namespace-monitoring.yaml
+    platform/dev/scheduling/README.md
+    platform/dev/scheduling/priority-classes.yaml
+    argocd/dev/scheduling-application.yaml
+    platform/dev/networking/policies/alloy-cluster-scrape.yaml
+    platform/dev/networking/gateway/telemetry.yaml
   ]
 ).freeze
 
@@ -350,6 +355,7 @@ expected_platform_resources = [
   { "group" => "apiregistration.k8s.io", "kind" => "APIService" },
   { "group" => "storage.k8s.io", "kind" => "CSIDriver" },
   { "group" => "storage.k8s.io", "kind" => "StorageClass" },
+  { "group" => "scheduling.k8s.io", "kind" => "PriorityClass" },
   { "group" => "admissionregistration.k8s.io", "kind" => "MutatingWebhookConfiguration" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingWebhookConfiguration" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicy" },
@@ -1314,7 +1320,8 @@ monitoring_dependencies = {
 }.freeze
 monitoring_collector_dependencies = {
   "alloy-node" => ["alloy", "1.15.0", "https://grafana.github.io/helm-charts"],
-  "kube-state-metrics" => ["kube-state-metrics", "9.0.0", "https://prometheus-community.github.io/helm-charts"]
+  "kube-state-metrics" => ["kube-state-metrics", "9.0.0", "https://prometheus-community.github.io/helm-charts"],
+  "alloy-cluster" => ["alloy", "1.15.0", "https://grafana.github.io/helm-charts"]
 }.freeze
 monitoring_toleration = [{ "key" => "dedicated", "operator" => "Equal", "value" => "monitoring", "effect" => "NoSchedule" }].freeze
 monitoring_node_selector = { "lookddak.io/node-pool" => "monitoring" }.freeze
@@ -1406,6 +1413,63 @@ end
 ksm_values = load_yaml("platform/dev/observability/kube-state-metrics/values.yaml").fetch("kube-state-metrics")
 unless ksm_values["nodeSelector"] == monitoring_node_selector && ksm_values["tolerations"] == monitoring_toleration
   abort "platform/dev/observability/kube-state-metrics/values.yaml: kube-state-metrics는 Monitoring Node에 배치해야 합니다."
+end
+
+
+alloy_cluster_values = load_yaml("platform/dev/observability/alloy-cluster/values.yaml").fetch("alloy")
+alloy_cluster_principal = "cluster.local/ns/monitoring/sa/alloy-cluster"
+unless alloy_cluster_values.dig("controller", "type") == "deployment" &&
+       alloy_cluster_values.dig("controller", "replicas") == 1 &&
+       alloy_cluster_values.dig("controller", "podLabels", "istio.io/dataplane-mode") == "ambient" &&
+       alloy_cluster_values.dig("serviceAccount", "name") == "alloy-cluster" &&
+       alloy_cluster_values.dig("controller", "nodeSelector") == monitoring_node_selector &&
+       alloy_cluster_values.dig("controller", "tolerations") == monitoring_toleration &&
+       alloy_cluster_values.dig("crds", "create") == false
+  abort "platform/dev/observability/alloy-cluster/values.yaml: Alloy Cluster는 Deployment 1개, Pod 단위 Ambient 등록, SA alloy-cluster, Monitoring Node 배치가 필요합니다."
+end
+
+domain_chart_values = load_yaml("charts/lookddak-domain/values.yaml")
+unless domain_chart_values.dig("authorizationPolicy", "metricsScrape", "principal") == alloy_cluster_principal &&
+       domain_chart_values.dig("authorizationPolicy", "metricsScrape", "ports") == %w[8080 8000]
+  abort "charts/lookddak-domain/values.yaml: 메트릭 수집 인가는 alloy-cluster 신원과 8080·8000 포트만 허용해야 합니다."
+end
+Dir["environments/dev/domains/*/domain.yaml"].sort.each do |file|
+  abort "#{file}: dev 도메인은 Alloy Cluster 메트릭 수집 인가(authorizationPolicy.metricsScrape.enabled)가 필요합니다." unless load_yaml(file).dig("authorizationPolicy", "metricsScrape", "enabled") == true
+end
+
+alloy_scrape_policy = load_yaml("platform/dev/networking/policies/alloy-cluster-scrape.yaml")
+alloy_scrape_ports = Array(alloy_scrape_policy.dig("spec", "ingress")).flat_map { |rule| Array(rule["toPorts"]).flat_map { |port| Array(port["ports"]).map { |item| item["port"] } } }.sort
+unless alloy_scrape_policy["kind"] == "CiliumClusterwideNetworkPolicy" &&
+       alloy_scrape_policy.dig("spec", "endpointSelector") == baseline.dig("spec", "endpointSelector") &&
+       alloy_scrape_policy.dig("spec", "ingress", 0, "fromEndpoints") == [{ "matchLabels" => { "k8s:io.kubernetes.pod.namespace" => "monitoring", "k8s:app.kubernetes.io/instance" => "alloy-cluster" } }] &&
+       alloy_scrape_ports == %w[15008 15020] &&
+       !alloy_scrape_policy.dig("spec", "egress")
+  abort "platform/dev/networking/policies/alloy-cluster-scrape.yaml: 도메인 Pod는 monitoring/alloy-cluster에서 15008·15020만 받아야 합니다."
+end
+
+gateway_telemetry = load_yaml("platform/dev/networking/gateway/telemetry.yaml")
+unless gateway_telemetry["kind"] == "Telemetry" &&
+       gateway_telemetry.dig("metadata", "namespace") == "istio-ingress" &&
+       gateway_telemetry.dig("spec", "targetRefs") == [{ "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway" }] &&
+       gateway_telemetry.dig("spec", "accessLogging") == [{ "providers" => [{ "name" => "envoy" }] }]
+  abort "platform/dev/networking/gateway/telemetry.yaml: 공용 Gateway 액세스 로그 전부(envoy provider)를 켜야 합니다."
+end
+
+priority_class = load_yaml("platform/dev/scheduling/priority-classes.yaml")
+unless priority_class["kind"] == "PriorityClass" && priority_class.dig("metadata", "name") == "lookddak-monitoring-storage" &&
+       priority_class["globalDefault"] == false && priority_class["preemptionPolicy"] == "Never"
+  abort "platform/dev/scheduling/priority-classes.yaml: lookddak-monitoring-storage는 기본값이 아니고 선점하지 않아야 합니다."
+end
+unless prometheus_server["priorityClassName"] == "lookddak-monitoring-storage" &&
+       loki_values.dig("singleBinary", "priorityClassName") == "lookddak-monitoring-storage" &&
+       tempo_values["priorityClassName"] == "lookddak-monitoring-storage"
+  abort "Prometheus·Loki·Tempo는 PriorityClass lookddak-monitoring-storage가 필요합니다."
+end
+scheduling_application = load_yaml("argocd/dev/scheduling-application.yaml")
+unless scheduling_application.dig("spec", "project") == "lookddak-dev-platform" &&
+       scheduling_application.dig("spec", "source", "path") == "platform/dev/scheduling" &&
+       scheduling_application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-1"
+  abort "argocd/dev/scheduling-application.yaml: PriorityClass Application 설정이 예상과 다릅니다."
 end
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"
