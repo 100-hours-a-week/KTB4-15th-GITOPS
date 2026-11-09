@@ -25,8 +25,8 @@ alloy:
             fieldPath: spec.nodeName
     resources:
       requests:
-        cpu: 50m
-        memory: 128Mi
+        cpu: 30m
+        memory: 80Mi
       limits:
         memory: 256Mi
     configMap:
@@ -314,4 +314,4 @@ alloy:
     resources:
       requests:
         cpu: 5m
-        memory: 32Mi
+        memory: 16Mi
