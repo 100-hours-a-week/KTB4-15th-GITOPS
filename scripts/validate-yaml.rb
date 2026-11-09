@@ -3,7 +3,7 @@
 require "psych"
 
 files = Dir.glob("**/*.{yaml,yml}", File::FNM_DOTMATCH).reject do |file|
-  file.start_with?(".git/") || file.match?(%r{\Acharts/[^/]+/templates/})
+  file.start_with?(".git/") || file.match?(%r{\A(charts/[^/]+|platform/.+)/templates/})
 end.sort
 
 abort "검사할 YAML 파일이 없습니다." if files.empty?
