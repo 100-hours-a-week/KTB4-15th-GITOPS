@@ -428,6 +428,54 @@ alloy:
         prometheus.exporter.cloudwatch "rds" {
           sts_region = "ap-northeast-2"
 
+          decoupled_scraping {
+            enabled         = true
+            scrape_interval = "5m"
+          }
+
+          discovery {
+            type                        = "AWS/SQS"
+            regions                     = ["ap-northeast-2"]
+            search_tags                 = { "Environment" = "dev" }
+            dimension_name_requirements = ["QueueName"]
+
+            metric {
+              name       = "ApproximateNumberOfMessagesVisible"
+              statistics = ["Maximum"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "ApproximateNumberOfMessagesNotVisible"
+              statistics = ["Maximum"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "ApproximateAgeOfOldestMessage"
+              statistics = ["Maximum"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "NumberOfMessagesSent"
+              statistics = ["Sum"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "NumberOfMessagesReceived"
+              statistics = ["Sum"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "NumberOfMessagesDeleted"
+              statistics = ["Sum"]
+              period     = "5m"
+            }
+          }
+
           static "mysql" {
             regions    = ["ap-northeast-2"]
             namespace  = "AWS/RDS"
@@ -565,8 +613,8 @@ alloy:
         prometheus.scrape "cloudwatch" {
           targets         = discovery.relabel.cloudwatch_targets.output
           job_name        = "cloudwatch"
-          scrape_interval = "5m"
-          scrape_timeout  = "60s"
+          scrape_interval = "60s"
+          scrape_timeout  = "50s"
           forward_to      = [prometheus.remote_write.default.receiver]
         }
 
