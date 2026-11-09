@@ -1,0 +1,61 @@
+# Cilium 1.20.4 / EKS 1.36 (lookddak-prod) / ENI mode
+# 설치: Prod Monitoring EC2 SSM 포트포워딩으로 helm upgrade --install (README.md 참고)
+# IRSA Role·서브넷 태그: KTB4-15th-CLOUD infra/environments/prod/v3 (iam, network)
+
+# 클러스터에 kube-proxy가 없으므로 Private EKS API endpoint를 직접 사용한다.
+kubeProxyReplacement: true
+k8sServiceHost: 98FAA5345EEC969890293E6E0090CC4C.gr7.ap-northeast-2.eks.amazonaws.com
+k8sServicePort: 443
+
+# Pod는 Prod VPC 보조 CIDR 100.64.0.0/16의 전용 ENI IP를 사용한다.
+ipam:
+  mode: eni
+routingMode: native
+eni:
+  enabled: true
+  iamRole: arn:aws:iam::686496667254:role/lookddak-prod-cilium-operator
+  awsEnablePrefixDelegation: true
+  awsReleaseExcessIPs: true
+  subnetTagsFilter:
+    - Tier=private-pod
+  nodeSpec:
+    firstInterfaceIndex: 1
+
+# Istio Ambient가 Cilium 뒤에 CNI 체이닝할 수 있게 하고 Pod socket LB 충돌을 피한다.
+cni:
+  exclusive: false
+socketLB:
+  hostNamespaceOnly: true
+
+# Ambient kubelet probe의 169.254.7.127 SNAT 응답이 host iptables를 왕복하도록 한다.
+bpf:
+  hostLegacyRouting: true
+
+operator:
+  replicas: 2
+  nodeSelector:
+    kubernetes.io/os: linux
+    lookddak.io/node-pool: system
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+    - key: node.cloudprovider.kubernetes.io/uninitialized
+      operator: Exists
+    - key: CriticalAddonsOnly
+      operator: Exists
+
+# L7은 Istio가 담당하므로 standalone cilium-envoy DaemonSet은 사용하지 않는다.
+envoy:
+  enabled: false
+
+# Agent의 Network Flow 수집 기반만 켠다. Relay·UI는 CoreDNS 완료 후 관측 PR에서 활성화한다.
+hubble:
+  enabled: true
+  relay:
+    enabled: false
+  ui:
+    enabled: false
