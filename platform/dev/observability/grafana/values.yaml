@@ -22,7 +22,14 @@ grafana:
       cpu: 50m
       memory: 128Mi
     limits:
-      memory: 256Mi
+      memory: 384Mi
+
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: grafana
+    periodSeconds: 10
+    failureThreshold: 60
 
   nodeSelector:
     lookddak.io/node-pool: monitoring
@@ -38,7 +45,10 @@ grafana:
   grafana.ini:
     analytics:
       check_for_updates: false
+      check_for_plugin_updates: false
       reporting_enabled: false
+    plugins:
+      preinstall_disabled: true
     auth:
       disable_login_form: true
     auth.anonymous:
