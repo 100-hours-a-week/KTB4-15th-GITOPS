@@ -80,10 +80,10 @@ secrets:
   mountPath: /mnt/secrets-store
   parameters:
     objects: |
-      - objectName: /lookddak/dev/v2/postgresql/app/database-url
+      - objectName: /lookddak/dev/v3/postgresql/app/database-url
         objectType: ssmparameter
         objectAlias: DATABASE_URL
-      - objectName: /lookddak/dev/v2/postgresql/app/checkpoint-dsn
+      - objectName: /lookddak/dev/v3/postgresql/app/checkpoint-dsn
         objectType: ssmparameter
         objectAlias: CHECKPOINT_DSN
       - objectName: /lookddak/dev/internal/ai-api-key
