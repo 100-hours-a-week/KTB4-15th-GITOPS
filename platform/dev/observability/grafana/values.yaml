@@ -49,14 +49,23 @@ grafana:
       reporting_enabled: false
     plugins:
       preinstall_disabled: true
+    server:
+      root_url: https://grafana.v3-dev.lookddak.com
     auth:
       disable_login_form: true
+      signout_redirect_url: https://grafana.v3-dev.lookddak.com/oauth2/sign_out?rd=https%3A%2F%2Flookddak-dev-grafana.auth.ap-northeast-2.amazoncognito.com%2Flogout%3Fclient_id%3Dnp2jprvekfdpir5kbmois3ubl%26logout_uri%3Dhttps%253A%252F%252Fgrafana.v3-dev.lookddak.com%252F
     auth.anonymous:
+      enabled: false
+    auth.proxy:
       enabled: true
-      org_name: Main Org.
-      org_role: Viewer
+      header_name: X-Auth-Request-Email
+      header_property: email
+      auto_sign_up: true
+      enable_login_token: false
     users:
       allow_sign_up: false
+      auto_assign_org: true
+      auto_assign_org_role: Editor
     dashboards:
       default_home_dashboard_path: /var/lib/grafana/dashboards/lookddak/lookddak-cluster.json
 
