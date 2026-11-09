@@ -12,6 +12,7 @@ V3 dev 클러스터 안 모니터링 구성(Prometheus·Loki·Tempo, 수집기 A
 | Loki | `loki` 7.5.0 (SingleBinary) | S3 `lookddak-dev-v3-loki-*`, gp3 10Gi | 보존 7일, IRSA `lookddak-dev-v3-loki` |
 | Alloy Node | `alloy` 1.15.0 (DaemonSet, 모든 노드, hostNetwork, 메시 밖) | — | 자기 노드 Pod 로그(CRI·multiline)·kubelet/containerd journal → Loki, 노드(unix)·kubelet·cAdvisor·KSM·Cilium agent·operator·Hubble → Prometheus |
 | Alloy Cluster | `alloy` 1.15.0 (Deployment 1, Monitoring Node, **Pod 단위 Ambient 등록**) | — | 앱(8080 `/actuator/prometheus`, 8000 `/metrics`)·istiod·ztunnel·Gateway·waypoint·플랫폼(kube-system·argocd `metrics` 포트)·kube-apiserver → Prometheus, Events → Loki, OTLP 4317·4318 → 20% 샘플링 → Tempo |
+| db-log-tailer | 평문 매니페스트, ECR `lookddak-dev-v3-db-log-tailer` digest 고정 (Deployment 1, Ambient 등록, Monitoring Node) | gp3 1Gi (읽은 위치) | RDS API(`DescribeDBLogFiles`·`DownloadDBLogFilePortion`, IRSA)로 dev MySQL 감사·error·slowquery, PostgreSQL 로그 → Alloy Cluster `:3500` → Loki. 소스: CLOUD `scripts/monitoring/db-log-tailer` |
 | kube-state-metrics | `kube-state-metrics` 9.0.0 | — | 노드 라벨(NodePool·인스턴스 타입·Zone) 포함. Monitoring Node의 Alloy Node가 수집 |
 | Tempo | `tempo` 3.2.1 (grafana-community) | S3 `lookddak-dev-v3-tempo-*`, gp3 10Gi | 보존 7일, OTLP 수신, service-graphs → Prometheus, IRSA `lookddak-dev-v3-tempo` |
 
@@ -34,5 +35,6 @@ V3 dev 클러스터 안 모니터링 구성(Prometheus·Loki·Tempo, 수집기 A
 |---|---|
 | Pod 로그 | `cluster`, `namespace`, `workload`(`app.kubernetes.io/name`, 없으면 controller 이름), `container`, `source=pod` / structured metadata `pod` |
 | Events | `cluster`, `source=event` |
+| RDS 로그 | `cluster`, 쿼리 `source=db-query`, 오류·슬로우 `source=rds`·`log_group=/aws/rds/instance/<id>/...` (V2와 같은 라벨) |
 | 노드 로그 | `cluster`, `source=journal`, `node`, `unit`, `level` |
 | 메트릭 | `cluster` (Alloy external_labels), 노드 지표 `node`·`node_pool` |

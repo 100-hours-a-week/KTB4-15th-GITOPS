@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-log-tailer
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: db-log-tailer
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: db-log-tailer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: db-log-tailer
+        istio.io/dataplane-mode: ambient
+    spec:
+      serviceAccountName: db-log-tailer
+      nodeSelector:
+        lookddak.io/node-pool: monitoring
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: monitoring
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: db-log-tailer
+          image: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-v3-db-log-tailer@sha256:1c808b69e547a2ac7be196767d04d447cd509f40e3f1700a527bd09774ef027e
+          env:
+            - name: TARGETS
+              value: mysql:lookddak-dev-v2-mysql:audit/,mysql:lookddak-dev-v2-mysql:error/,mysql:lookddak-dev-v2-mysql:slowquery/,postgresql:lookddak-dev-postgresql:error/postgresql.log
+            - name: AWS_REGION
+              value: ap-northeast-2
+            - name: POLL_SECONDS
+              value: "5"
+            - name: PG_SEND_OTHER
+              value: "true"
+            - name: LOKI_URL
+              value: http://alloy-cluster.monitoring.svc.cluster.local:3500/loki/api/v1/push
+            - name: STATE_FILE
+              value: /state/positions.json
+            - name: METRICS_PORT
+              value: "9200"
+          ports:
+            - name: metrics
+              containerPort: 9200
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: state
+              mountPath: /state
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: db-log-tailer-state
