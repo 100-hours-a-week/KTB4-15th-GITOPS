@@ -49,6 +49,16 @@ jobs:
         with:
           version: v4.2.3
 
+      - name: Helm Chart 캐시
+        if: steps.change.outputs.image_only != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            platform/dev/**/charts/*.tgz
+          key: helm-charts-${{ hashFiles('platform/dev/**/Chart.lock') }}
+          restore-keys: |
+            helm-charts-
+
       - name: Argo CD Helm Repository 등록
         if: steps.change.outputs.image_only != 'true'
         run: helm repo add argo https://argoproj.github.io/argo-helm
