@@ -226,6 +226,14 @@ monitoring_files = (
     argocd/dev/scheduling-application.yaml
     platform/dev/networking/policies/alloy-cluster-scrape.yaml
     platform/dev/networking/gateway/telemetry.yaml
+    platform/dev/networking/gateway/grafana-ext-authz.yaml
+    platform/dev/networking/policies/monitoring-grafana.yaml
+    platform/dev/observability/grafana-auth/deployment.yaml
+    platform/dev/observability/grafana-auth/service.yaml
+    platform/dev/observability/grafana-auth/serviceaccount.yaml
+    platform/dev/observability/grafana-auth/secret-provider-class.yaml
+    platform/dev/observability/grafana-auth/httproute.yaml
+    argocd/dev/grafana-auth-application.yaml
     platform/dev/observability/db-log-tailer/deployment.yaml
     platform/dev/observability/db-log-tailer/serviceaccount.yaml
     platform/dev/observability/db-log-tailer/pvc.yaml
@@ -1975,6 +1983,47 @@ grafana_dashboards.each do |file|
   abort "#{file}: 대시보드 uid는 파일 이름과 같아야 합니다." unless dashboard["uid"] == File.basename(file, ".json")
   datasource_uids = dashboard.fetch("panels").flat_map { |panel| [panel.dig("datasource", "uid")] + panel.fetch("targets", []).map { |target| target.dig("datasource", "uid") } }.compact.uniq
   abort "#{file}: 데이터소스는 provisioning uid(prometheus·loki·tempo)만 참조해야 합니다. 실제=#{datasource_uids}" unless (datasource_uids - %w[prometheus loki tempo]).empty?
+end
+
+
+grafana_host = "grafana.v3-dev.lookddak.com"
+unless gateway_listeners.find { |item| item["name"] == "https-grafana" }&.dig("hostname") == grafana_host
+  abort "platform/dev/networking/gateway/gateway.yaml: https-grafana Listener는 #{grafana_host}여야 합니다."
+end
+istiod_dev_values = load_yaml("platform/dev/networking/istio/istiod/values.yaml").fetch("istiod")
+grafana_authz_provider = istiod_dev_values.dig("meshConfig", "extensionProviders").to_a.find { |item| item["name"] == "oauth2-proxy-grafana" }
+unless grafana_authz_provider && grafana_authz_provider.dig("envoyExtAuthzHttp", "service") == "oauth2-proxy.monitoring.svc.cluster.local" && grafana_authz_provider.dig("envoyExtAuthzHttp", "port") == 4180 &&
+       grafana_authz_provider.dig("envoyExtAuthzHttp", "headersToUpstreamOnAllow").to_a.include?("x-auth-request-email")
+  abort "platform/dev/networking/istio/istiod/values.yaml: oauth2-proxy-grafana ext_authz provider(4180, x-auth-request-email 전달)가 필요합니다."
+end
+grafana_ext_authz = load_yaml("platform/dev/networking/gateway/grafana-ext-authz.yaml")
+unless grafana_ext_authz["kind"] == "AuthorizationPolicy" && grafana_ext_authz.dig("spec", "action") == "CUSTOM" &&
+       grafana_ext_authz.dig("spec", "provider", "name") == "oauth2-proxy-grafana" &&
+       grafana_ext_authz.dig("spec", "targetRefs") == [{ "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway" }] &&
+       grafana_ext_authz.dig("spec", "rules", 0, "to", 0, "operation", "hosts").to_a.include?(grafana_host) &&
+       grafana_ext_authz.dig("spec", "rules", 0, "to", 0, "operation", "notPaths") == ["/oauth2/*"]
+  abort "platform/dev/networking/gateway/grafana-ext-authz.yaml: Grafana host는 /oauth2/*를 뺀 모든 경로가 oauth2-proxy ext_authz를 거쳐야 합니다."
+end
+grafana_auth_values = load_yaml("platform/dev/observability/grafana/values.yaml").fetch("grafana")
+unless grafana_auth_values.dig("grafana.ini", "auth.proxy", "enabled") == true &&
+       grafana_auth_values.dig("grafana.ini", "auth.proxy", "header_name") == "X-Auth-Request-Email" &&
+       grafana_auth_values.dig("grafana.ini", "auth.anonymous", "enabled") == false
+  abort "platform/dev/observability/grafana/values.yaml: Grafana는 auth.proxy(X-Auth-Request-Email)만 쓰고 익명 접속을 끕니다."
+end
+grafana_ingress_policies = YAML.load_stream(File.read("platform/dev/networking/policies/monitoring-grafana.yaml")).compact.to_h { |policy| [policy.dig("spec", "endpointSelector", "matchLabels", "k8s:app.kubernetes.io/name"), policy] }
+gateway_endpoint = [{ "matchLabels" => { "k8s:io.kubernetes.pod.namespace" => "istio-ingress", "k8s:gateway.networking.k8s.io/gateway-name" => "lookddak-gateway" } }]
+{ "grafana" => "3000", "oauth2-proxy" => "4180" }.each do |name, port|
+  policy = grafana_ingress_policies[name]
+  unless policy && policy.dig("metadata", "namespace") == "monitoring" && policy.dig("spec", "ingress") == [{ "fromEndpoints" => gateway_endpoint, "toPorts" => [{ "ports" => [{ "port" => port, "protocol" => "TCP" }] }] }]
+    abort "platform/dev/networking/policies/monitoring-grafana.yaml: #{name}는 공용 Gateway에서 #{port}만 받아야 합니다 (auth.proxy 헤더 위조 방지)."
+  end
+end
+oauth2_proxy = load_yaml("platform/dev/observability/grafana-auth/deployment.yaml")
+oauth2_proxy_args = oauth2_proxy.dig("spec", "template", "spec", "containers", 0, "args").to_a
+unless oauth2_proxy_args.include?("--client-secret-file=/etc/oauth2-proxy/client-secret") && oauth2_proxy_args.include?("--cookie-secret-file=/etc/oauth2-proxy/cookie-secret") &&
+       oauth2_proxy_args.include?("--set-xauthrequest=true") && oauth2_proxy_args.include?("--cookie-secure=true") &&
+       oauth2_proxy_args.none? { |arg| arg.include?("__COGNITO_POOL_ID__") }
+  abort "platform/dev/observability/grafana-auth/deployment.yaml: oauth2-proxy는 비밀값을 CSI 파일로 읽고, X-Auth-Request 헤더·secure 쿠키를 써야 합니다 (사용자 풀 ID 치환 필요)."
 end
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"

@@ -51,13 +51,13 @@ V3 dev 클러스터 안 모니터링 구성(Prometheus·Loki·Tempo, 수집기 A
 - 비밀번호는 `SecretProviderClass alloy-cluster-db-exporters` → `/etc/db-exporters` 파일 (K8s Secret 미생성)
 - RDS CA: `files/ap-northeast-2-bundle.pem` → ConfigMap `alloy-cluster-rds-ca` → `/etc/rds-ca`
 
-## 접속 (임시)
+## 접속
 
-```bash
-kubectl -n monitoring port-forward svc/grafana 3000:80
-```
-- `http://localhost:3000` (익명 Viewer). 외부 공개·로그인은 Gateway 인증(oauth2-proxy) 단계에서 추가
-- 대시보드 수정은 JSON(또는 생성 스크립트) PR로만 한다 (`allowUiUpdates: false`)
+- `https://grafana.v3-dev.lookddak.com` → CloudFront → Istio Gateway → oauth2-proxy(ext_authz) → Cognito 로그인(V2 Grafana 사용자 풀) → Grafana `auth.proxy`(`X-Auth-Request-Email`)
+- 처음 로그인한 사용자는 Editor로 자동 생성. 관리자 계정·로그인 폼·익명 접속 없음
+- 사용자 추가는 Cognito 사용자 풀(`lookddak-dev-grafana`)에서 관리자가 만든다 (셀프 가입 없음)
+- 로그아웃: Grafana → `/oauth2/sign_out` → Cognito logout → 첫 화면
+- 클러스터 안 확인용: `kubectl -n monitoring port-forward svc/grafana 3000:80`는 헤더가 없어 로그인되지 않는다 (port-forward는 Gateway를 거치지 않음)
 
 ## job 이름
 

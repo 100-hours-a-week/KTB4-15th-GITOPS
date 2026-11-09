@@ -11,6 +11,7 @@
 | `<워크로드>-egress.yaml` | CCNP (워크로드마다 1개) | 해당 워크로드 Pod(`app.kubernetes.io/name`)만 DB·AWS API·외부 API FQDN 허용. S3는 dev 이미지 버킷 호스트만 |
 | `web-waypoint.yaml` | CCNP 2개 | lookddak-web waypoint → istiod 15012·도메인 Pod 15008, 도메인 Pod ← waypoint 15008 |
 | `hubble-relay.yaml` | CNP `kube-system/hubble-relay` | Relay 4245는 hubble-ui만 (Relay 서버 TLS 꺼짐) |
+| `monitoring-grafana.yaml` | CNP 2개 (`monitoring`) | Grafana 3000·oauth2-proxy 4180 ← 공용 Gateway만 (Grafana `auth.proxy` 헤더 위조 방지) |
 | `alloy-cluster-scrape.yaml` | CCNP | 도메인 Pod ← `monitoring/alloy-cluster` 15008(앱 메트릭, HBONE)·15020(waypoint 메트릭). 포트 8080·8000 제한은 domain Chart `allow-metrics-scrape` |
 
 ## Ambient와 함께 쓸 때
