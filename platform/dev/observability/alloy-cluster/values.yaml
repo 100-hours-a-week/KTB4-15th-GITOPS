@@ -388,7 +388,7 @@ alloy:
         }
 
         prometheus.exporter.postgres "rds" {
-          data_source_names = ["host=lookddak-dev-postgresql.cd8ekqeiua7b.ap-northeast-2.rds.amazonaws.com port=5432 dbname=lookddak user=exporter sslmode=verify-full sslrootcert=/etc/rds-ca/ap-northeast-2-bundle.pem password='" + string.replace(string.replace(convert.nonsensitive(local.file.postgres_exporter_password.content), "\\", "\\\\"), "'", "\\'") + "'"]
+          data_source_names = ["postgresql://exporter:" + string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(convert.nonsensitive(local.file.postgres_exporter_password.content), "%", "%25"), " ", "%20"), "!", "%21"), "#", "%23"), "$", "%24"), "&", "%26"), "'", "%27"), "(", "%28"), ")", "%29"), "*", "%2A"), "+", "%2B"), ",", "%2C"), "/", "%2F"), ":", "%3A"), ";", "%3B"), "=", "%3D"), "?", "%3F"), "@", "%40"), "[", "%5B"), "]", "%5D") + "@lookddak-dev-postgresql.cd8ekqeiua7b.ap-northeast-2.rds.amazonaws.com:5432/lookddak?sslmode=verify-full&sslrootcert=/etc/rds-ca/ap-northeast-2-bundle.pem"]
         }
 
         prometheus.scrape "rds" {
