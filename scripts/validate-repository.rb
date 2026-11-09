@@ -566,11 +566,27 @@ expected_prod_platform_repos = [
 expected_prod_platform_destinations = %w[kube-system istio-system istio-ingress].map do |namespace|
   { "server" => in_cluster_server, "namespace" => namespace }
 end
+expected_prod_platform_resources = [
+  { "group" => "apiextensions.k8s.io", "kind" => "CustomResourceDefinition" },
+  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRole" },
+  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" },
+  { "group" => "apiregistration.k8s.io", "kind" => "APIService" },
+  { "group" => "storage.k8s.io", "kind" => "CSIDriver" },
+  { "group" => "scheduling.k8s.io", "kind" => "PriorityClass" },
+  { "group" => "admissionregistration.k8s.io", "kind" => "MutatingWebhookConfiguration" },
+  { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingWebhookConfiguration" },
+  { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicy" },
+  { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicyBinding" },
+  { "group" => "cert-manager.io", "kind" => "ClusterIssuer" },
+  { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass" },
+  { "group" => "karpenter.sh", "kind" => "NodePool" }
+]
 unless prod_platform_project.dig("metadata", "name") == "lookddak-prod-platform" &&
        prod_platform_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2" &&
        prod_platform_project.dig("spec", "sourceRepos") == expected_prod_platform_repos &&
-       prod_platform_project.dig("spec", "destinations") == expected_prod_platform_destinations
-  abort "#{prod_platform_project_file}: Prod 플랫폼 Project의 Repository·Namespace 범위가 예상과 다릅니다."
+       prod_platform_project.dig("spec", "destinations") == expected_prod_platform_destinations &&
+       prod_platform_project.dig("spec", "clusterResourceWhitelist") == expected_prod_platform_resources
+  abort "#{prod_platform_project_file}: Prod 플랫폼 Project의 Repository·Namespace·Cluster Resource 범위가 예상과 다릅니다."
 end
 
 prod_platform_applications = {
