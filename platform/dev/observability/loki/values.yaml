@@ -48,6 +48,7 @@ loki:
 
   singleBinary:
     replicas: 1
+    priorityClassName: lookddak-monitoring-storage
     resources:
       requests:
         cpu: 100m

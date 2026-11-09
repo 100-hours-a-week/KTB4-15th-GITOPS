@@ -44,6 +44,8 @@ tempo:
           processors:
             - service-graphs
 
+  priorityClassName: lookddak-monitoring-storage
+
   persistence:
     enabled: true
     size: 10Gi
