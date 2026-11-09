@@ -58,9 +58,10 @@ helm upgrade --install cilium cilium/cilium \
   --version 1.20.4 \
   --namespace kube-system \
   --values platform/prod/networking/cilium/values.yaml \
-  --wait \
-  --timeout 15m
+  --wait=false
 ```
+
+최초 Bootstrap에서는 Node Group이 아직 `CREATING`이거나 재생성 중일 수 있으므로 Helm Release를 먼저 등록한다. Node가 존재하면 Cilium DaemonSet이 즉시 실행되고, Node가 없다면 후속 Cloud Apply가 Node를 만든 뒤 자동 실행된다.
 
 ## 검증
 
@@ -71,6 +72,8 @@ kubectl get nodes -o wide
 kubectl -n kube-system get pods -l app.kubernetes.io/part-of=cilium -o wide
 kubectl -n kube-system get ds cilium
 kubectl -n kube-system get deploy cilium-operator
+kubectl -n kube-system rollout status ds/cilium --timeout=15m
+kubectl -n kube-system rollout status deploy/cilium-operator --timeout=15m
 ```
 
 확인 기준은 다음과 같다.
