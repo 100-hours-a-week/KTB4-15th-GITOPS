@@ -1,5 +1,17 @@
 # Istio Ambient — prod
 
+Sidecar 없이 Node 단위 `ztunnel`이 L4 mTLS를 처리한다. 설치 순서는 Gateway API CRD·Istio base → istiod → Istio CNI → ztunnel → Gateway다.
+
+- `istiod`: System Node에 최소 2개
+- `istio-cni`, `ztunnel`: 모든 Node에 DaemonSet
+- Cilium: `cni.exclusive=false` 상태에서 Istio CNI와 체이닝
+
+```bash
+kubectl -n istio-system get pods -o wide
+kubectl -n istio-system get ds istio-cni-node ztunnel
+kubectl get gatewayclass
+```
+
 ## 목적
 
 prod의 Istio Control Plane, ztunnel, Ambient Mesh 등록과 Mesh 공통 정책을 GitOps로 관리하기 위한 디렉터리다.
