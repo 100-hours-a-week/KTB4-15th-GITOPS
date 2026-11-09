@@ -9,7 +9,7 @@ Prod EKS에 Argo CD를 최초 설치하고, 설치 직후부터 GitOps `main`의
 - 공식 `argo-cd` Chart `10.11.6`을 고정한다.
 - 모든 Argo CD Pod를 `lookddak.io/node-pool=system` Node에 배치한다.
 - Controller, ApplicationSet, Repo Server, Server와 Redis는 Bootstrap 단계에서 각각 단일 Replica로 실행한다.
-- Ingress와 외부 HTTPRoute를 만들지 않는다. 2-3의 Istio Gateway·LB Controller 설치 전에는 `kubectl port-forward`로만 접근한다.
+- Argo CD 자체 Ingress는 만들지 않는다. 플랫폼 Controller 설치 전에는 `kubectl port-forward`로만 접근하고, 이후에는 Wrapper Chart의 HTTPRoute가 공용 Istio Gateway를 통해 `argocd-server:80`으로 연결한다.
 - 기본 관리자 로그인을 활성화하고 Dex와 Notifications를 비활성화한다. OAuth·운영 알림은 별도 작업으로 구성한다.
 - CRD와 `argocd-secret`은 Prune·삭제로부터 보호한다. Secret 원문은 Git에 저장하지 않는다.
 
@@ -59,7 +59,17 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath='{.data.password}' | base64 --decode; echo
 ```
 
-브라우저에서는 `http://127.0.0.1:8080`으로 접속한다. 외부 URL·GitHub Webhook은 2-3에서 Gateway 경로를 만든 뒤 설정한다.
+브라우저에서는 `http://127.0.0.1:8080`으로 접속한다.
+
+플랫폼 Controller와 공용 Gateway를 설치한 뒤에는 이 Chart가 다음 경로를 관리한다.
+
+```text
+argocd.lookddak.com
+→ istio-ingress/lookddak-gateway#https-argocd
+→ argocd/argocd-server:80
+```
+
+HTTPRoute는 클러스터 내부 연결만 담당한다. CloudFront·WAF·Route 53을 내부 NLB에 연결하는 Edge 작업과 GitHub Webhook 등록은 별도 작업으로 진행한다.
 
 ## 자기 관리 전환 후 주의사항
 
