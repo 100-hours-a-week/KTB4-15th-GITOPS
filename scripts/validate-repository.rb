@@ -1332,6 +1332,9 @@ end
 
 prometheus_values = load_yaml("platform/dev/observability/prometheus/values.yaml").fetch("prometheus")
 prometheus_server = prometheus_values.fetch("server")
+unless prometheus_values.dig("configmapReload", "prometheus", "image", "tag") == "v0.94.0"
+  abort "platform/dev/observability/prometheus/values.yaml: config-reloader는 arm64 이미지가 있는 v0.94.0으로 고정해야 합니다 (v0.95.x는 arm64 없음)."
+end
 unless %w[alertmanager kube-state-metrics prometheus-node-exporter prometheus-pushgateway].all? { |name| prometheus_values.dig(name, "enabled") == false } &&
        prometheus_server.fetch("extraFlags").include?("web.enable-remote-write-receiver") &&
        prometheus_server["retention"] == "7d" &&
