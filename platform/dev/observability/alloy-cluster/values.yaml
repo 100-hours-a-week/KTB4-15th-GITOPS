@@ -5,10 +5,23 @@ alloy:
   serviceAccount:
     create: true
     name: alloy-cluster
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-dev-v3-alloy-cluster
 
   alloy:
     enableReporting: false
     stabilityLevel: generally-available
+    extraEnv:
+      - name: SSL_CERT_DIR
+        value: /etc/ssl/certs:/etc/rds-ca
+    mounts:
+      extra:
+        - name: db-exporters
+          mountPath: /etc/db-exporters
+          readOnly: true
+        - name: rds-ca
+          mountPath: /etc/rds-ca
+          readOnly: true
     extraPorts:
       - name: otlp-grpc
         port: 4317
@@ -329,6 +342,198 @@ alloy:
           forward_to      = [prometheus.remote_write.default.receiver]
         }
 
+        prometheus.exporter.redis "leader_0" {
+          redis_addr = "redis-cache-leader-0.redis-cache-leader-headless.lookddak-redis.svc.cluster.local:6379"
+        }
+
+        prometheus.exporter.redis "leader_1" {
+          redis_addr = "redis-cache-leader-1.redis-cache-leader-headless.lookddak-redis.svc.cluster.local:6379"
+        }
+
+        prometheus.exporter.redis "leader_2" {
+          redis_addr = "redis-cache-leader-2.redis-cache-leader-headless.lookddak-redis.svc.cluster.local:6379"
+        }
+
+        prometheus.exporter.redis "follower_0" {
+          redis_addr = "redis-cache-follower-0.redis-cache-follower-headless.lookddak-redis.svc.cluster.local:6379"
+        }
+
+        prometheus.exporter.redis "follower_1" {
+          redis_addr = "redis-cache-follower-1.redis-cache-follower-headless.lookddak-redis.svc.cluster.local:6379"
+        }
+
+        prometheus.exporter.redis "follower_2" {
+          redis_addr = "redis-cache-follower-2.redis-cache-follower-headless.lookddak-redis.svc.cluster.local:6379"
+        }
+
+        prometheus.scrape "redis" {
+          targets         = array.concat(prometheus.exporter.redis.leader_0.targets, prometheus.exporter.redis.leader_1.targets, prometheus.exporter.redis.leader_2.targets, prometheus.exporter.redis.follower_0.targets, prometheus.exporter.redis.follower_1.targets, prometheus.exporter.redis.follower_2.targets)
+          job_name        = "redis"
+          scrape_interval = "60s"
+          forward_to      = [prometheus.remote_write.default.receiver]
+        }
+
+        local.file "mysql_exporter_password" {
+          filename  = "/etc/db-exporters/mysql-exporter-password"
+          is_secret = true
+        }
+
+        local.file "postgres_exporter_password" {
+          filename  = "/etc/db-exporters/postgres-exporter-password"
+          is_secret = true
+        }
+
+        prometheus.exporter.mysql "rds" {
+          data_source_name = "lookddak_v3_exporter:" + convert.nonsensitive(local.file.mysql_exporter_password.content) + "@tcp(lookddak-dev-v2-mysql.cd8ekqeiua7b.ap-northeast-2.rds.amazonaws.com:3306)/?tls=true"
+        }
+
+        prometheus.exporter.postgres "rds" {
+          data_source_names = ["host=lookddak-dev-postgresql.cd8ekqeiua7b.ap-northeast-2.rds.amazonaws.com port=5432 dbname=lookddak user=exporter sslmode=verify-full sslrootcert=/etc/rds-ca/ap-northeast-2-bundle.pem password='" + string.replace(string.replace(convert.nonsensitive(local.file.postgres_exporter_password.content), "\\", "\\\\"), "'", "\\'") + "'"]
+        }
+
+        prometheus.scrape "rds" {
+          targets         = array.concat(prometheus.exporter.mysql.rds.targets, prometheus.exporter.postgres.rds.targets)
+          job_name        = "rds"
+          scrape_interval = "60s"
+          forward_to      = [prometheus.remote_write.default.receiver]
+        }
+
+        prometheus.exporter.cloudwatch "rds" {
+          sts_region = "ap-northeast-2"
+
+          static "mysql" {
+            regions    = ["ap-northeast-2"]
+            namespace  = "AWS/RDS"
+            dimensions = {
+              "DBInstanceIdentifier" = "lookddak-dev-v2-mysql",
+            }
+
+            metric {
+              name       = "CPUUtilization"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "FreeableMemory"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "FreeStorageSpace"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "DatabaseConnections"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "ReadIOPS"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "WriteIOPS"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "ReadLatency"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "WriteLatency"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "DiskQueueDepth"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+          }
+
+          static "postgresql" {
+            regions    = ["ap-northeast-2"]
+            namespace  = "AWS/RDS"
+            dimensions = {
+              "DBInstanceIdentifier" = "lookddak-dev-postgresql",
+            }
+
+            metric {
+              name       = "CPUUtilization"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "FreeableMemory"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "FreeStorageSpace"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "DatabaseConnections"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "ReadIOPS"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "WriteIOPS"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "ReadLatency"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "WriteLatency"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+
+            metric {
+              name       = "DiskQueueDepth"
+              statistics = ["Average"]
+              period     = "5m"
+            }
+          }
+        }
+
+        prometheus.scrape "cloudwatch" {
+          targets         = prometheus.exporter.cloudwatch.rds.targets
+          job_name        = "cloudwatch"
+          scrape_interval = "5m"
+          scrape_timeout  = "60s"
+          forward_to      = [prometheus.remote_write.default.receiver]
+        }
+
         loki.source.kubernetes_events "events" {
           log_format = "logfmt"
           forward_to = [loki.process.events.receiver]
@@ -389,6 +594,17 @@ alloy:
   controller:
     type: deployment
     replicas: 1
+    volumes:
+      extra:
+        - name: db-exporters
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: alloy-cluster-db-exporters
+        - name: rds-ca
+          configMap:
+            name: alloy-cluster-rds-ca
     podLabels:
       istio.io/dataplane-mode: ambient
     nodeSelector:
