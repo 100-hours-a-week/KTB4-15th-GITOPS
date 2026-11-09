@@ -237,6 +237,16 @@ expected_sets.each do |file, expected_path|
   abort "#{file}: Git generator 경로가 예상과 다릅니다." unless actual_path == expected_path
 end
 
+chart_repositories_by_project = Hash.new { |hash, key| hash[key] = [] }
+Dir["argocd/dev/*-application.yaml"].sort.each do |file|
+  application = load_yaml(file)
+  chart_file = File.join(application.dig("spec", "source", "path").to_s, "Chart.yaml")
+  next unless File.file?(chart_file)
+  repositories = (load_yaml(chart_file)["dependencies"] || []).map { |dependency| dependency["repository"] }
+  chart_repositories_by_project[application.dig("spec", "project")].concat(repositories)
+end
+expected_source_repos = ->(project) { [gitops_repository] + chart_repositories_by_project[project].uniq.sort }
+
 dev_project_file = "argocd/projects/lookddak-dev.yaml"
 dev_project = load_yaml(dev_project_file)
 abort "#{dev_project_file}: kind가 AppProject가 아닙니다." unless dev_project["kind"] == "AppProject"
@@ -294,8 +304,8 @@ argocd_project = load_yaml(argocd_project_file)
 unless argocd_project["kind"] == "AppProject" && argocd_project.dig("metadata", "name") == "lookddak-dev-argocd" && argocd_project.dig("metadata", "namespace") == "argocd"
   abort "#{argocd_project_file}: Argo CD 전용 AppProject 신원이 예상과 다릅니다."
 end
-unless argocd_project.dig("spec", "sourceRepos") == [gitops_repository] && argocd_project.dig("spec", "destinations") == [{ "server" => in_cluster_server, "namespace" => "argocd" }]
-  abort "#{argocd_project_file}: Argo CD 전용 Project는 GitOps 저장소와 현재 Cluster의 argocd Namespace만 허용해야 합니다."
+unless argocd_project.dig("spec", "sourceRepos") == expected_source_repos.call("lookddak-dev-argocd") && argocd_project.dig("spec", "destinations") == [{ "server" => in_cluster_server, "namespace" => "argocd" }]
+  abort "#{argocd_project_file}: Argo CD 전용 Project는 GitOps 저장소·Argo CD Chart 저장소와 현재 Cluster의 argocd Namespace만 허용해야 합니다."
 end
 unless argocd_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2"
   abort "Argo CD 전용 Project는 Application보다 먼저 선언해야 합니다."
@@ -341,7 +351,9 @@ platform_project_file = "argocd/projects/lookddak-dev-platform.yaml"
 platform_project = load_yaml(platform_project_file)
 abort "#{platform_project_file}: kind가 AppProject가 아닙니다." unless platform_project["kind"] == "AppProject"
 abort "#{platform_project_file}: Project 이름이 예상과 다릅니다." unless platform_project.dig("metadata", "name") == "lookddak-dev-platform"
-abort "#{platform_project_file}: 허용 Repository가 예상과 다릅니다." unless platform_project.dig("spec", "sourceRepos") == [gitops_repository]
+unless platform_project.dig("spec", "sourceRepos") == expected_source_repos.call("lookddak-dev-platform")
+  abort "#{platform_project_file}: 허용 Repository는 GitOps 저장소와 플랫폼 Application Chart 의존성 저장소와 정확히 같아야 합니다. 예상=#{expected_source_repos.call('lookddak-dev-platform')}, 실제=#{platform_project.dig('spec', 'sourceRepos')}"
+end
 
 platform_destinations = platform_project.dig("spec", "destinations")
 unless platform_destinations == %w[kube-system istio-system istio-ingress lookddak-redis monitoring].map { |namespace| { "server" => in_cluster_server, "namespace" => namespace } }
