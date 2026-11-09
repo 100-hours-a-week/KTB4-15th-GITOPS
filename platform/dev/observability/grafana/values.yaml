@@ -1,0 +1,107 @@
+grafana:
+  replicas: 1
+  deploymentStrategy:
+    type: Recreate
+
+  testFramework:
+    enabled: false
+
+  rbac:
+    namespaced: true
+
+  initChownData:
+    enabled: false
+
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: gp3
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+  nodeSelector:
+    lookddak.io/node-pool: monitoring
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: monitoring
+      effect: NoSchedule
+
+  env:
+    GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"
+
+  grafana.ini:
+    analytics:
+      check_for_updates: false
+      reporting_enabled: false
+    auth:
+      disable_login_form: true
+    auth.anonymous:
+      enabled: true
+      org_name: Main Org.
+      org_role: Viewer
+    users:
+      allow_sign_up: false
+    dashboards:
+      default_home_dashboard_path: /var/lib/grafana/dashboards/lookddak/lookddak-cluster.json
+
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          uid: prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus-server.monitoring.svc.cluster.local
+          isDefault: true
+          jsonData:
+            timeInterval: 60s
+        - name: Loki
+          uid: loki
+          type: loki
+          access: proxy
+          url: http://loki.monitoring.svc.cluster.local:3100
+          jsonData:
+            maxLines: 1000
+            derivedFields:
+              - name: trace_id
+                matcherRegex: '(?:trace_id|traceId|traceid)[=:"\s]+([0-9a-f]{32})'
+                datasourceUid: tempo
+                url: "$${__value.raw}"
+        - name: Tempo
+          uid: tempo
+          type: tempo
+          access: proxy
+          url: http://tempo.monitoring.svc.cluster.local:3200
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+              filterByTraceID: true
+              spanStartTimeShift: -5m
+              spanEndTimeShift: 5m
+            serviceMap:
+              datasourceUid: prometheus
+            nodeGraph:
+              enabled: true
+
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: lookddak
+          orgId: 1
+          folder: LookDDak
+          type: file
+          disableDeletion: true
+          allowUiUpdates: false
+          options:
+            path: /var/lib/grafana/dashboards/lookddak
+
+  dashboardsConfigMaps:
+    lookddak: grafana-dashboards-lookddak
