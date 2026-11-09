@@ -312,8 +312,9 @@ alloy:
         }
 
         otelcol.processor.memory_limiter "default" {
-          check_interval   = "1s"
-          limit_percentage = 50
+          check_interval         = "1s"
+          limit_percentage       = 70
+          spike_limit_percentage = 15
           output {
             traces = [otelcol.processor.probabilistic_sampler.default.input]
           }
