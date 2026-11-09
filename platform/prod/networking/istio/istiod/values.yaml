@@ -1,0 +1,19 @@
+istiod:
+  profile: ambient
+  base:
+    validationFailurePolicy: Fail
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  autoscaleMin: 2
+  autoscaleMax: 5
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: system
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Equal
+      value: "true"
+      effect: NoSchedule

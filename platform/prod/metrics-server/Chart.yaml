@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-metrics-server
+description: LookDDak EKS prod Metrics Server 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: metrics-server
+    version: 3.14.0
+    repository: https://kubernetes-sigs.github.io/metrics-server/

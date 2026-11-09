@@ -22,11 +22,38 @@ EKS prod에 설치된 Argo CD가 GitOps 저장소의 prod 목표 상태를 읽�
 - Argo CD Notifications의 수신 채널과 알림 조건
 - 운영 배포 실패 판단과 Git Revert를 실행할 주체 및 절차
 
-현재 Root Application은 `argocd/prod/bootstrap`만 포함하며 이 디렉터리의 Domain·Workload ApplicationSet은 아직 적용하지 않는다.
+현재 Root Application은 `argocd/prod/bootstrap`과 `argocd/prod/platform`만 포함한다. Domain·Workload ApplicationSet은 아직 적용하지 않는다.
+
+## 플랫폼 Controller 단계
+
+`argocd/prod/platform`은 다음 순서로 기반 구성요소를 등록한다.
+
+1. Gateway API·Karpenter CRD, Istio base, Secrets Store CSI Driver
+2. Karpenter·LB Controller·Metrics Server·ASCP·cert-manager·istiod
+3. Karpenter NodePool·ClusterIssuer·Istio CNI
+4. ztunnel
+5. 공용 Istio Gateway
+
+Gateway Pod 2개는 `general-purpose` NodePool을 요구하므로 Karpenter가 2a·2c에 Application Node를 생성한다. 이 PR은 Prod 애플리케이션을 배포하지 않는다.
 
 ## 최초 등록 순서
 
 1. `platform/prod/argocd` Wrapper Chart로 Argo CD를 최초 설치한다.
 2. `root-application.yaml`을 적용해 Project·Namespace·자기관리 Application을 등록한다.
 3. Root와 `argocd` Application의 Sync 및 Health 상태를 확인한다.
-4. 플랫폼 Controller 검증 후 별도 PR에서 Domain·Workload ApplicationSet을 Root에 연결한다.
+4. 플랫폼 Controller 전체가 `Synced/Healthy`이고 Application Node가 Ready인지 확인한다.
+5. 별도 PR에서 Domain·Workload ApplicationSet을 Root에 연결한다.
+
+## 플랫폼 검증
+
+```bash
+kubectl -n argocd get applications | grep lookddak-prod
+kubectl -n kube-system get pods -o wide
+kubectl -n istio-system get pods -o wide
+kubectl -n istio-ingress get gateway,certificate,pods,service -o wide
+kubectl get ec2nodeclass,nodepool,nodeclaim
+kubectl get nodes -L lookddak.io/node-pool,topology.kubernetes.io/zone
+kubectl top nodes
+```
+
+완료 기준은 플랫폼 Application 전체 `Synced/Healthy`, Controller Pod Ready, CNI·ztunnel DaemonSet이 모든 Node에서 Ready, Gateway Pod 2개가 서로 다른 AZ의 Application Node에서 Running인 상태다.

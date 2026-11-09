@@ -1,0 +1,29 @@
+aws-load-balancer-controller:
+  clusterName: lookddak-prod
+  region: ap-northeast-2
+  vpcId: vpc-00846a80381ac4f45
+  replicaCount: 2
+  serviceAccount:
+    create: true
+    name: aws-load-balancer-controller
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-prod-aws-load-balancer-controller
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: system
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  configureDefaultAffinity: true
+  podDisruptionBudget:
+    maxUnavailable: 1
+  createIngressClassResource: false
+  enableServiceMutatorWebhook: true
+  defaultTargetType: ip
+  controllerConfig:
+    featureGates:
+      NLBGatewayAPI: false
+      ALBGatewayAPI: false

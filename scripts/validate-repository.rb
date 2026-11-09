@@ -50,6 +50,56 @@ prod_argocd_files = %w[
   argocd/prod/bootstrap/namespaces.yaml
 ].freeze
 
+prod_platform_charts = %w[
+  karpenter/crd
+  karpenter/controller
+  metrics-server
+  secrets-store-csi/driver
+  secrets-store-csi/provider-aws
+  networking/aws-load-balancer-controller
+  networking/istio/base
+  networking/istio/istiod
+  networking/istio/cni
+  networking/istio/ztunnel
+  cert-manager/controller
+].freeze
+
+prod_platform_files = (
+  prod_platform_charts.flat_map { |chart| %W[platform/prod/#{chart}/Chart.yaml platform/prod/#{chart}/Chart.lock platform/prod/#{chart}/values.yaml] } +
+  %w[
+    argocd/projects/lookddak-prod-platform.yaml
+    argocd/prod/platform/karpenter-crd-application.yaml
+    argocd/prod/platform/karpenter-controller-application.yaml
+    argocd/prod/platform/karpenter-nodepool-application.yaml
+    argocd/prod/platform/metrics-server-application.yaml
+    argocd/prod/platform/secrets-store-csi-driver-application.yaml
+    argocd/prod/platform/secrets-store-csi-provider-aws-application.yaml
+    argocd/prod/platform/aws-load-balancer-controller-application.yaml
+    argocd/prod/platform/cert-manager-application.yaml
+    argocd/prod/platform/cert-manager-issuers-application.yaml
+    argocd/prod/platform/gateway-api-crds-application.yaml
+    argocd/prod/platform/istio-base-application.yaml
+    argocd/prod/platform/istiod-application.yaml
+    argocd/prod/platform/istio-cni-application.yaml
+    argocd/prod/platform/ztunnel-application.yaml
+    argocd/prod/platform/istio-gateway-application.yaml
+    platform/prod/karpenter/README.md
+    platform/prod/karpenter/nodepool/ec2-nodeclass.yaml
+    platform/prod/karpenter/nodepool/nodepool.yaml
+    platform/prod/metrics-server/README.md
+    platform/prod/secrets-store-csi/README.md
+    platform/prod/networking/aws-load-balancer-controller/README.md
+    platform/prod/cert-manager/README.md
+    platform/prod/cert-manager/issuers/cluster-issuers.yaml
+    platform/prod/networking/istio/README.md
+    platform/prod/networking/gateway/README.md
+    platform/prod/networking/gateway/gateway.yaml
+    platform/prod/networking/gateway/gateway-options.yaml
+    platform/prod/networking/gateway/certificate.yaml
+    platform/prod/networking/gateway/telemetry.yaml
+  ]
+).freeze
+
 karpenter_files = %w[
   platform/dev/karpenter/README.md
   platform/dev/karpenter/crd/Chart.yaml
@@ -187,7 +237,7 @@ dev_image_automation_files = %w[
   scripts/test-update-dev-image.rb
 ].freeze
 
-[argocd_files, prod_argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, prod_cilium_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files].flatten.each do |file|
+[argocd_files, prod_argocd_files, prod_platform_files, karpenter_files, metrics_server_files, secrets_store_csi_files, prod_cilium_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -419,7 +469,8 @@ prod_root_sources = (prod_root.dig("spec", "sources") || []).to_h do |source|
 end
 expected_prod_root_sources = {
   "argocd/projects" => "lookddak-prod*.yaml",
-  "argocd/prod/bootstrap" => nil
+  "argocd/prod/bootstrap" => nil,
+  "argocd/prod/platform" => nil
 }
 abort "#{prod_root_file}: Bootstrap Root가 Domain·Workload ApplicationSet을 포함하면 안 됩니다." unless prod_root_sources == expected_prod_root_sources
 unless prod_root.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "argocd" } &&
@@ -498,6 +549,163 @@ prod_namespace_documents.each do |namespace|
 end
 prod_namespace_documents.select { |item| item.dig("metadata", "name")&.start_with?("lookddak-") }.each do |namespace|
   abort "#{namespace.dig('metadata', 'name')}: 향후 Ambient 등록 Label이 필요합니다." unless namespace.dig("metadata", "labels", "istio.io/dataplane-mode") == "ambient"
+end
+
+prod_platform_project_file = "argocd/projects/lookddak-prod-platform.yaml"
+prod_platform_project = load_yaml(prod_platform_project_file)
+expected_prod_platform_repos = [
+  gitops_repository,
+  "https://aws.github.io/eks-charts",
+  "https://aws.github.io/secrets-store-csi-driver-provider-aws",
+  "https://blob.istio.io/istio-release/charts",
+  "https://charts.jetstack.io",
+  "https://kubernetes-sigs.github.io/metrics-server/",
+  "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts",
+  "oci://public.ecr.aws/karpenter"
+]
+expected_prod_platform_destinations = %w[kube-system istio-system istio-ingress].map do |namespace|
+  { "server" => in_cluster_server, "namespace" => namespace }
+end
+unless prod_platform_project.dig("metadata", "name") == "lookddak-prod-platform" &&
+       prod_platform_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2" &&
+       prod_platform_project.dig("spec", "sourceRepos") == expected_prod_platform_repos &&
+       prod_platform_project.dig("spec", "destinations") == expected_prod_platform_destinations
+  abort "#{prod_platform_project_file}: Prod 플랫폼 Project의 Repository·Namespace 범위가 예상과 다릅니다."
+end
+
+prod_platform_applications = {
+  "karpenter-crd" => ["platform/prod/karpenter/crd", "kube-system", "-1"],
+  "karpenter-controller" => ["platform/prod/karpenter/controller", "kube-system", "0"],
+  "karpenter-nodepool" => ["platform/prod/karpenter/nodepool", "kube-system", "1"],
+  "metrics-server" => ["platform/prod/metrics-server", "kube-system", "0"],
+  "secrets-store-csi-driver" => ["platform/prod/secrets-store-csi/driver", "kube-system", "-1"],
+  "secrets-store-csi-provider-aws" => ["platform/prod/secrets-store-csi/provider-aws", "kube-system", "0"],
+  "aws-load-balancer-controller" => ["platform/prod/networking/aws-load-balancer-controller", "kube-system", "0"],
+  "cert-manager" => ["platform/prod/cert-manager/controller", "kube-system", "0"],
+  "cert-manager-issuers" => ["platform/prod/cert-manager/issuers", "kube-system", "1"],
+  "gateway-api-crds" => ["platform/dev/networking/gateway-api/crds", "kube-system", "-1"],
+  "istio-base" => ["platform/prod/networking/istio/base", "istio-system", "-1"],
+  "istiod" => ["platform/prod/networking/istio/istiod", "istio-system", "0"],
+  "istio-cni" => ["platform/prod/networking/istio/cni", "istio-system", "1"],
+  "ztunnel" => ["platform/prod/networking/istio/ztunnel", "istio-system", "2"],
+  "istio-gateway" => ["platform/prod/networking/gateway", "istio-ingress", "3"]
+}
+prod_platform_applications.each do |component, (path, namespace, wave)|
+  file = "argocd/prod/platform/#{component}-application.yaml"
+  application = load_yaml(file)
+  expected_automation = expected_root_automation.merge("prune" => component != "gateway-api-crds")
+  unless application.dig("metadata", "name") == "lookddak-prod-#{component}" &&
+         application.dig("metadata", "namespace") == "argocd" &&
+         application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == wave &&
+         application.dig("spec", "project") == "lookddak-prod-platform" &&
+         application.dig("spec", "source", "repoURL") == gitops_repository &&
+         application.dig("spec", "source", "targetRevision") == "main" &&
+         application.dig("spec", "source", "path") == path &&
+         application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => namespace } &&
+         application.dig("spec", "syncPolicy", "automated") == expected_automation
+    abort "#{file}: Prod 플랫폼 Application 신원·경로·Sync Wave가 예상과 다릅니다."
+  end
+end
+
+prod_karpenter_values = load_yaml("platform/prod/karpenter/controller/values.yaml").fetch("karpenter")
+unless prod_karpenter_values.dig("settings", "clusterName") == "lookddak-prod" &&
+       prod_karpenter_values.dig("serviceAccount", "name") == "karpenter" &&
+       prod_karpenter_values.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-prod-karpenter-controller" &&
+       prod_karpenter_values["replicas"] == 2 &&
+       prod_karpenter_values.dig("nodeSelector", "lookddak.io/node-pool") == "system"
+  abort "Prod Karpenter Controller의 Cluster·IRSA·System Node 배치가 예상과 다릅니다."
+end
+
+prod_nodeclass = load_yaml("platform/prod/karpenter/nodepool/ec2-nodeclass.yaml")
+unless prod_nodeclass.dig("spec", "instanceProfile") == "lookddak-prod-karpenter-node" &&
+       prod_nodeclass.dig("spec", "securityGroupSelectorTerms") == [{ "id" => "sg-041f092dc1698a99a" }] &&
+       prod_nodeclass.dig("spec", "subnetSelectorTerms") == [{ "tags" => { "karpenter.sh/discovery" => "lookddak-prod", "Tier" => "private-node" } }] &&
+       prod_nodeclass.dig("spec", "associatePublicIPAddress") == false &&
+       prod_nodeclass.dig("spec", "metadataOptions", "httpTokens") == "required"
+  abort "Prod EC2NodeClass의 Instance Profile·Subnet·Cluster SG·IMDSv2 설정이 예상과 다릅니다."
+end
+
+prod_nodepool = load_yaml("platform/prod/karpenter/nodepool/nodepool.yaml")
+prod_requirements = (prod_nodepool.dig("spec", "template", "spec", "requirements") || []).to_h { |item| [item["key"], item["values"]] }
+unless prod_requirements["kubernetes.io/arch"] == ["arm64"] &&
+       prod_requirements["karpenter.sh/capacity-type"] == ["on-demand"] &&
+       prod_requirements["topology.kubernetes.io/zone"] == %w[ap-northeast-2a ap-northeast-2c] &&
+       prod_nodepool.dig("spec", "limits") == { "cpu" => "64", "memory" => "128Gi" } &&
+       prod_nodepool.dig("spec", "disruption", "consolidationPolicy") == "WhenEmptyOrUnderutilized" &&
+       prod_nodepool.dig("spec", "disruption", "budgets") == [{ "nodes" => "1" }]
+  abort "Prod NodePool은 ARM64 On-Demand·2AZ·안전한 통합 제한을 유지해야 합니다."
+end
+
+prod_metrics = load_yaml("platform/prod/metrics-server/values.yaml").fetch("metrics-server")
+unless prod_metrics["replicas"] == 2 &&
+       prod_metrics.dig("nodeSelector", "lookddak.io/node-pool") == "system" &&
+       prod_metrics.dig("podDisruptionBudget", "minAvailable") == 1
+  abort "Prod Metrics Server는 System Node에 2개와 PDB를 유지해야 합니다."
+end
+
+prod_csi = load_yaml("platform/prod/secrets-store-csi/driver/values.yaml").fetch("secrets-store-csi-driver")
+prod_ascp = load_yaml("platform/prod/secrets-store-csi/provider-aws/values.yaml").fetch("secrets-store-csi-driver-provider-aws")
+unless (prod_csi.dig("linux", "tolerations") || []).include?({ "operator" => "Exists" }) &&
+       prod_csi.dig("syncSecret", "enabled") == false &&
+       prod_csi["enableSecretRotation"] == true &&
+       prod_csi["rotationPollInterval"] == "1h" &&
+       prod_ascp["awsRegion"] == "ap-northeast-2" &&
+       prod_ascp.dig("secrets-store-csi-driver", "install") == false &&
+       prod_ascp["driverWritesSecrets"] == false
+  abort "Prod CSI·ASCP는 전체 Linux Node 배치, Secret 비복제와 Rotation을 유지해야 합니다."
+end
+
+prod_lbc = load_yaml("platform/prod/networking/aws-load-balancer-controller/values.yaml").fetch("aws-load-balancer-controller")
+unless prod_lbc["clusterName"] == "lookddak-prod" &&
+       prod_lbc["vpcId"] == "vpc-00846a80381ac4f45" &&
+       prod_lbc.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-prod-aws-load-balancer-controller" &&
+       prod_lbc.dig("nodeSelector", "lookddak.io/node-pool") == "system" &&
+       prod_lbc["defaultTargetType"] == "ip"
+  abort "Prod AWS Load Balancer Controller의 Cluster·VPC·IRSA·Pod IP Target 설정이 예상과 다릅니다."
+end
+
+prod_cert_manager = load_yaml("platform/prod/cert-manager/controller/values.yaml").fetch("cert-manager")
+unless prod_cert_manager.dig("crds", "enabled") == true &&
+       prod_cert_manager.dig("crds", "keep") == true &&
+       prod_cert_manager.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-prod-cert-manager" &&
+       prod_cert_manager.dig("nodeSelector", "lookddak.io/node-pool") == "system"
+  abort "Prod cert-manager의 CRD 보호·IRSA·System Node 배치가 예상과 다릅니다."
+end
+
+prod_istio_versions = %w[base istiod cni ztunnel].map do |chart|
+  dependency = load_yaml("platform/prod/networking/istio/#{chart}/Chart.yaml").fetch("dependencies").first
+  [dependency["name"], dependency["version"], dependency["repository"]]
+end
+unless prod_istio_versions.all? { |_, version, repository| version == "1.31.3" && repository == "https://blob.istio.io/istio-release/charts" }
+  abort "Prod Istio base·istiod·CNI·ztunnel은 공식 Chart 1.31.3을 함께 사용해야 합니다."
+end
+prod_istiod = load_yaml("platform/prod/networking/istio/istiod/values.yaml").fetch("istiod")
+unless prod_istiod["profile"] == "ambient" && prod_istiod["autoscaleMin"] == 2 && prod_istiod.dig("nodeSelector", "lookddak.io/node-pool") == "system"
+  abort "Prod istiod는 Ambient·System Node·최소 2개 구성이 필요합니다."
+end
+
+prod_gateway = load_yaml("platform/prod/networking/gateway/gateway.yaml")
+gateway_annotations = prod_gateway.dig("spec", "infrastructure", "annotations") || {}
+gateway_hostnames = (prod_gateway.dig("spec", "listeners") || []).map { |listener| listener["hostname"] }
+unless prod_gateway.dig("spec", "gatewayClassName") == "istio" &&
+       gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"] == "internal" &&
+       gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"] == "ip" &&
+       gateway_annotations["service.beta.kubernetes.io/load-balancer-source-ranges"] == "10.20.0.0/16" &&
+       gateway_hostnames == %w[lookddak.com www.lookddak.com argocd.lookddak.com]
+  abort "Prod Gateway는 내부 NLB·Pod IP·VPC 제한·승인된 Hostname을 유지해야 합니다."
+end
+gateway_options = load_yaml("platform/prod/networking/gateway/gateway-options.yaml").dig("data", "deployment").to_s
+unless gateway_options.include?("replicas: 2") &&
+       gateway_options.include?("lookddak.io/node-pool: general-purpose") &&
+       gateway_options.include?("topology.kubernetes.io/zone") &&
+       gateway_options.include?("whenUnsatisfiable: DoNotSchedule")
+  abort "Prod Gateway Pod 2개는 Application Node의 서로 다른 AZ에 강제 배치해야 합니다."
+end
+prod_certificate = load_yaml("platform/prod/networking/gateway/certificate.yaml")
+unless prod_certificate.dig("spec", "issuerRef", "name") == "letsencrypt-prod" &&
+       prod_certificate.dig("spec", "secretName") == "lookddak-com-tls" &&
+       prod_certificate.dig("spec", "dnsNames") == %w[lookddak.com www.lookddak.com argocd.lookddak.com]
+  abort "Prod Gateway 인증서는 승인된 Prod Issuer·도메인을 사용해야 합니다."
 end
 
 platform_project_file = "argocd/projects/lookddak-dev-platform.yaml"

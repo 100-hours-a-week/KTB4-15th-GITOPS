@@ -1,0 +1,36 @@
+metrics-server:
+  replicas: 2
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: system
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: metrics-server
+            topologyKey: kubernetes.io/hostname
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  priorityClassName: system-cluster-critical
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+  hostNetwork:
+    enabled: false
+  apiService:
+    create: true
+  serviceAccount:
+    create: true
+  rbac:
+    create: true

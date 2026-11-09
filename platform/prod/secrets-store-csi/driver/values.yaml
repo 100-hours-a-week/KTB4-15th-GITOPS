@@ -1,0 +1,17 @@
+secrets-store-csi-driver:
+  linux:
+    # Chart 기본 NodeSelector(kubernetes.io/os=linux)를 사용한다.
+    tolerations:
+      - operator: Exists
+    priorityClassName: system-node-critical
+  windows:
+    enabled: false
+  syncSecret:
+    enabled: false
+  enableSecretRotation: true
+  rotationPollInterval: 1h
+  providerHealthCheck: true
+  providerHealthCheckInterval: 2m
+  tokenRequests:
+    - audience: sts.amazonaws.com
+    - audience: pods.eks.amazonaws.com

@@ -1,0 +1,21 @@
+secrets-store-csi-driver-provider-aws:
+  awsRegion: ap-northeast-2
+  fullnameOverride: secrets-store-csi-driver-provider-aws
+  secrets-store-csi-driver:
+    install: false
+  driverWritesSecrets: false
+  # Chart 기본 NodeSelector(kubernetes.io/os=linux)를 사용한다.
+  tolerations:
+    - operator: Exists
+  priorityClassName: system-node-critical
+  resources:
+    requests:
+      cpu: 50m
+      memory: 100Mi
+    limits:
+      cpu: 50m
+      memory: 100Mi
+  securityContext:
+    privileged: false
+    allowPrivilegeEscalation: false
+  useFipsEndpoint: false

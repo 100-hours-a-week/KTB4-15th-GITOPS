@@ -1,0 +1,46 @@
+cert-manager:
+  crds:
+    enabled: true
+    keep: true
+  replicaCount: 1
+  serviceAccount:
+    create: true
+    name: cert-manager
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-prod-cert-manager
+  securityContext:
+    runAsNonRoot: true
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: system
+  tolerations:
+    - key: CriticalAddonsOnly
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  webhook:
+    nodeSelector:
+      kubernetes.io/os: linux
+      kubernetes.io/arch: arm64
+      lookddak.io/node-pool: system
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+  cainjector:
+    nodeSelector:
+      kubernetes.io/os: linux
+      kubernetes.io/arch: arm64
+      lookddak.io/node-pool: system
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+  startupapicheck:
+    enabled: false

@@ -14,6 +14,9 @@ spec:
     - repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
       targetRevision: main
       path: argocd/prod/bootstrap
+    - repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+      targetRevision: main
+      path: argocd/prod/platform
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
