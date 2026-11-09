@@ -898,6 +898,9 @@ redis_operator_values = load_yaml("platform/dev/redis/operator/values.yaml").fet
 unless redis_operator_values.dig("redisOperator", "watchNamespace") == "lookddak-redis" && redis_operator_values.dig("rbac", "scope") == "namespace"
   abort "platform/dev/redis/operator/values.yaml: Operator 감시·RBAC 범위는 lookddak-redis Namespace로 한정해야 합니다."
 end
+unless redis_operator_values["featureGates"] == { "GenerateConfigInInitContainer" => true }
+  abort "platform/dev/redis/operator/values.yaml: Redis가 headless FQDN을 알리도록 featureGates.GenerateConfigInInitContainer: true가 필요합니다 (기본은 짧은 Pod 이름 → 다른 Namespace 클라이언트 접속 실패)."
+end
 redis_crd_names = YAML.load_stream(File.read("platform/dev/redis/crds/crds.yaml")).compact.map { |crd| crd.dig("metadata", "name") }.sort
 abort "platform/dev/redis/crds/crds.yaml: redis-operator CRD 4개가 필요합니다. 실제=#{redis_crd_names}" unless redis_crd_names == %w[redis.redis.redis.opstreelabs.in redisclusters.redis.redis.opstreelabs.in redisreplications.redis.redis.opstreelabs.in redissentinels.redis.redis.opstreelabs.in]
 redis_applications = {

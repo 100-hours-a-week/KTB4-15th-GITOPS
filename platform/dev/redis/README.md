@@ -11,6 +11,7 @@
 | 노드 | Redis 전용 NodePool `lookddak.io/node-pool=redis`, taint `lookddak.io/dedicated=redis:NoSchedule` (NodePool은 Karpenter 작업에서 추가) |
 | 클라이언트 | `lookddak-chat/chat-api`만 6379 허용 |
 | Operator | OT-CONTAINER-KIT `redis-operator` 0.27.0, 감시 범위 `lookddak-redis`, RBAC Namespace 범위 |
+| 노드 주소 알림 | headless FQDN (`redis-cache-leader-0.redis-cache-leader-headless.lookddak-redis.svc.cluster.local`). Operator feature gate `GenerateConfigInInitContainer` |
 
 ## 디렉터리와 Application
 
@@ -52,6 +53,17 @@ CHAT_REDIS_ENABLED: "true"
 - 단일 주소 env(`REDIS_HOST`·`REDIS_PORT`)는 쓰지 않는다 (Standalone 접속 → `MOVED` 실패). CI가 금지한다
 - Redis는 채팅 Snapshot/Pub/Sub의 복구 계층이며 장애 시 local/DB fallback을 사용하므로 `MANAGEMENT_HEALTH_REDIS_ENABLED=false`를 유지한다
 - BE `develop`에 `application-chat-api.yaml`이 병합되기 전에는 없는 profile로 무시되어 기존 동작과 같다
+
+## 노드 주소 알림 (hostname)
+
+- Redis 7 Cluster는 `CLUSTER NODES`에 노드 IP와 함께 `cluster-announce-hostname`을 알리고, Lettuce는 hostname이 있으면 그 이름으로 접속한다
+- 이미지 기본 `entrypoint.sh`는 짧은 Pod 이름(`redis-cache-leader-0`)을 넣는다. 이 이름은 DNS 레코드가 없어(`<pod>.<headless>.<ns>.svc.cluster.local`만 존재) chat-api에서 `Failed to resolve`로 접속 실패했다 (2026-11-09)
+- entrypoint는 ConfigMap `include` 뒤에 hostname을 써서 ConfigMap으로 덮어쓸 수 없다 → Operator feature gate `GenerateConfigInInitContainer: true`로 init container가 FQDN을 넣게 한다
+- 확인: 아래 명령 결과 6줄 모두 `...lookddak-redis.svc.cluster.local`로 끝나야 한다
+
+```bash
+kubectl -n lookddak-redis exec redis-cache-leader-0 -- redis-cli cluster nodes | awk '{print $2}'
+```
 
 ## 확인 (Merge 후)
 

@@ -28,3 +28,12 @@ redis-operator:
   nodeSelector:
     lookddak.io/node-pool: general-purpose
     kubernetes.io/arch: arm64
+
+  # Redis 설정을 Operator init container(/operator agent bootstrap)가 생성한다 (alpha)
+  # - 기본(이미지 entrypoint.sh)은 cluster-announce-hostname에 짧은 Pod 이름(redis-cache-leader-0)을 넣고,
+  #   ConfigMap include보다 뒤에 써서 덮어쓸 수 없다
+  # - Lettuce는 CLUSTER NODES의 hostname으로 접속 → 다른 Namespace(chat-api)에서 짧은 이름이 풀리지 않아 연결 실패 (2026-11-09)
+  # - 이 gate를 켜면 headless Service FQDN(<pod>.<sts>-headless.lookddak-redis.svc.cluster.local)을 알리고, ConfigMap을 맨 뒤에 include한다
+  # - 지원하지 않는 gate 이름을 넣으면 Operator가 기동하지 않는다 → 차트·이미지 버전을 올릴 때 확인
+  featureGates:
+    GenerateConfigInInitContainer: true
