@@ -731,18 +731,18 @@ prod_public_routes = {
   "environments/prod/domains/fitting/workloads/fitting-api.yaml" => [["/api/v1/fitting-candidates", "/api/v1/fitting-jobs", "/api/v1/fitting-results"], ["/api/v1/notifications"]],
   "environments/prod/domains/fitting/workloads/vton-orchestrator.yaml" => [["/api/v2/webhooks/runware"]]
 }
-expected_prod_route_parents = %w[https https-www].map do |section|
-  { "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway", "namespace" => "istio-ingress", "sectionName" => section }
-end
+expected_prod_route_parents = [
+  { "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway", "namespace" => "istio-ingress", "sectionName" => "https-v3-prod" }
+]
 prod_public_routes.each do |file, expected_paths|
   routing = load_yaml(file).fetch("routing")
   actual_paths = routing.fetch("rules").map { |rule| rule.fetch("matches").map { |match| match.dig("path", "value") } }
   unless routing["enabled"] == true &&
          load_yaml(file).dig("service", "port") == 80 &&
          routing["parentRefs"] == expected_prod_route_parents &&
-         routing["hostnames"] == %w[lookddak.com www.lookddak.com] &&
+         routing["hostnames"] == ["v3-prod.lookddak.com"] &&
          actual_paths == expected_paths
-    abort "#{file}: Prod 외부 Route는 기존 Gateway의 https·https-www와 승인된 경로만 사용해야 합니다."
+    abort "#{file}: Prod 검증 Route는 Gateway의 https-v3-prod와 v3-prod.lookddak.com만 사용해야 합니다."
   end
 end
 
@@ -836,15 +836,38 @@ end
 
 prod_gateway = load_yaml("platform/prod/networking/gateway/gateway.yaml")
 gateway_annotations = prod_gateway.dig("spec", "infrastructure", "annotations") || {}
-gateway_hostnames = (prod_gateway.dig("spec", "listeners") || []).map { |listener| listener["hostname"] }
+gateway_listeners = prod_gateway.dig("spec", "listeners") || []
+gateway_hostnames = gateway_listeners.map { |listener| listener["hostname"] }
 unless prod_gateway.dig("spec", "gatewayClassName") == "istio" &&
        gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"] == "internal" &&
        gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"] == "ip" &&
        gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-security-groups"] == "sg-0993a57cec9f3b5f5" &&
        gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules"] == "true" &&
        !gateway_annotations.key?("service.beta.kubernetes.io/load-balancer-source-ranges") &&
-       gateway_hostnames == %w[lookddak.com www.lookddak.com argocd.lookddak.com]
+       gateway_hostnames == %w[lookddak.com www.lookddak.com v3-prod.lookddak.com argocd.lookddak.com]
   abort "Prod Gateway는 내부 NLB·Pod IP·CloudFront 전용 SG·승인된 Hostname을 유지해야 합니다."
+end
+prod_validation_listener = gateway_listeners.find { |listener| listener["name"] == "https-v3-prod" }
+expected_domain_route_selector = {
+  "namespaces" => {
+    "from" => "Selector",
+    "selector" => {
+      "matchExpressions" => [
+        { "key" => "lookddak.com/domain", "operator" => "Exists" }
+      ]
+    }
+  }
+}
+unless prod_validation_listener &&
+       prod_validation_listener["port"] == 443 &&
+       prod_validation_listener["protocol"] == "HTTPS" &&
+       prod_validation_listener["hostname"] == "v3-prod.lookddak.com" &&
+       prod_validation_listener.dig("tls", "mode") == "Terminate" &&
+       prod_validation_listener.dig("tls", "certificateRefs") == [
+         { "group" => "", "kind" => "Secret", "name" => "lookddak-com-tls" }
+       ] &&
+       prod_validation_listener["allowedRoutes"] == expected_domain_route_selector
+  abort "Prod 검증 Listener는 HTTPS 443·공용 TLS Secret·Domain Namespace Selector를 유지해야 합니다."
 end
 gateway_options = load_yaml("platform/prod/networking/gateway/gateway-options.yaml").dig("data", "deployment").to_s
 unless gateway_options.include?("replicas: 2") &&
@@ -856,7 +879,7 @@ end
 prod_certificate = load_yaml("platform/prod/networking/gateway/certificate.yaml")
 unless prod_certificate.dig("spec", "issuerRef", "name") == "letsencrypt-prod" &&
        prod_certificate.dig("spec", "secretName") == "lookddak-com-tls" &&
-       prod_certificate.dig("spec", "dnsNames") == %w[lookddak.com www.lookddak.com argocd.lookddak.com]
+       prod_certificate.dig("spec", "dnsNames") == %w[lookddak.com www.lookddak.com v3-prod.lookddak.com argocd.lookddak.com]
   abort "Prod Gateway 인증서는 승인된 Prod Issuer·도메인을 사용해야 합니다."
 end
 
