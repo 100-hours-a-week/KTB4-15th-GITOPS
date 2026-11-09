@@ -1,0 +1,18 @@
+secrets-store-csi-driver:
+  linux:
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations:
+      - operator: Exists
+    priorityClassName: system-node-critical
+  windows:
+    enabled: false
+  syncSecret:
+    enabled: false
+  enableSecretRotation: true
+  rotationPollInterval: 1h
+  providerHealthCheck: true
+  providerHealthCheckInterval: 2m
+  tokenRequests:
+    - audience: sts.amazonaws.com
+    - audience: pods.eks.amazonaws.com

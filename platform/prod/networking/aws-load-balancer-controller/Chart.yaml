@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-aws-load-balancer-controller
+description: LookDDak EKS prod AWS Load Balancer Controller 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: aws-load-balancer-controller
+    version: 3.6.2
+    repository: https://aws.github.io/eks-charts
