@@ -36,3 +36,20 @@ spec:
         - operation:
             ports:
               - "6379"
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-alloy-cluster-metrics
+  namespace: lookddak-redis
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/monitoring/sa/alloy-cluster
+      to:
+        - operation:
+            ports:
+              - "6379"

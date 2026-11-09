@@ -33,6 +33,14 @@ spec:
         - ports:
             - port: "15008"
               protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            k8s:app.kubernetes.io/instance: alloy-cluster
+      toPorts:
+        - ports:
+            - port: "15008"
+              protocol: TCP
   egress:
     # Redis Operator(같은 NS) → Kubernetes API (CR·StatefulSet·Pod 감시)
     - toEntities:

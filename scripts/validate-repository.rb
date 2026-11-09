@@ -1380,11 +1380,15 @@ end
 abort "lookddak-redis에는 Route를 만들지 않습니다(외부 노출 금지): #{redis_external_routes}" unless redis_external_routes.empty?
 redis_policies = YAML.load_stream(File.read("platform/dev/networking/policies/redis-network-policy.yaml")).compact
 redis_ingress_clients = redis_policies.find { |policy| policy.dig("metadata", "name") == "lookddak-redis" }&.dig("spec", "ingress").to_a.flat_map { |rule| rule["fromEndpoints"].to_a }.map { |endpoint| endpoint["matchLabels"] }
-unless redis_ingress_clients.sort_by(&:to_s) == [{ "k8s:io.kubernetes.pod.namespace" => "lookddak-redis" }, { "k8s:io.kubernetes.pod.namespace" => "lookddak-chat", "k8s:app.kubernetes.io/name" => "chat-api" }].sort_by(&:to_s)
-  abort "platform/dev/networking/policies/redis-network-policy.yaml: Redis ingress는 같은 Namespace와 chat-api만 허용해야 합니다. 실제=#{redis_ingress_clients}"
+unless redis_ingress_clients.sort_by(&:to_s) == [{ "k8s:io.kubernetes.pod.namespace" => "lookddak-redis" }, { "k8s:io.kubernetes.pod.namespace" => "lookddak-chat", "k8s:app.kubernetes.io/name" => "chat-api" }, { "k8s:io.kubernetes.pod.namespace" => "monitoring", "k8s:app.kubernetes.io/instance" => "alloy-cluster" }].sort_by(&:to_s)
+  abort "platform/dev/networking/policies/redis-network-policy.yaml: Redis ingress는 같은 Namespace, chat-api, 메트릭 수집(monitoring/alloy-cluster)만 허용해야 합니다. 실제=#{redis_ingress_clients}"
 end
 redis_authz_principals = YAML.load_stream(File.read("platform/dev/redis/cluster/authorization-policy.yaml")).compact.flat_map { |policy| policy.dig("spec", "rules").to_a.flat_map { |rule| rule["from"].to_a.flat_map { |from| from.dig("source", "principals").to_a } } }
-abort "platform/dev/redis/cluster/authorization-policy.yaml: 외부 신원은 chat-api만 허용합니다. 실제=#{redis_authz_principals}" unless redis_authz_principals == ["cluster.local/ns/lookddak-chat/sa/chat-api"]
+abort "platform/dev/redis/cluster/authorization-policy.yaml: 외부 신원은 chat-api와 메트릭 수집(alloy-cluster)만 허용합니다. 실제=#{redis_authz_principals}" unless redis_authz_principals.sort == ["cluster.local/ns/lookddak-chat/sa/chat-api", "cluster.local/ns/monitoring/sa/alloy-cluster"].sort
+redis_alloy_policy = YAML.load_stream(File.read("platform/dev/redis/cluster/authorization-policy.yaml")).compact.find { |policy| policy.dig("metadata", "name") == "allow-alloy-cluster-metrics" }
+unless redis_alloy_policy && redis_alloy_policy.dig("spec", "rules", 0, "to") == [{ "operation" => { "ports" => ["6379"] } }]
+  abort "platform/dev/redis/cluster/authorization-policy.yaml: alloy-cluster는 6379만 허용해야 합니다."
+end
 
 # 워크로드별 egress 정책: 파일 이름 = 워크로드, 해당 워크로드 Pod만 선택, 목적지는 FQDN만
 dev_workload_namespaces = Dir["environments/dev/domains/*/workloads/*.yaml"].to_h do |file|
@@ -1921,5 +1925,16 @@ unless db_log_tailer_application.dig("spec", "project") == "lookddak-dev-platfor
        db_log_tailer_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "monitoring" }
   abort "argocd/dev/db-log-tailer-application.yaml: db-log-tailer Application 설정이 예상과 다릅니다."
 end
+
+
+unless alloy_cluster_values.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-dev-v3-alloy-cluster" &&
+       File.file?("platform/dev/observability/alloy-cluster/files/ap-northeast-2-bundle.pem") &&
+       File.read("platform/dev/observability/alloy-cluster/files/ap-northeast-2-bundle.pem").include?("BEGIN CERTIFICATE")
+  abort "platform/dev/observability/alloy-cluster: DB 지표 수집에는 IRSA lookddak-dev-v3-alloy-cluster와 RDS CA 번들(files/ap-northeast-2-bundle.pem)이 필요합니다."
+end
+%w[__MYSQL_HOST__ __POSTGRES_HOST__].each do |placeholder|
+  abort "platform/dev/observability/alloy-cluster/values.yaml: #{placeholder}를 RDS 엔드포인트로 바꿔야 합니다." if alloy_cluster_config.include?(placeholder)
+end
+
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"
