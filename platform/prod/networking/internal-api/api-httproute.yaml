@@ -1,0 +1,41 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: api
+  namespace: lookddak-web
+spec:
+  parentRefs:
+    - group: ""
+      kind: Service
+      name: api
+      port: 80
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /api/v1/auth}
+        - path: {type: PathPrefix, value: /api/v1/members}
+        - path: {type: PathPrefix, value: /api/v1/full-body-image}
+      backendRefs:
+        - {name: identity-api, namespace: lookddak-identity, port: 80}
+    - matches:
+        - path: {type: PathPrefix, value: /api/v1/chat-rooms}
+      timeouts:
+        request: 0s
+      backendRefs:
+        - {name: chat-api, namespace: lookddak-chat, port: 80}
+    - matches:
+        - path: {type: PathPrefix, value: /api/v1/products}
+        - path: {type: PathPrefix, value: /api/v1/wishlists}
+      backendRefs:
+        - {name: commerce-api, namespace: lookddak-commerce, port: 80}
+    - matches:
+        - path: {type: PathPrefix, value: /api/v1/fitting-candidates}
+        - path: {type: PathPrefix, value: /api/v1/fitting-jobs}
+        - path: {type: PathPrefix, value: /api/v1/fitting-results}
+      backendRefs:
+        - {name: fitting-api, namespace: lookddak-fitting, port: 80}
+    - matches:
+        - path: {type: PathPrefix, value: /api/v1/notifications}
+      timeouts:
+        request: 0s
+      backendRefs:
+        - {name: fitting-api, namespace: lookddak-fitting, port: 80}

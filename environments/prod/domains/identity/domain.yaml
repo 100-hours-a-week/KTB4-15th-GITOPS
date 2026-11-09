@@ -9,3 +9,5 @@ networkPolicy:
   enabled: false
 ciliumNetworkPolicy:
   enabled: false
+authorizationPolicy:
+  enabled: true

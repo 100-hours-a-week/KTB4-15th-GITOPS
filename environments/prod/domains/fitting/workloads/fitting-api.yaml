@@ -7,9 +7,24 @@ imageGroup: be
 
 service:
   enabled: true
+  port: 80
 
 routing:
   enabled: true
+  parentRefs:
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https}
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https-www}
+  hostnames: [lookddak.com, www.lookddak.com]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /api/v1/fitting-candidates}
+        - path: {type: PathPrefix, value: /api/v1/fitting-jobs}
+        - path: {type: PathPrefix, value: /api/v1/fitting-results}
+    - matches:
+        - path: {type: PathPrefix, value: /api/v1/notifications}
+      # 알림 SSE 연결은 장시간 유지한다.
+      timeouts:
+        request: 0s
 
 serviceAccount:
   create: true
