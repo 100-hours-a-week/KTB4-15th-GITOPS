@@ -34,6 +34,25 @@
 | chat-api → Redis | chat-api egress + Redis ingress 15008 | `lookddak-chat/sa/chat-api` → 6379 |
 | kubelet probe | `169.254.7.127/32` | — (ztunnel 우회) |
 
+## chat-api 연결
+
+`chat-api`는 다음 환경변수로 Redis Cluster에 연결한다.
+
+```yaml
+SPRING_PROFILES_ACTIVE: prod,chat-api
+REDIS_CLUSTER_NODES: redis-cache-master.lookddak-redis.svc.cluster.local:6379
+CHAT_REDIS_ENABLED: "true"
+```
+
+- Redis Cluster 설정(`spring.data.redis.cluster.nodes: ${REDIS_CLUSTER_NODES}`, Lettuce refresh)은 BE `application-chat-api.yaml`에만 있다. `chat-api` profile을 켠 workload만 Cluster 모드로 접속한다
+- 같은 BE 이미지를 쓰는 commerce-api·fitting-api·fitting-worker·identity-api는 `prod`만 사용하고 Redis env를 받지 않는다. CI가 검사한다
+
+- dev Redis는 비밀번호 인증을 사용하지 않으므로 `REDIS_PASSWORD`를 주입하지 않는다
+- `redis-cache-master`는 3개 leader로 연결되는 seed Service다. BE `application-chat-api.yaml`의 `spring.data.redis.cluster.nodes`가 이 값을 읽어 Cluster 모드로 접속하고, Lettuce가 `MOVED`·토폴로지 갱신(adaptive)을 처리한다
+- 단일 주소 env(`REDIS_HOST`·`REDIS_PORT`)는 쓰지 않는다 (Standalone 접속 → `MOVED` 실패). CI가 금지한다
+- Redis는 채팅 Snapshot/Pub/Sub의 복구 계층이며 장애 시 local/DB fallback을 사용하므로 `MANAGEMENT_HEALTH_REDIS_ENABLED=false`를 유지한다
+- BE `develop`에 `application-chat-api.yaml`이 병합되기 전에는 없는 profile로 무시되어 기존 동작과 같다
+
 ## 확인 (Merge 후)
 
 ```bash

@@ -1038,10 +1038,26 @@ unless chat_api.dig("gitops", "autoSync") == true &&
        chat_api.dig("service", "port") == 80 &&
        chat_api.dig("pdb", "maxUnavailable") == 1 &&
        chat_api.dig("secrets", "secretProviderClassName") == "chat-api" &&
-       chat_api.dig("container", "env")&.include?({ "name" => "CHAT_REDIS_ENABLED", "value" => "false" }) &&
+       chat_api.dig("container", "env")&.include?({ "name" => "SPRING_PROFILES_ACTIVE", "value" => "prod,chat-api" }) &&
+       chat_api.dig("container", "env")&.include?({ "name" => "REDIS_CLUSTER_NODES", "value" => "redis-cache-master.lookddak-redis.svc.cluster.local:6379" }) &&
+       chat_api.dig("container", "env")&.include?({ "name" => "CHAT_REDIS_ENABLED", "value" => "true" }) &&
        chat_api.dig("container", "env")&.include?({ "name" => "MANAGEMENT_HEALTH_REDIS_ENABLED", "value" => "false" }) &&
+       chat_api.dig("container", "env").none? { |entry| %w[REDIS_PASSWORD REDIS_HOST REDIS_PORT].include?(entry["name"]) } &&
        File.file?("platform/dev/networking/policies/chat-api-egress.yaml")
-  abort "#{chat_api_file}: Chat API의 Auto Sync·Replica·SSE 종료·Redis 비활성·Secret 설정이 필요합니다."
+  abort "#{chat_api_file}: Chat API의 Auto Sync·Replica·SSE 종료·Redis Cluster 연결·Secret 설정이 필요합니다."
+end
+
+%w[
+  environments/dev/domains/commerce/workloads/commerce-api.yaml
+  environments/dev/domains/fitting/workloads/fitting-api.yaml
+  environments/dev/domains/fitting/workloads/fitting-worker.yaml
+  environments/dev/domains/identity/workloads/identity-api.yaml
+].each do |file|
+  env = load_yaml(file).dig("container", "env") || []
+  unless env.include?({ "name" => "SPRING_PROFILES_ACTIVE", "value" => "prod" }) &&
+         env.none? { |entry| entry["name"].to_s.start_with?("REDIS_") || entry["name"] == "CHAT_REDIS_ENABLED" }
+    abort "#{file}: Redis는 chat-api만 사용합니다. SPRING_PROFILES_ACTIVE=prod를 유지하고 Redis env를 넣지 마세요."
+  end
 end
 
 chat_api_parameter_names = chat_api.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
