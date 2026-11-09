@@ -1093,8 +1093,8 @@ end
 
 chat_ai_parameter_names = chat_ai.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
 expected_chat_ai_parameters = %w[
-  /lookddak/dev/v2/postgresql/app/database-url
-  /lookddak/dev/v2/postgresql/app/checkpoint-dsn
+  /lookddak/dev/v3/postgresql/app/database-url
+  /lookddak/dev/v3/postgresql/app/checkpoint-dsn
   /lookddak/dev/internal/ai-api-key
   /lookddak/dev/fastapi/runware-llm-api-key
   /lookddak/dev/fastapi/runware-vton-api-key
@@ -1163,7 +1163,7 @@ unless price_crawler.dig("gitops", "autoSync") == true &&
 end
 
 crawler_parameter_names = price_crawler.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
-unless crawler_parameter_names == %w[/lookddak/dev/v2/postgresql/app/database-url /lookddak/dev/internal/price-refresh-backend-auth-headers]
+unless crawler_parameter_names == %w[/lookddak/dev/v3/postgresql/app/database-url /lookddak/dev/internal/price-refresh-backend-auth-headers]
   abort "#{price_crawler_file}: Crawler Parameter 목록은 실제 V3 IRSA 정책과 같아야 합니다."
 end
 
@@ -1262,7 +1262,7 @@ end
 
 vton_parameter_names = vton.dig("secrets", "parameters", "objects").to_s.scan(%r{objectName: (/[A-Za-z0-9_./-]+)}).flatten
 expected_vton_parameters = %w[
-  /lookddak/dev/v2/postgresql/app/database-url
+  /lookddak/dev/v3/postgresql/app/database-url
   /lookddak/dev/internal/ai-api-key
   /lookddak/dev/fastapi/runware-vton-api-key
   /lookddak/dev/fastapi/runware-llm-api-key
