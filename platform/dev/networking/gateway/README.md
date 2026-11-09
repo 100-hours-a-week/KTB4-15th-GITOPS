@@ -60,3 +60,8 @@ dev의 공용 Istio Gateway(Gateway API)를 GitOps로 관리한다. 각 도메�
 ### SSE
 
 - NLB TCP idle timeout은 350초다. SSE heartbeat는 350초보다 짧아야 한다 (BE와 확인 필요).
+
+### 액세스 로그
+
+- `telemetry.yaml`: 공용 Gateway(`lookddak-gateway`) Envoy 액세스 로그 전부 → stdout → Alloy Node → Loki (`namespace="istio-ingress"`)
+- 형식은 Istio 기본(텍스트). JSON은 istiod `meshConfig.accessLogEncoding` 변경 필요

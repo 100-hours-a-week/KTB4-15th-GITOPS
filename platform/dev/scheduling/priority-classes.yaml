@@ -1,0 +1,8 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: lookddak-monitoring-storage
+value: 100000
+globalDefault: false
+preemptionPolicy: Never
+description: "모니터링 저장소(Prometheus·Loki·Tempo). 노드 메모리 압박 시 수집기보다 늦게 축출"

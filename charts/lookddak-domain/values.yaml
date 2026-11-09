@@ -28,3 +28,9 @@ authorizationPolicy:
     - cluster.local/ns/lookddak-web/sa/waypoint
   # 서비스 계정과 대상 워크로드·포트를 지정한 추가 허용 규칙이다.
   workloadIngress: []
+  metricsScrape:
+    enabled: false
+    principal: cluster.local/ns/monitoring/sa/alloy-cluster
+    ports:
+      - "8080"
+      - "8000"

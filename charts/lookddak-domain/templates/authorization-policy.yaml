@@ -58,4 +58,25 @@ spec:
             ports:
               - {{ required "authorizationPolicy.workloadIngress[].targetPort 값이 필요합니다" .targetPort | quote }}
 {{- end }}
+{{- if .Values.authorizationPolicy.metricsScrape.enabled }}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-metrics-scrape
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "lookddak-domain.labels" . | nindent 4 }}
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - {{ .Values.authorizationPolicy.metricsScrape.principal | quote }}
+      to:
+        - operation:
+            ports:
+              {{- toYaml .Values.authorizationPolicy.metricsScrape.ports | nindent 14 }}
+{{- end }}
 {{- end }}
