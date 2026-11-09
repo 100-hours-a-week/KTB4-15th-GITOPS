@@ -7,9 +7,18 @@ imageGroup: be
 
 service:
   enabled: true
+  port: 80
 
 routing:
   enabled: true
+  parentRefs:
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https}
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https-www}
+  hostnames: [lookddak.com, www.lookddak.com]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /api/v1/products}
+        - path: {type: PathPrefix, value: /api/v1/wishlists}
 
 serviceAccount:
   create: true

@@ -24,6 +24,14 @@ EKS prod에 설치된 Argo CD가 GitOps 저장소의 prod 목표 상태를 읽�
 
 현재 Root Application은 `argocd/prod/bootstrap`과 `argocd/prod/platform`만 포함한다. Domain·Workload ApplicationSet은 아직 적용하지 않는다.
 
+## 네트워크 정책과 Route 준비 범위
+
+- Root가 관리하는 `network-policies`, `mesh-security`, `internal-api` Application이 기본 차단·mTLS·내부 waypoint를 먼저 구성한다.
+- 외부 HTTPRoute 값은 `lookddak.com`, `www.lookddak.com`과 기존 `lookddak-gateway`의 `https`, `https-www` Listener를 사용한다.
+- Chat과 Fitting 알림 SSE 경로는 `request: 0s`로 Gateway 요청 시간 제한을 비활성화한다.
+- Redis·모니터링 전용 정책은 해당 구성 배포 시 별도로 추가한다.
+- Domain·Workload ApplicationSet을 Root에 연결하기 전까지 외부 워크로드 HTTPRoute와 Pod는 생성되지 않으며, 현재 운영 V2 트래픽은 바뀌지 않는다.
+
 ## 플랫폼 Controller 단계
 
 `argocd/prod/platform`은 다음 순서로 기반 구성요소를 등록한다.

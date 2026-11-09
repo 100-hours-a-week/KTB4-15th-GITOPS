@@ -7,9 +7,18 @@ imageGroup: ai
 
 service:
   enabled: true
+  port: 80
 
 routing:
   enabled: true
+  # Runware 결과 Webhook만 외부에 공개한다.
+  parentRefs:
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https}
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https-www}
+  hostnames: [lookddak.com, www.lookddak.com]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /api/v2/webhooks/runware}
 
 serviceAccount:
   create: true

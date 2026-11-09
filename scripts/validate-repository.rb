@@ -723,6 +723,40 @@ abort "Prod 내부 API backend마다 ReferenceGrant가 필요합니다." unless 
 prod_sse_rules = prod_internal_route.dig("spec", "rules").select { |rule| rule.dig("timeouts", "request") == "0s" }
 abort "Prod 내부 Chat·Fitting SSE 경로에는 request timeout 비활성화가 필요합니다." unless prod_sse_rules.length == 2
 
+prod_public_routes = {
+  "environments/prod/domains/web/workloads/web-bff.yaml" => [["/"]],
+  "environments/prod/domains/identity/workloads/identity-api.yaml" => [["/api/v1/auth", "/api/v1/members", "/api/v1/full-body-image"]],
+  "environments/prod/domains/commerce/workloads/commerce-api.yaml" => [["/api/v1/products", "/api/v1/wishlists"]],
+  "environments/prod/domains/chat/workloads/chat-api.yaml" => [["/api/v1/chat-rooms"]],
+  "environments/prod/domains/fitting/workloads/fitting-api.yaml" => [["/api/v1/fitting-candidates", "/api/v1/fitting-jobs", "/api/v1/fitting-results"], ["/api/v1/notifications"]],
+  "environments/prod/domains/fitting/workloads/vton-orchestrator.yaml" => [["/api/v2/webhooks/runware"]]
+}
+expected_prod_route_parents = %w[https https-www].map do |section|
+  { "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway", "namespace" => "istio-ingress", "sectionName" => section }
+end
+prod_public_routes.each do |file, expected_paths|
+  routing = load_yaml(file).fetch("routing")
+  actual_paths = routing.fetch("rules").map { |rule| rule.fetch("matches").map { |match| match.dig("path", "value") } }
+  unless routing["enabled"] == true &&
+         load_yaml(file).dig("service", "port") == 80 &&
+         routing["parentRefs"] == expected_prod_route_parents &&
+         routing["hostnames"] == %w[lookddak.com www.lookddak.com] &&
+         actual_paths == expected_paths
+    abort "#{file}: Prod 외부 Route는 기존 Gateway의 https·https-www와 승인된 경로만 사용해야 합니다."
+  end
+end
+
+prod_chat_route = load_yaml("environments/prod/domains/chat/workloads/chat-api.yaml").dig("routing", "rules", 0)
+prod_fitting_notification_route = load_yaml("environments/prod/domains/fitting/workloads/fitting-api.yaml").dig("routing", "rules", 1)
+unless prod_chat_route.dig("timeouts", "request") == "0s" && prod_fitting_notification_route.dig("timeouts", "request") == "0s"
+  abort "Prod Chat·Fitting 알림 SSE Route는 request timeout을 비활성화해야 합니다."
+end
+
+%w[body-image-validator chat-ai fitting-worker price-crawler].each do |workload|
+  file = Dir["environments/prod/domains/*/workloads/#{workload}.yaml"].first
+  abort "#{file}: 외부 진입점이 아닌 워크로드는 Route를 만들지 않습니다." unless load_yaml(file).dig("routing", "enabled") == false
+end
+
 prod_karpenter_values = load_yaml("platform/prod/karpenter/controller/values.yaml").fetch("karpenter")
 unless prod_karpenter_values.dig("settings", "clusterName") == "lookddak-prod" &&
        prod_karpenter_values.dig("serviceAccount", "name") == "karpenter" &&

@@ -7,9 +7,20 @@ imageGroup: be
 
 service:
   enabled: true
+  port: 80
 
 routing:
   enabled: true
+  parentRefs:
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https}
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https-www}
+  hostnames: [lookddak.com, www.lookddak.com]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /api/v1/chat-rooms}
+      # SSE 연결은 Gateway의 일반 요청 제한으로 끊지 않는다.
+      timeouts:
+        request: 0s
 
 serviceAccount:
   create: true
