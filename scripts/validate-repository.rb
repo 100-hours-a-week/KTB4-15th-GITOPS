@@ -143,13 +143,25 @@ internal_api_files = %w[
   argocd/dev/internal-api-application.yaml
 ].freeze
 
+monitoring_charts = %w[prometheus loki tempo].freeze
+monitoring_files = (
+  monitoring_charts.flat_map { |chart| %W[platform/dev/observability/#{chart}/Chart.yaml platform/dev/observability/#{chart}/Chart.lock platform/dev/observability/#{chart}/values.yaml argocd/dev/#{chart}-application.yaml] } +
+  %w[
+    platform/dev/observability/README.md
+    platform/dev/storage/README.md
+    platform/dev/storage/storageclass-gp3.yaml
+    argocd/dev/storage-application.yaml
+    argocd/dev/namespace-monitoring.yaml
+  ]
+).freeze
+
 dev_image_automation_files = %w[
   .github/workflows/update-dev-image.yaml
   scripts/update-dev-image.rb
   scripts/test-update-dev-image.rb
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, dev_image_automation_files].flatten.each do |file|
+[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -327,8 +339,8 @@ abort "#{platform_project_file}: Project 이름이 예상과 다릅니다." unle
 abort "#{platform_project_file}: 허용 Repository가 예상과 다릅니다." unless platform_project.dig("spec", "sourceRepos") == [gitops_repository]
 
 platform_destinations = platform_project.dig("spec", "destinations")
-unless platform_destinations == %w[kube-system istio-system istio-ingress lookddak-redis].map { |namespace| { "server" => in_cluster_server, "namespace" => namespace } }
-  abort "#{platform_project_file}: 플랫폼 배포 대상은 현재 Cluster의 kube-system·istio-system·istio-ingress·lookddak-redis Namespace여야 합니다."
+unless platform_destinations == %w[kube-system istio-system istio-ingress lookddak-redis monitoring].map { |namespace| { "server" => in_cluster_server, "namespace" => namespace } }
+  abort "#{platform_project_file}: 플랫폼 배포 대상은 현재 Cluster의 kube-system·istio-system·istio-ingress·lookddak-redis·monitoring Namespace여야 합니다."
 end
 
 expected_platform_resources = [
@@ -337,6 +349,7 @@ expected_platform_resources = [
   { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" },
   { "group" => "apiregistration.k8s.io", "kind" => "APIService" },
   { "group" => "storage.k8s.io", "kind" => "CSIDriver" },
+  { "group" => "storage.k8s.io", "kind" => "StorageClass" },
   { "group" => "admissionregistration.k8s.io", "kind" => "MutatingWebhookConfiguration" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingWebhookConfiguration" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicy" },
@@ -796,7 +809,7 @@ actual_dev_namespaces = dev_namespace_files.map do |file|
   manifest.dig("metadata", "name")
 end.sort
 
-platform_namespaces = %w[istio-system istio-ingress].freeze
+platform_namespaces = %w[istio-system istio-ingress monitoring].freeze
 # 데이터 계층 Namespace: 도메인 라벨 없이 Ambient만 등록 (외부 Gateway Route 연결 불가)
 data_namespaces = %w[lookddak-redis].freeze
 unless actual_dev_namespaces == (dev_namespaces + platform_namespaces + data_namespaces).sort
@@ -1279,6 +1292,79 @@ end
 Dir["environments/dev/domains/*/domain.yaml"].sort.each do |file|
   direct = (load_yaml(file).dig("authorizationPolicy", "workloadIngress") || []).select { |item| item["sourcePrincipal"] == "cluster.local/ns/lookddak-web/sa/web-bff" }
   abort "#{file}: web-bff는 waypoint 경유로 호출하므로 web-bff 신원을 직접 허용하지 않습니다: #{direct.map { |item| item['name'] }}" unless direct.empty?
+end
+
+
+storage_class = load_yaml("platform/dev/storage/storageclass-gp3.yaml")
+unless storage_class["kind"] == "StorageClass" && storage_class.dig("metadata", "name") == "gp3" &&
+       storage_class.dig("metadata", "annotations", "storageclass.kubernetes.io/is-default-class") == "true" &&
+       storage_class["provisioner"] == "ebs.csi.aws.com" &&
+       storage_class["parameters"] == { "type" => "gp3", "encrypted" => "true", "csi.storage.k8s.io/fstype" => "ext4" } &&
+       storage_class["volumeBindingMode"] == "WaitForFirstConsumer" && storage_class["reclaimPolicy"] == "Delete"
+  abort "platform/dev/storage/storageclass-gp3.yaml: 기본 StorageClass는 EBS CSI 암호화 gp3, WaitForFirstConsumer여야 합니다."
+end
+
+monitoring_namespace = load_yaml("argocd/dev/namespace-monitoring.yaml")
+abort "argocd/dev/namespace-monitoring.yaml: monitoring Namespace는 Ambient에 등록하지 않습니다." if (monitoring_namespace.dig("metadata", "labels") || {}).key?("istio.io/dataplane-mode")
+
+monitoring_dependencies = {
+  "prometheus" => ["29.45.1", "https://prometheus-community.github.io/helm-charts"],
+  "loki" => ["7.5.0", "https://grafana.github.io/helm-charts"],
+  "tempo" => ["3.2.1", "https://grafana-community.github.io/helm-charts"]
+}.freeze
+monitoring_toleration = [{ "key" => "dedicated", "operator" => "Equal", "value" => "monitoring", "effect" => "NoSchedule" }].freeze
+monitoring_node_selector = { "lookddak.io/node-pool" => "monitoring" }.freeze
+monitoring_dependencies.each do |chart, (version, repository)|
+  chart_file = "platform/dev/observability/#{chart}/Chart.yaml"
+  dependency = (load_yaml(chart_file)["dependencies"] || []).find { |item| item["name"] == chart }
+  abort "#{chart_file}: #{chart} #{version} 의존성을 고정해야 합니다." unless dependency && dependency["version"] == version && dependency["repository"] == repository
+
+  file = "argocd/dev/#{chart}-application.yaml"
+  application = load_yaml(file)
+  unless application.dig("metadata", "name") == "lookddak-dev-#{chart}" &&
+         application.dig("spec", "project") == "lookddak-dev-platform" &&
+         application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "1" &&
+         application.dig("spec", "source") == { "repoURL" => gitops_repository, "targetRevision" => "main", "path" => "platform/dev/observability/#{chart}", "helm" => { "releaseName" => chart } } &&
+         application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "monitoring" }
+    abort "#{file}: #{chart} Application 설정이 예상과 다릅니다."
+  end
+end
+
+prometheus_values = load_yaml("platform/dev/observability/prometheus/values.yaml").fetch("prometheus")
+prometheus_server = prometheus_values.fetch("server")
+unless %w[alertmanager kube-state-metrics prometheus-node-exporter prometheus-pushgateway].all? { |name| prometheus_values.dig(name, "enabled") == false } &&
+       prometheus_server.fetch("extraFlags").include?("web.enable-remote-write-receiver") &&
+       prometheus_server["retention"] == "7d" &&
+       prometheus_server["persistentVolume"] == { "enabled" => true, "size" => "30Gi", "storageClass" => "gp3" } &&
+       prometheus_server["nodeSelector"] == monitoring_node_selector && prometheus_server["tolerations"] == monitoring_toleration &&
+       prometheus_values.fetch("scrapeConfigs").values.all? { |job| job["enabled"] == false }
+  abort "platform/dev/observability/prometheus/values.yaml: Prometheus는 부가 구성 비활성, remote write 수신, 보존 7일, gp3 30Gi, 모니터링 노드 배치, 기본 수집 비활성이 필요합니다."
+end
+
+loki_values = load_yaml("platform/dev/observability/loki/values.yaml").fetch("loki")
+loki_bucket = "lookddak-dev-v3-loki-686496667254-ap-northeast-2"
+unless loki_values["deploymentMode"] == "SingleBinary" &&
+       loki_values.dig("serviceAccount", "name") == "loki" &&
+       loki_values.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-dev-v3-loki" &&
+       loki_values.dig("loki", "storage", "bucketNames", "chunks") == loki_bucket &&
+       loki_values.dig("loki", "limits_config", "retention_period") == "168h" &&
+       loki_values.dig("loki", "compactor", "retention_enabled") == true &&
+       loki_values.dig("singleBinary", "replicas") == 1 &&
+       %w[read write backend].all? { |target| loki_values.dig(target, "replicas") == 0 } &&
+       loki_values.dig("singleBinary", "persistence", "storageClass") == "gp3" &&
+       loki_values.dig("singleBinary", "nodeSelector") == monitoring_node_selector && loki_values.dig("singleBinary", "tolerations") == monitoring_toleration
+  abort "platform/dev/observability/loki/values.yaml: Loki는 SingleBinary 1개, IRSA·S3 버킷, 보존 7일, gp3, 모니터링 노드 배치가 필요합니다."
+end
+
+tempo_values = load_yaml("platform/dev/observability/tempo/values.yaml").fetch("tempo")
+unless tempo_values.dig("serviceAccount", "name") == "tempo" &&
+       tempo_values.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-dev-v3-tempo" &&
+       tempo_values.dig("tempo", "storage", "trace", "backend") == "s3" &&
+       tempo_values.dig("tempo", "storage", "trace", "s3", "bucket") == "lookddak-dev-v3-tempo-686496667254-ap-northeast-2" &&
+       tempo_values.dig("tempo", "retention") == "168h" &&
+       tempo_values.dig("persistence", "storageClassName") == "gp3" &&
+       tempo_values["nodeSelector"] == monitoring_node_selector && tempo_values["tolerations"] == monitoring_toleration
+  abort "platform/dev/observability/tempo/values.yaml: Tempo는 IRSA·S3 버킷, 보존 7일, gp3, 모니터링 노드 배치가 필요합니다."
 end
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"
