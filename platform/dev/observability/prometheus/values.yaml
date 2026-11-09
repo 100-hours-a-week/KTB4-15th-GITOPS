@@ -8,6 +8,11 @@ prometheus:
   prometheus-pushgateway:
     enabled: false
 
+  configmapReload:
+    prometheus:
+      image:
+        tag: v0.94.0
+
   server:
     extraFlags:
       - web.enable-lifecycle
