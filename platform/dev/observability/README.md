@@ -47,7 +47,7 @@ V3 dev 클러스터 안 모니터링 구성(Prometheus·Loki·Tempo, 수집기 A
 | Redis `redis-cache` 6노드 | `prometheus.exporter.redis` × 6 (headless FQDN 고정) | 비밀번호 없음. Cilium `redis-network-policy.yaml` 15008, Istio `allow-alloy-cluster-metrics` 6379 |
 | MySQL `lookddak-dev-v2-mysql` | `prometheus.exporter.mysql`, `tls=true`(RDS CA, `SSL_CERT_DIR`) | `lookddak_v3_exporter`@`100.65.%` (CLOUD Runbook `lookddak-dev-v3-mysql-exporter-bootstrap`, 비밀번호 SSM `/lookddak/dev/v3/monitoring/mysql-exporter/password`) |
 | PostgreSQL `lookddak-dev-postgresql` | `prometheus.exporter.postgres`, `sslmode=verify-full` | V2와 같은 `exporter`(`pg_monitor`), SSM `/lookddak/dev/monitoring/postgres-exporter/password` |
-| RDS CloudWatch | `prometheus.exporter.cloudwatch` (5분) | IRSA `lookddak-dev-v3-alloy-cluster` (`cloudwatch:GetMetricData`·`ListMetrics`, 위 SSM 2개 읽기) |
+| RDS·SQS CloudWatch | `prometheus.exporter.cloudwatch`: RDS 2대 9개 지표(static), SQS `Environment=dev` 태그 검색(V2·V3 큐·DLQ, 이름으로 구분). CloudWatch 조회는 5분마다(`decoupled_scraping`), scrape는 1분마다 캐시 | IRSA `lookddak-dev-v3-alloy-cluster` (`cloudwatch:GetMetricData`·`ListMetrics`, `tag:GetResources`, 위 SSM 2개 읽기) |
 - 비밀번호는 `SecretProviderClass alloy-cluster-db-exporters` → `/etc/db-exporters` 파일 (K8s Secret 미생성)
 - RDS CA: `files/ap-northeast-2-bundle.pem` → ConfigMap `alloy-cluster-rds-ca` → `/etc/rds-ca`
 
