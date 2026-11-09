@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: lookddak-prod-platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  description: LookDDak prod 클러스터 플랫폼 구성요소 배포 범위
+  sourceRepos:
+    - https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+    - https://aws.github.io/eks-charts
+    - https://aws.github.io/secrets-store-csi-driver-provider-aws
+    - https://blob.istio.io/istio-release/charts
+    - https://charts.jetstack.io
+    - https://kubernetes-sigs.github.io/metrics-server/
+    - https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+    - oci://public.ecr.aws/karpenter
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
+    - server: https://kubernetes.default.svc
+      namespace: istio-system
+    - server: https://kubernetes.default.svc
+      namespace: istio-ingress
+  clusterResourceWhitelist:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: apiregistration.k8s.io
+      kind: APIService
+    - group: storage.k8s.io
+      kind: CSIDriver
+    - group: scheduling.k8s.io
+      kind: PriorityClass
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+    - group: cert-manager.io
+      kind: ClusterIssuer
+    - group: karpenter.k8s.aws
+      kind: EC2NodeClass
+    - group: karpenter.sh
+      kind: NodePool
+  orphanedResources:
+    warn: true

@@ -1,0 +1,6 @@
+dependencies:
+- name: karpenter-crd
+  repository: oci://public.ecr.aws/karpenter
+  version: 1.15.1
+digest: sha256:b9f18547f9214abb1a86e8a0c8cc32356211ba8701e39da90ed78ae62f07939d
+generated: "2026-11-03T15:34:13.083801+09:00"

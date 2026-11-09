@@ -1,5 +1,11 @@
 /platform/dev/argocd/charts/
 /platform/prod/argocd/charts/
+/platform/prod/karpenter/*/charts/
+/platform/prod/metrics-server/charts/
+/platform/prod/networking/aws-load-balancer-controller/charts/
+/platform/prod/networking/istio/*/charts/
+/platform/prod/cert-manager/controller/charts/
+/platform/prod/secrets-store-csi/*/charts/
 /platform/dev/karpenter/*/charts/
 /platform/dev/metrics-server/charts/
 /platform/dev/networking/aws-load-balancer-controller/charts/
