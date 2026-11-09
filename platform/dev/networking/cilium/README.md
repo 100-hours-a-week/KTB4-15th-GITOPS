@@ -44,7 +44,8 @@ EKS dev(`lookddak-dev`)의 Cilium 설정을 관리하는 디렉터리다. Cilium
 | Operator 배치 | `operator.nodeSelector` `lookddak.io/node-pool=system`, `CriticalAddonsOnly` Toleration | System Node 격리(Taint) 대비. Application Node에 Operator가 남아 Karpenter 회수를 막지 않게 |
 | Agent | DaemonSet, 모든 Node (기본 Toleration) | System·Application Node 모두에서 실행되어야 한다 |
 | Envoy | `envoy.enabled=false` (standalone `cilium-envoy` DaemonSet 미사용) | L7은 Istio 담당. L7 CiliumNetworkPolicy가 생기면 agent 내장 Envoy가 실행된다 |
-| Hubble | 수집만, Relay·UI 끔 | 관측 단계에서 켠다 |
+| Hubble | Relay·UI(System Node, port-forward 전용) | 흐름 조회 |
+| 메트릭 | `prometheus.enabled`(agent 9962), `operator.prometheus.enabled`(9963), `hubble.metrics.enabled`(9965: dns, drop, tcp, flow, policy — Namespace 단위 context) | Alloy Node가 자기 노드의 agent·Hubble·operator를 수집 → Prometheus (`job`=`cilium-agent`·`hubble`·`cilium-operator`) |
 
 ## 설치·변경
 
