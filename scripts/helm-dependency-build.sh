@@ -16,7 +16,7 @@ for chart in "$@"; do
     continue
   fi
   for attempt in 1 2 3 4 5; do
-    if helm dependency build "$chart"; then
+    if helm dependency build --skip-refresh "$chart"; then
       break
     fi
     if [[ "$attempt" == 5 ]]; then
