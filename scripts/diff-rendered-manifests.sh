@@ -7,6 +7,7 @@ if [[ $# -ne 2 ]]; then
   exit 1
 fi
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 base_sha="$1"
 work_dir="$2"
 base_checkout="$work_dir/base"
@@ -41,9 +42,14 @@ copy_static_manifests() {
 
 git worktree add --detach "$base_checkout" "$base_sha" >/dev/null
 
+while IFS= read -r -d '' archive; do
+  mkdir -p "$base_checkout/$(dirname "$archive")"
+  cp "$archive" "$base_checkout/$archive"
+done < <(find platform -path '*/charts/*.tgz' -print0)
+
 (
   cd "$base_checkout"
-  scripts/render-fixtures.sh "$base_output"
+  "$script_dir/render-fixtures.sh" "$base_output"
 )
 
 scripts/render-fixtures.sh "$head_output"

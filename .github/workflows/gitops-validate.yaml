@@ -49,6 +49,16 @@ jobs:
         with:
           version: v4.2.3
 
+      - name: Helm Chart 캐시
+        if: steps.change.outputs.image_only != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            platform/dev/**/charts/*.tgz
+          key: helm-charts-${{ hashFiles('platform/dev/**/Chart.lock') }}
+          restore-keys: |
+            helm-charts-
+
       - name: Argo CD Helm Repository 등록
         if: steps.change.outputs.image_only != 'true'
         run: helm repo add argo https://argoproj.github.io/argo-helm
@@ -82,42 +92,42 @@ jobs:
 
       - name: Argo CD Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/argocd
+        run: scripts/helm-dependency-build.sh platform/dev/argocd
 
       - name: Karpenter Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: |
-          helm dependency build platform/dev/karpenter/crd
-          helm dependency build platform/dev/karpenter/controller
+          scripts/helm-dependency-build.sh platform/dev/karpenter/crd
+          scripts/helm-dependency-build.sh platform/dev/karpenter/controller
 
       - name: Metrics Server Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/metrics-server
+        run: scripts/helm-dependency-build.sh platform/dev/metrics-server
 
       - name: AWS Load Balancer Controller Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/networking/aws-load-balancer-controller
+        run: scripts/helm-dependency-build.sh platform/dev/networking/aws-load-balancer-controller
 
       - name: cert-manager Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/cert-manager/controller
+        run: scripts/helm-dependency-build.sh platform/dev/cert-manager/controller
 
       - name: Redis Operator Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/redis/operator
+        run: scripts/helm-dependency-build.sh platform/dev/redis/operator
 
       - name: 모니터링 Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: |
-          for chart in prometheus loki tempo; do
-            helm dependency build "platform/dev/observability/$chart"
+          for chart in prometheus loki tempo alloy-node kube-state-metrics; do
+            scripts/helm-dependency-build.sh "platform/dev/observability/$chart"
           done
 
       - name: Istio Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: |
           for chart in base istiod cni ztunnel; do
-            helm dependency build "platform/dev/networking/istio/$chart"
+            scripts/helm-dependency-build.sh "platform/dev/networking/istio/$chart"
           done
 
       - name: YAML 문법 검사
@@ -141,7 +151,7 @@ jobs:
           done
           helm lint platform/dev/cert-manager/controller --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/redis/operator --namespace lookddak-redis --kube-version 1.36.0
-          for chart in prometheus loki tempo; do
+          for chart in prometheus loki tempo alloy-node kube-state-metrics; do
             helm lint "platform/dev/observability/$chart" --namespace monitoring --kube-version 1.36.0
           done
 
