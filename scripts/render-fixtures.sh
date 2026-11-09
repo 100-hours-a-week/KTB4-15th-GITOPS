@@ -68,7 +68,7 @@ helm template fixture-domain charts/lookddak-domain \
   > "$output_dir/domain-policy.yaml"
 
 if [[ -f platform/dev/argocd/Chart.yaml ]]; then
-  helm dependency build platform/dev/argocd >/dev/null
+  scripts/helm-dependency-build.sh platform/dev/argocd >/dev/null
   helm template argocd platform/dev/argocd \
     --namespace argocd \
     --kube-version 1.36.0 \
@@ -77,7 +77,7 @@ if [[ -f platform/dev/argocd/Chart.yaml ]]; then
 fi
 
 if [[ -f platform/dev/karpenter/crd/Chart.yaml ]]; then
-  helm dependency build platform/dev/karpenter/crd >/dev/null
+  scripts/helm-dependency-build.sh platform/dev/karpenter/crd >/dev/null
   helm template karpenter-crd platform/dev/karpenter/crd \
     --namespace kube-system \
     --kube-version 1.36.0 \
@@ -86,7 +86,7 @@ if [[ -f platform/dev/karpenter/crd/Chart.yaml ]]; then
 fi
 
 if [[ -f platform/dev/karpenter/controller/Chart.yaml ]]; then
-  helm dependency build platform/dev/karpenter/controller >/dev/null
+  scripts/helm-dependency-build.sh platform/dev/karpenter/controller >/dev/null
   helm template karpenter platform/dev/karpenter/controller \
     --namespace kube-system \
     --kube-version 1.36.0 \
@@ -95,7 +95,7 @@ if [[ -f platform/dev/karpenter/controller/Chart.yaml ]]; then
 fi
 
 if [[ -f platform/dev/metrics-server/Chart.yaml ]]; then
-  helm dependency build platform/dev/metrics-server >/dev/null
+  scripts/helm-dependency-build.sh platform/dev/metrics-server >/dev/null
   helm template metrics-server platform/dev/metrics-server \
     --namespace kube-system \
     --kube-version 1.36.0 \
@@ -103,7 +103,7 @@ if [[ -f platform/dev/metrics-server/Chart.yaml ]]; then
 fi
 
 if [[ -f platform/dev/networking/aws-load-balancer-controller/Chart.yaml ]]; then
-  helm dependency build platform/dev/networking/aws-load-balancer-controller >/dev/null
+  scripts/helm-dependency-build.sh platform/dev/networking/aws-load-balancer-controller >/dev/null
   helm template aws-load-balancer-controller platform/dev/networking/aws-load-balancer-controller \
     --namespace kube-system \
     --kube-version 1.36.0 \
@@ -112,7 +112,7 @@ fi
 
 for chart in base istiod cni ztunnel; do
   if [[ -f "platform/dev/networking/istio/$chart/Chart.yaml" ]]; then
-    helm dependency build "platform/dev/networking/istio/$chart" >/dev/null
+    scripts/helm-dependency-build.sh "platform/dev/networking/istio/$chart" >/dev/null
     helm template "istio-$chart" "platform/dev/networking/istio/$chart" \
       --namespace istio-system \
       --kube-version 1.36.0 \
@@ -121,7 +121,7 @@ for chart in base istiod cni ztunnel; do
 done
 
 if [[ -f platform/dev/cert-manager/controller/Chart.yaml ]]; then
-  helm dependency build platform/dev/cert-manager/controller >/dev/null
+  scripts/helm-dependency-build.sh platform/dev/cert-manager/controller >/dev/null
   helm template cert-manager platform/dev/cert-manager/controller \
     --namespace kube-system \
     --kube-version 1.36.0 \

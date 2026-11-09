@@ -82,42 +82,42 @@ jobs:
 
       - name: Argo CD Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/argocd
+        run: scripts/helm-dependency-build.sh platform/dev/argocd
 
       - name: Karpenter Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: |
-          helm dependency build platform/dev/karpenter/crd
-          helm dependency build platform/dev/karpenter/controller
+          scripts/helm-dependency-build.sh platform/dev/karpenter/crd
+          scripts/helm-dependency-build.sh platform/dev/karpenter/controller
 
       - name: Metrics Server Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/metrics-server
+        run: scripts/helm-dependency-build.sh platform/dev/metrics-server
 
       - name: AWS Load Balancer Controller Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/networking/aws-load-balancer-controller
+        run: scripts/helm-dependency-build.sh platform/dev/networking/aws-load-balancer-controller
 
       - name: cert-manager Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/cert-manager/controller
+        run: scripts/helm-dependency-build.sh platform/dev/cert-manager/controller
 
       - name: Redis Operator Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: helm dependency build platform/dev/redis/operator
+        run: scripts/helm-dependency-build.sh platform/dev/redis/operator
 
       - name: 모니터링 Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: |
           for chart in prometheus loki tempo alloy-node kube-state-metrics; do
-            helm dependency build "platform/dev/observability/$chart"
+            scripts/helm-dependency-build.sh "platform/dev/observability/$chart"
           done
 
       - name: Istio Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: |
           for chart in base istiod cni ztunnel; do
-            helm dependency build "platform/dev/networking/istio/$chart"
+            scripts/helm-dependency-build.sh "platform/dev/networking/istio/$chart"
           done
 
       - name: YAML 문법 검사
