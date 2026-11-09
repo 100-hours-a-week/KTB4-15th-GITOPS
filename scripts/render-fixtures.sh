@@ -11,6 +11,13 @@ output_dir="$1"
 mkdir -p "$output_dir"
 helm_dependency_build="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/helm-dependency-build.sh"
 
+# CI Runner의 빈 Helm 설정에서도 Prod CSI Chart 의존성을 받을 수 있게 공식 저장소를 등록한다.
+# 기존 GitHub Actions Workflow는 변경하지 않고 렌더링 스크립트가 필요한 저장소만 자체 준비한다.
+if [[ -f platform/prod/secrets-store-csi/driver/Chart.yaml ]]; then
+  helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts --force-update >/dev/null
+  helm repo add secrets-store-csi-provider-aws https://aws.github.io/secrets-store-csi-driver-provider-aws --force-update >/dev/null
+fi
+
 helm template fixture-routed charts/lookddak-workload \
   -f ci/fixtures/routed-deployment.yaml \
   > "$output_dir/routed-deployment.yaml"
