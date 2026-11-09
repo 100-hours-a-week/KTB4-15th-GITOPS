@@ -4,8 +4,7 @@ secrets-store-csi-driver-provider-aws:
   secrets-store-csi-driver:
     install: false
   driverWritesSecrets: false
-  nodeSelector:
-    kubernetes.io/os: linux
+  # Chart 기본 NodeSelector(kubernetes.io/os=linux)를 사용한다.
   tolerations:
     - operator: Exists
   priorityClassName: system-node-critical
