@@ -76,6 +76,7 @@ serviceAccount:
 
 secrets:
   enabled: true
+  rolloutOnChange: true
   secretProviderClassName: chat-ai
   mountPath: /mnt/secrets-store
   parameters:

@@ -89,6 +89,9 @@ serviceAccount:
 
 secrets:
   enabled: false
+  # SecretProviderClass의 Parameter·Startup 설정이 바뀌면 Pod Template checksum을 변경해
+  # 새 Pod가 변경된 CSI 파일을 다시 읽도록 한다. 기존 워크로드의 일괄 재시작을 막기 위해 opt-in이다.
+  rolloutOnChange: false
   secretProviderClassName: ""
   mountPath: ""
   parameters: {}

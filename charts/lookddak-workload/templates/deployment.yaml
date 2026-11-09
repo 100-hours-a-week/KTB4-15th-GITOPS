@@ -20,6 +20,10 @@ spec:
     metadata:
       labels:
         {{- include "lookddak-workload.labels" . | nindent 8 }}
+      {{- if and .Values.secrets.enabled .Values.secrets.rolloutOnChange }}
+      annotations:
+        checksum/lookddak-secret-config: {{ (dict "parameters" .Values.secrets.parameters "startup" .Values.secrets.startup) | toJson | sha256sum | quote }}
+      {{- end }}
     spec:
       {{- if ne .Values.deployment.terminationGracePeriodSeconds nil }}
       terminationGracePeriodSeconds: {{ .Values.deployment.terminationGracePeriodSeconds }}
