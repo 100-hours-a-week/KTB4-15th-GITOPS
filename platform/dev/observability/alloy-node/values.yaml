@@ -288,6 +288,67 @@ alloy:
           forward_to      = [prometheus.remote_write.default.receiver]
         }
 
+        discovery.relabel "cilium" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_container_port_name"]
+            separator     = ";"
+            regex         = "kube-system;(prometheus|hubble-metrics)"
+            action        = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_k8s_app", "__meta_kubernetes_pod_label_io_cilium_app"]
+            separator     = ";"
+            regex         = "cilium;|;operator"
+            action        = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex         = "hubble-metrics"
+            target_label  = "job"
+            replacement   = "hubble"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_k8s_app", "__meta_kubernetes_pod_container_port_name"]
+            separator     = ";"
+            regex         = "cilium;prometheus"
+            target_label  = "job"
+            replacement   = "cilium-agent"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_io_cilium_app"]
+            regex         = "operator"
+            target_label  = "job"
+            replacement   = "cilium-operator"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label  = "node"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+        }
+
+        prometheus.scrape "cilium" {
+          targets         = discovery.relabel.cilium.output
+          job_name        = "cilium"
+          scrape_interval = "60s"
+          forward_to      = [prometheus.relabel.cilium.receiver]
+        }
+
+        prometheus.relabel "cilium" {
+          forward_to = [prometheus.remote_write.default.receiver]
+
+          rule {
+            source_labels = ["__name__"]
+            regex         = ".+_bucket"
+            action        = "drop"
+          }
+        }
+
         prometheus.remote_write "default" {
           endpoint {
             url = "http://prometheus-server.monitoring.svc.cluster.local/api/v1/write"
