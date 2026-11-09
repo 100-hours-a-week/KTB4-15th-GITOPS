@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-tempo
+description: LookDDak EKS dev Tempo 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: tempo
+    version: 3.2.1
+    repository: https://grafana-community.github.io/helm-charts

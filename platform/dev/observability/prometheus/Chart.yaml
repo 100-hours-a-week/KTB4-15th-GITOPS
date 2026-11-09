@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-prometheus
+description: LookDDak EKS dev Prometheus 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: prometheus
+    version: 29.45.1
+    repository: https://prometheus-community.github.io/helm-charts

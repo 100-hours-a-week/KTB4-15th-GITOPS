@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-loki
+description: LookDDak EKS dev Loki 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: loki
+    version: 7.5.0
+    repository: https://grafana.github.io/helm-charts
