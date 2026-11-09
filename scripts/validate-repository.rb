@@ -1932,6 +1932,9 @@ unless alloy_cluster_values.dig("serviceAccount", "annotations", "eks.amazonaws.
        File.read("platform/dev/observability/alloy-cluster/files/ap-northeast-2-bundle.pem").include?("BEGIN CERTIFICATE")
   abort "platform/dev/observability/alloy-cluster: DB 지표 수집에는 IRSA lookddak-dev-v3-alloy-cluster와 RDS CA 번들(files/ap-northeast-2-bundle.pem)이 필요합니다."
 end
+unless alloy_cluster_config.include?('data_source_names = ["postgresql://exporter:"') && alloy_cluster_config.include?('string.replace(convert.nonsensitive(local.file.postgres_exporter_password.content), "%", "%25")')
+  abort "platform/dev/observability/alloy-cluster/values.yaml: prometheus.exporter.postgres는 postgresql:// URL 형식과 비밀번호 URL 인코딩(% 먼저)이 필요합니다."
+end
 %w[__MYSQL_HOST__ __POSTGRES_HOST__].each do |placeholder|
   abort "platform/dev/observability/alloy-cluster/values.yaml: #{placeholder}를 RDS 엔드포인트로 바꿔야 합니다." if alloy_cluster_config.include?(placeholder)
 end
