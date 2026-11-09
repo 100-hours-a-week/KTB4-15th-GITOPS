@@ -75,6 +75,11 @@ secrets_store_csi_files = %w[
   argocd/dev/secrets-store-csi-provider-aws-application.yaml
 ].freeze
 
+prod_cilium_files = %w[
+  platform/prod/networking/cilium/README.md
+  platform/prod/networking/cilium/values.yaml
+].freeze
+
 aws_load_balancer_controller_files = %w[
   platform/dev/networking/aws-load-balancer-controller/Chart.yaml
   platform/dev/networking/aws-load-balancer-controller/Chart.lock
@@ -166,8 +171,45 @@ dev_image_automation_files = %w[
   scripts/test-update-dev-image.rb
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files].flatten.each do |file|
+[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, prod_cilium_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
+end
+
+prod_cilium_values_file = "platform/prod/networking/cilium/values.yaml"
+prod_cilium = load_yaml(prod_cilium_values_file)
+unless prod_cilium["kubeProxyReplacement"] == true &&
+       prod_cilium["k8sServiceHost"] == "98FAA5345EEC969890293E6E0090CC4C.gr7.ap-northeast-2.eks.amazonaws.com" &&
+       prod_cilium["k8sServicePort"] == 443
+  abort "#{prod_cilium_values_file}: Prod EKS Private API를 사용하는 kube-proxy replacement 설정이 필요합니다."
+end
+unless prod_cilium.dig("ipam", "mode") == "eni" &&
+       prod_cilium["routingMode"] == "native" &&
+       prod_cilium.dig("eni", "enabled") == true &&
+       prod_cilium.dig("eni", "iamRole") == "arn:aws:iam::686496667254:role/lookddak-prod-cilium-operator" &&
+       prod_cilium.dig("eni", "awsEnablePrefixDelegation") == true &&
+       prod_cilium.dig("eni", "awsReleaseExcessIPs") == true &&
+       prod_cilium.dig("eni", "subnetTagsFilter") == ["Tier=private-pod"] &&
+       prod_cilium.dig("eni", "nodeSpec", "firstInterfaceIndex") == 1
+  abort "#{prod_cilium_values_file}: Prod ENI IPAM·IRSA·Pod Subnet·Prefix Delegation 설정이 예상과 다릅니다."
+end
+unless prod_cilium.dig("cni", "exclusive") == false &&
+       prod_cilium.dig("socketLB", "hostNamespaceOnly") == true &&
+       prod_cilium.dig("bpf", "hostLegacyRouting") == true &&
+       prod_cilium.dig("envoy", "enabled") == false &&
+       prod_cilium.dig("prometheus", "enabled") == true &&
+       prod_cilium.dig("hubble", "enabled") == true &&
+       (prod_cilium.dig("hubble", "metrics", "enabled") || []).include?("flow:sourceContext=namespace;destinationContext=namespace") &&
+       prod_cilium.dig("hubble", "relay", "enabled") == false &&
+       prod_cilium.dig("hubble", "ui", "enabled") == false
+  abort "#{prod_cilium_values_file}: Istio Ambient 공존과 kubelet probe 대응 설정이 필요합니다."
+end
+prod_cilium_operator = prod_cilium.fetch("operator")
+unless prod_cilium_operator["replicas"] == 2 &&
+       prod_cilium_operator.dig("prometheus", "enabled") == true &&
+       prod_cilium_operator.dig("nodeSelector", "lookddak.io/node-pool") == "system" &&
+       (prod_cilium_operator["tolerations"] || []).any? { |item| item["key"] == "node.kubernetes.io/not-ready" } &&
+       (prod_cilium_operator["tolerations"] || []).any? { |item| item["key"] == "CriticalAddonsOnly" }
+  abort "#{prod_cilium_values_file}: Cilium Operator 2개를 NotReady·System Node에 Bootstrap할 수 있어야 합니다."
 end
 
 environments.each do |environment|
