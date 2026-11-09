@@ -1427,6 +1427,11 @@ unless alloy_cluster_values.dig("controller", "type") == "deployment" &&
        alloy_cluster_values.dig("crds", "create") == false
   abort "platform/dev/observability/alloy-cluster/values.yaml: Alloy Cluster는 Deployment 1개, Pod 단위 Ambient 등록, SA alloy-cluster, Monitoring Node 배치가 필요합니다."
 end
+alloy_cluster_config = alloy_cluster_values.dig("alloy", "configMap", "content").to_s
+alloy_memory_limiter = alloy_cluster_config[/otelcol\.processor\.memory_limiter[^{]*\{(.*?)\n\s*output/m, 1].to_s
+unless alloy_memory_limiter.match?(/^\s*limit_percentage\s*=\s*\d+/) && alloy_memory_limiter.match?(/^\s*spike_limit_percentage\s*=\s*\d+/)
+  abort "platform/dev/observability/alloy-cluster/values.yaml: otelcol.processor.memory_limiter는 limit_percentage와 spike_limit_percentage를 함께 지정해야 합니다."
+end
 
 domain_chart_values = load_yaml("charts/lookddak-domain/values.yaml")
 unless domain_chart_values.dig("authorizationPolicy", "metricsScrape", "principal") == alloy_cluster_principal &&
