@@ -608,6 +608,7 @@ expected_prod_platform_resources = [
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicy" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingAdmissionPolicyBinding" },
   { "group" => "cert-manager.io", "kind" => "ClusterIssuer" },
+  { "group" => "cilium.io", "kind" => "CiliumClusterwideNetworkPolicy" },
   { "group" => "karpenter.k8s.aws", "kind" => "EC2NodeClass" },
   { "group" => "karpenter.sh", "kind" => "NodePool" }
 ]
@@ -634,7 +635,9 @@ prod_platform_applications = {
   "istiod" => ["platform/prod/networking/istio/istiod", "istio-system", "0"],
   "istio-cni" => ["platform/prod/networking/istio/cni", "istio-system", "1"],
   "ztunnel" => ["platform/prod/networking/istio/ztunnel", "istio-system", "2"],
-  "istio-gateway" => ["platform/prod/networking/gateway", "istio-ingress", "3"]
+  "istio-gateway" => ["platform/prod/networking/gateway", "istio-ingress", "3"],
+  "network-policies" => ["platform/prod/networking/policies", "kube-system", "3"],
+  "mesh-security" => ["platform/prod/networking/mesh-security", "istio-system", "3"]
 }
 prod_platform_applications.each do |component, (path, namespace, wave)|
   file = "argocd/prod/platform/#{component}-application.yaml"
@@ -652,6 +655,73 @@ prod_platform_applications.each do |component, (path, namespace, wave)|
     abort "#{file}: Prod 플랫폼 Application 신원·경로·Sync Wave가 예상과 다릅니다."
   end
 end
+
+prod_internal_application_file = "argocd/prod/platform/internal-api-application.yaml"
+prod_internal_application = load_yaml(prod_internal_application_file)
+unless prod_internal_application.dig("metadata", "name") == "lookddak-prod-internal-api" &&
+       prod_internal_application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "4" &&
+       prod_internal_application.dig("spec", "project") == "lookddak-prod" &&
+       prod_internal_application.dig("spec", "source", "path") == "platform/prod/networking/internal-api" &&
+       prod_internal_application.dig("spec", "source", "targetRevision") == "main" &&
+       prod_internal_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-web" } &&
+       prod_internal_application.dig("spec", "syncPolicy", "automated") == expected_root_automation
+  abort "#{prod_internal_application_file}: Prod 내부 API Application 신원·경로·자동 동기화 설정이 예상과 다릅니다."
+end
+
+prod_domain_namespaces = %w[lookddak-chat lookddak-commerce lookddak-fitting lookddak-identity lookddak-web]
+prod_baseline = load_yaml("platform/prod/networking/policies/domain-baseline.yaml")
+unless prod_baseline["kind"] == "CiliumClusterwideNetworkPolicy" &&
+       prod_baseline.dig("metadata", "name") == "lookddak-prod-domain-baseline" &&
+       prod_baseline.dig("spec", "endpointSelector", "matchExpressions") == [{ "key" => "k8s:io.cilium.k8s.namespace.labels.lookddak.com/domain", "operator" => "Exists" }] &&
+       prod_baseline.dig("spec", "ingress").any? { |rule| rule["fromCIDR"] == ["169.254.7.127/32"] } &&
+       prod_baseline.dig("spec", "egress").any? { |rule| (rule["toPorts"] || []).any? { |port| port.dig("rules", "dns") } }
+  abort "Prod 도메인 baseline은 기본 차단 후 Ambient probe·Gateway·DNS만 공통 허용해야 합니다."
+end
+
+prod_same_namespace_targets = YAML.load_stream(File.read("platform/prod/networking/policies/domain-same-namespace.yaml")).compact.map do |policy|
+  namespace = policy.dig("spec", "endpointSelector", "matchLabels", "k8s:io.kubernetes.pod.namespace")
+  peers = (policy.dig("spec", "ingress") || []) + (policy.dig("spec", "egress") || [])
+  unless peers.length == 2 && peers.all? { |rule| ((rule["fromEndpoints"] || rule["toEndpoints"]) || []) == [{ "matchLabels" => { "k8s:io.kubernetes.pod.namespace" => namespace } }] }
+    abort "#{policy.dig('metadata', 'name')}: Prod 정책은 같은 Namespace의 HBONE 통신만 허용해야 합니다."
+  end
+  namespace
+end.sort
+abort "Prod 도메인별 same-namespace 정책이 필요합니다." unless prod_same_namespace_targets == prod_domain_namespaces.sort
+
+prod_workload_namespaces = Dir["environments/prod/domains/*/workloads/*.yaml"].to_h do |file|
+  [File.basename(file, ".yaml"), "lookddak-#{file.split('/')[3]}"]
+end
+prod_egress_files = Dir["platform/prod/networking/policies/*-egress.yaml"].sort.reject { |file| file.end_with?("web-waypoint.yaml") }
+abort "Prod 10개 워크로드마다 egress 정책이 필요합니다." unless prod_egress_files.length == prod_workload_namespaces.length
+prod_egress_files.each do |file|
+  workload = File.basename(file, "-egress.yaml")
+  policy = load_yaml(file)
+  expected_selector = { "k8s:io.kubernetes.pod.namespace" => prod_workload_namespaces[workload], "k8s:app.kubernetes.io/name" => workload }
+  unless policy["kind"] == "CiliumClusterwideNetworkPolicy" &&
+         policy.dig("metadata", "name") == "lookddak-prod-#{workload}-egress" &&
+         policy.dig("spec", "endpointSelector", "matchLabels") == expected_selector &&
+         (policy.dig("spec", "egress") || []).all? { |rule| rule["toFQDNs"] && rule.keys.sort == %w[toFQDNs toPorts] }
+    abort "#{file}: Prod egress는 해당 워크로드만 선택하고 FQDN·Port만 허용해야 합니다."
+  end
+end
+
+prod_peer_authentication = load_yaml("platform/prod/networking/mesh-security/peer-authentication.yaml")
+unless prod_peer_authentication.dig("metadata", "name") == "default" &&
+       prod_peer_authentication.dig("metadata", "namespace") == "istio-system" &&
+       prod_peer_authentication.dig("spec", "mtls", "mode") == "STRICT"
+  abort "Prod Ambient 메시 전체에 mTLS STRICT가 필요합니다."
+end
+
+Dir["environments/prod/domains/*/domain.yaml"].each do |file|
+  abort "#{file}: Prod 도메인은 Istio 인가 기본값이 필요합니다." unless load_yaml(file).dig("authorizationPolicy", "enabled") == true
+end
+
+prod_internal_route = load_yaml("platform/prod/networking/internal-api/api-httproute.yaml")
+prod_internal_backends = prod_internal_route.dig("spec", "rules").flat_map { |rule| rule["backendRefs"].map { |ref| ref["namespace"] } }.uniq.sort
+prod_grant_namespaces = YAML.load_stream(File.read("platform/prod/networking/internal-api/reference-grants.yaml")).compact.map { |grant| grant.dig("metadata", "namespace") }.sort
+abort "Prod 내부 API backend마다 ReferenceGrant가 필요합니다." unless prod_internal_backends == prod_grant_namespaces
+prod_sse_rules = prod_internal_route.dig("spec", "rules").select { |rule| rule.dig("timeouts", "request") == "0s" }
+abort "Prod 내부 Chat·Fitting SSE 경로에는 request timeout 비활성화가 필요합니다." unless prod_sse_rules.length == 2
 
 prod_karpenter_values = load_yaml("platform/prod/karpenter/controller/values.yaml").fetch("karpenter")
 unless prod_karpenter_values.dig("settings", "clusterName") == "lookddak-prod" &&

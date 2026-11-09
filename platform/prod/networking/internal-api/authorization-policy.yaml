@@ -1,0 +1,16 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: api-allow-web-bff
+  namespace: lookddak-web
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: api
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/lookddak-web/sa/web-bff

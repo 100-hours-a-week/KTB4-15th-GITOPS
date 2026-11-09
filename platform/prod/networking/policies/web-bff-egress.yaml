@@ -1,0 +1,12 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-prod-web-bff-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-web
+      k8s:app.kubernetes.io/name: web-bff
+  egress:
+    - toFQDNs: [{matchName: img.29cm.co.kr}]
+      toPorts: [{ports: [{port: "443", protocol: TCP}]}]

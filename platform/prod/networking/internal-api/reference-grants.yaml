@@ -1,0 +1,27 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata: {name: allow-web-internal-api, namespace: lookddak-identity}
+spec:
+  from: [{group: gateway.networking.k8s.io, kind: HTTPRoute, namespace: lookddak-web}]
+  to: [{group: "", kind: Service}]
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata: {name: allow-web-internal-api, namespace: lookddak-chat}
+spec:
+  from: [{group: gateway.networking.k8s.io, kind: HTTPRoute, namespace: lookddak-web}]
+  to: [{group: "", kind: Service}]
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata: {name: allow-web-internal-api, namespace: lookddak-commerce}
+spec:
+  from: [{group: gateway.networking.k8s.io, kind: HTTPRoute, namespace: lookddak-web}]
+  to: [{group: "", kind: Service}]
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata: {name: allow-web-internal-api, namespace: lookddak-fitting}
+spec:
+  from: [{group: gateway.networking.k8s.io, kind: HTTPRoute, namespace: lookddak-web}]
+  to: [{group: "", kind: Service}]
