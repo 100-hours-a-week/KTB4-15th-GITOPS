@@ -162,6 +162,10 @@ monitoring_files = (
     argocd/dev/scheduling-application.yaml
     platform/dev/networking/policies/alloy-cluster-scrape.yaml
     platform/dev/networking/gateway/telemetry.yaml
+    platform/dev/observability/db-log-tailer/deployment.yaml
+    platform/dev/observability/db-log-tailer/serviceaccount.yaml
+    platform/dev/observability/db-log-tailer/pvc.yaml
+    argocd/dev/db-log-tailer-application.yaml
   ]
 ).freeze
 
@@ -1537,6 +1541,33 @@ gateway_include = gateway_application.dig("spec", "source", "directory", "includ
 gateway_manifests = Dir["platform/dev/networking/gateway/*.yaml"].map { |file| File.basename(file) }.sort
 unless gateway_include == gateway_manifests
   abort "argocd/dev/istio-gateway-application.yaml: directory.include가 platform/dev/networking/gateway의 매니페스트와 다릅니다. include=#{gateway_include}, 파일=#{gateway_manifests}"
+end
+
+
+db_log_tailer = load_yaml("platform/dev/observability/db-log-tailer/deployment.yaml")
+db_log_tailer_pod = db_log_tailer.dig("spec", "template", "spec")
+db_log_tailer_container = db_log_tailer_pod.fetch("containers").first
+db_log_tailer_env = db_log_tailer_container.fetch("env").to_h { |item| [item["name"], item["value"]] }
+unless db_log_tailer.dig("spec", "replicas") == 1 &&
+       db_log_tailer.dig("spec", "strategy", "type") == "Recreate" &&
+       db_log_tailer.dig("spec", "template", "metadata", "labels", "istio.io/dataplane-mode") == "ambient" &&
+       db_log_tailer_pod["serviceAccountName"] == "db-log-tailer" &&
+       db_log_tailer_pod["nodeSelector"] == monitoring_node_selector && db_log_tailer_pod["tolerations"] == monitoring_toleration &&
+       db_log_tailer_container["image"].match?(%r{\A686496667254\.dkr\.ecr\.ap-northeast-2\.amazonaws\.com/lookddak-dev-v3-db-log-tailer@sha256:[0-9a-f]{64}\z}) &&
+       db_log_tailer_env["LOKI_URL"] == "http://alloy-cluster.monitoring.svc.cluster.local:3500/loki/api/v1/push"
+  abort "platform/dev/observability/db-log-tailer/deployment.yaml: db-log-tailer는 1개·Recreate, Ambient 등록, IRSA SA, Monitoring Node, ECR digest 고정, Alloy Cluster push가 필요합니다."
+end
+unless load_yaml("platform/dev/observability/db-log-tailer/serviceaccount.yaml").dig("metadata", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-dev-v3-db-log-tailer"
+  abort "platform/dev/observability/db-log-tailer/serviceaccount.yaml: IRSA Role lookddak-dev-v3-db-log-tailer가 필요합니다."
+end
+unless alloy_cluster_config.include?("loki.source.api \"db_logs\"") && alloy_cluster_values.dig("alloy", "extraPorts").any? { |port| port["port"] == 3500 }
+  abort "platform/dev/observability/alloy-cluster/values.yaml: db-log-tailer push를 받을 loki.source.api(3500)와 Service 포트가 필요합니다."
+end
+db_log_tailer_application = load_yaml("argocd/dev/db-log-tailer-application.yaml")
+unless db_log_tailer_application.dig("spec", "project") == "lookddak-dev-platform" &&
+       db_log_tailer_application.dig("spec", "source", "path") == "platform/dev/observability/db-log-tailer" &&
+       db_log_tailer_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "monitoring" }
+  abort "argocd/dev/db-log-tailer-application.yaml: db-log-tailer Application 설정이 예상과 다릅니다."
 end
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"
