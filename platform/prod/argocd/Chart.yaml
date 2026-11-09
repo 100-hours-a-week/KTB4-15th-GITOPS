@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-argocd
+description: LookDDak EKS prod Argo CD 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: argo-cd
+    version: 10.11.6
+    repository: https://argoproj.github.io/argo-helm

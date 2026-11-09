@@ -1,4 +1,5 @@
 /platform/dev/argocd/charts/
+/platform/prod/argocd/charts/
 /platform/dev/karpenter/*/charts/
 /platform/dev/metrics-server/charts/
 /platform/dev/networking/aws-load-balancer-controller/charts/

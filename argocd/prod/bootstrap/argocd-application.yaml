@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: lookddak-prod-argocd
+  source:
+    repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+    targetRevision: main
+    path: platform/prod/argocd
+    helm:
+      releaseName: argocd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: argocd-secret
+      namespace: argocd
+      jsonPointers:
+        - /data
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - RespectIgnoreDifferences=true
+      - PruneLast=true

@@ -1,0 +1,58 @@
+argo-cd:
+  crds:
+    install: true
+    keep: true
+    annotations:
+      argocd.argoproj.io/sync-options: ServerSideApply=true,Prune=false,Delete=false
+
+  global:
+    nodeSelector:
+      kubernetes.io/os: linux
+      lookddak.io/node-pool: system
+    tolerations:
+      - key: CriticalAddonsOnly
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    networkPolicy:
+      create: false
+
+  controller:
+    replicas: 1
+
+  dex:
+    enabled: false
+
+  redis:
+    enabled: true
+
+  redis-ha:
+    enabled: false
+
+  configs:
+    secret:
+      annotations:
+        argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    cm:
+      admin.enabled: true
+    params:
+      server.insecure: true
+
+  server:
+    replicas: 1
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: false
+
+  repoServer:
+    replicas: 1
+
+  applicationSet:
+    replicas: 1
+
+  notifications:
+    enabled: false
+
+  commitServer:
+    enabled: false

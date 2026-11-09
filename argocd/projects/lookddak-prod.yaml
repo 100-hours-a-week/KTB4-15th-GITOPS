@@ -3,6 +3,8 @@ kind: AppProject
 metadata:
   name: lookddak-prod
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   description: LookDDak prod 애플리케이션 배포 범위
   sourceRepos:

@@ -77,6 +77,15 @@ if [[ -f platform/dev/argocd/Chart.yaml ]]; then
     > "$output_dir/argocd-dev.yaml"
 fi
 
+if [[ -f platform/prod/argocd/Chart.yaml ]]; then
+  "$helm_dependency_build" platform/prod/argocd >/dev/null
+  helm template argocd platform/prod/argocd \
+    --namespace argocd \
+    --kube-version 1.36.0 \
+    --include-crds \
+    > "$output_dir/argocd-prod.yaml"
+fi
+
 if [[ -f platform/dev/karpenter/crd/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/karpenter/crd >/dev/null
   helm template karpenter-crd platform/dev/karpenter/crd \

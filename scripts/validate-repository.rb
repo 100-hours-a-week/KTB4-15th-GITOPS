@@ -38,6 +38,18 @@ argocd_files = %w[
   argocd/dev/argocd-application.yaml
 ].freeze
 
+prod_argocd_files = %w[
+  platform/prod/argocd/Chart.yaml
+  platform/prod/argocd/Chart.lock
+  platform/prod/argocd/values.yaml
+  platform/prod/argocd/README.md
+  argocd/projects/lookddak-prod.yaml
+  argocd/projects/lookddak-prod-argocd.yaml
+  argocd/prod/root-application.yaml
+  argocd/prod/bootstrap/argocd-application.yaml
+  argocd/prod/bootstrap/namespaces.yaml
+].freeze
+
 karpenter_files = %w[
   platform/dev/karpenter/README.md
   platform/dev/karpenter/crd/Chart.yaml
@@ -175,7 +187,7 @@ dev_image_automation_files = %w[
   scripts/test-update-dev-image.rb
 ].freeze
 
-[argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, prod_cilium_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files].flatten.each do |file|
+[argocd_files, prod_argocd_files, karpenter_files, metrics_server_files, secrets_store_csi_files, prod_cilium_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -391,6 +403,101 @@ argocd_chart = load_yaml("platform/dev/argocd/Chart.yaml")
 argocd_dependency = argocd_chart.fetch("dependencies").find { |item| item["name"] == "argo-cd" }
 unless argocd_dependency && argocd_dependency["version"] == "10.11.6" && argocd_dependency["repository"] == "https://argoproj.github.io/argo-helm"
   abort "Argo CD 전환에서는 기존 공식 Chart 10.11.6을 유지해야 합니다."
+end
+
+prod_root_file = "argocd/prod/root-application.yaml"
+prod_root = load_yaml(prod_root_file)
+unless prod_root["kind"] == "Application" &&
+       prod_root.dig("metadata", "name") == "lookddak-prod-root" &&
+       prod_root.dig("metadata", "namespace") == "argocd" &&
+       prod_root.dig("spec", "project") == "default"
+  abort "#{prod_root_file}: Prod Root Application 신원이 예상과 다릅니다."
+end
+prod_root_sources = (prod_root.dig("spec", "sources") || []).to_h do |source|
+  abort "#{prod_root_file}: Public GitOps main만 Source로 사용해야 합니다." unless source["repoURL"] == gitops_repository && source["targetRevision"] == "main"
+  [source["path"], source.dig("directory", "include")]
+end
+expected_prod_root_sources = {
+  "argocd/projects" => "lookddak-prod*.yaml",
+  "argocd/prod/bootstrap" => nil
+}
+abort "#{prod_root_file}: Bootstrap Root가 Domain·Workload ApplicationSet을 포함하면 안 됩니다." unless prod_root_sources == expected_prod_root_sources
+unless prod_root.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "argocd" } &&
+       prod_root.dig("spec", "syncPolicy", "automated") == expected_root_automation &&
+       prod_root.dig("spec", "syncPolicy", "syncOptions") == ["PruneLast=true"]
+  abort "#{prod_root_file}: Prod Root의 배포 대상·Auto Sync 안전 정책이 예상과 다릅니다."
+end
+
+prod_project_file = "argocd/projects/lookddak-prod.yaml"
+prod_project = load_yaml(prod_project_file)
+unless prod_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2" &&
+       prod_project.dig("spec", "sourceRepos") == [gitops_repository] &&
+       prod_project.dig("spec", "destinations") == [{ "server" => in_cluster_server, "namespace" => "lookddak-*" }]
+  abort "#{prod_project_file}: Prod 워크로드 Project의 선행 Wave·Repository·Namespace 범위가 예상과 다릅니다."
+end
+
+prod_argocd_project_file = "argocd/projects/lookddak-prod-argocd.yaml"
+prod_argocd_project = load_yaml(prod_argocd_project_file)
+expected_prod_argocd_resources = [
+  { "group" => "apiextensions.k8s.io", "kind" => "CustomResourceDefinition" },
+  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRole" },
+  { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" }
+]
+unless prod_argocd_project["kind"] == "AppProject" &&
+       prod_argocd_project.dig("metadata", "name") == "lookddak-prod-argocd" &&
+       prod_argocd_project.dig("metadata", "namespace") == "argocd" &&
+       prod_argocd_project.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-2" &&
+       prod_argocd_project.dig("spec", "sourceRepos") == [gitops_repository, "https://argoproj.github.io/argo-helm"] &&
+       prod_argocd_project.dig("spec", "destinations") == [{ "server" => in_cluster_server, "namespace" => "argocd" }] &&
+       prod_argocd_project.dig("spec", "clusterResourceWhitelist") == expected_prod_argocd_resources
+  abort "#{prod_argocd_project_file}: Prod Argo CD Project 최소 권한이 예상과 다릅니다."
+end
+
+prod_argocd_app_file = "argocd/prod/bootstrap/argocd-application.yaml"
+prod_argocd_app = load_yaml(prod_argocd_app_file)
+unless prod_argocd_app["kind"] == "Application" &&
+       prod_argocd_app.dig("metadata", "name") == "argocd" &&
+       prod_argocd_app.dig("metadata", "namespace") == "argocd" &&
+       prod_argocd_app.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "1" &&
+       prod_argocd_app.dig("spec", "project") == "lookddak-prod-argocd" &&
+       prod_argocd_app.dig("spec", "source") == { "repoURL" => gitops_repository, "targetRevision" => "main", "path" => "platform/prod/argocd", "helm" => { "releaseName" => "argocd" } } &&
+       prod_argocd_app.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "argocd" } &&
+       prod_argocd_app.dig("spec", "syncPolicy", "automated") == expected_root_automation &&
+       prod_argocd_app.dig("spec", "syncPolicy", "syncOptions") == ["RespectIgnoreDifferences=true", "PruneLast=true"]
+  abort "#{prod_argocd_app_file}: Prod Argo CD 자기관리 설정이 예상과 다릅니다."
+end
+expected_prod_secret_ignore = [{ "group" => "", "kind" => "Secret", "name" => "argocd-secret", "namespace" => "argocd", "jsonPointers" => ["/data"] }]
+abort "#{prod_argocd_app_file}: 런타임 Secret 보호가 필요합니다." unless prod_argocd_app.dig("spec", "ignoreDifferences") == expected_prod_secret_ignore
+abort "#{prod_argocd_app_file}: 연쇄 삭제 Finalizer를 추가하면 안 됩니다." unless (prod_argocd_app.dig("metadata", "finalizers") || []).empty?
+
+prod_argocd_chart = load_yaml("platform/prod/argocd/Chart.yaml")
+prod_argocd_dependency = prod_argocd_chart.fetch("dependencies").find { |item| item["name"] == "argo-cd" }
+unless prod_argocd_dependency && prod_argocd_dependency["version"] == "10.11.6" && prod_argocd_dependency["repository"] == "https://argoproj.github.io/argo-helm"
+  abort "Prod Argo CD는 Dev에서 검증한 공식 Chart 10.11.6을 유지해야 합니다."
+end
+prod_argocd_values = load_yaml("platform/prod/argocd/values.yaml").fetch("argo-cd")
+unless prod_argocd_values.dig("global", "nodeSelector", "lookddak.io/node-pool") == "system" &&
+       (prod_argocd_values.dig("global", "tolerations") || []).include?({ "key" => "CriticalAddonsOnly", "operator" => "Equal", "value" => "true", "effect" => "NoSchedule" }) &&
+       prod_argocd_values.dig("server", "service", "type") == "ClusterIP" &&
+       prod_argocd_values.dig("server", "ingress", "enabled") == false &&
+       prod_argocd_values.dig("notifications", "enabled") == false &&
+       prod_argocd_values.dig("configs", "cm", "admin.enabled") == true
+  abort "platform/prod/argocd/values.yaml: System Node 배치와 비공개 Bootstrap 설정이 필요합니다."
+end
+
+prod_namespace_documents = YAML.load_stream(File.read("argocd/prod/bootstrap/namespaces.yaml")).compact
+expected_prod_namespaces = %w[argocd istio-ingress istio-system lookddak-chat lookddak-commerce lookddak-fitting lookddak-identity lookddak-web]
+actual_prod_namespaces = prod_namespace_documents.map { |item| item.dig("metadata", "name") }.sort
+abort "Prod Bootstrap Namespace 구성이 예상과 다릅니다." unless actual_prod_namespaces == expected_prod_namespaces
+prod_namespace_documents.each do |namespace|
+  unless namespace["kind"] == "Namespace" &&
+         namespace.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "-1" &&
+         namespace.dig("metadata", "annotations", "argocd.argoproj.io/sync-options") == "Prune=false"
+    abort "#{namespace.dig('metadata', 'name')}: Namespace 선행 생성·삭제 보호 설정이 필요합니다."
+  end
+end
+prod_namespace_documents.select { |item| item.dig("metadata", "name")&.start_with?("lookddak-") }.each do |namespace|
+  abort "#{namespace.dig('metadata', 'name')}: 향후 Ambient 등록 Label이 필요합니다." unless namespace.dig("metadata", "labels", "istio.io/dataplane-mode") == "ambient"
 end
 
 platform_project_file = "argocd/projects/lookddak-dev-platform.yaml"
