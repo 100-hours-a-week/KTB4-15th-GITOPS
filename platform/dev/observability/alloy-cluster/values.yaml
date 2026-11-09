@@ -476,74 +476,11 @@ alloy:
             }
           }
 
-          static "mysql" {
-            regions    = ["ap-northeast-2"]
-            namespace  = "AWS/RDS"
-            dimensions = {
-              "DBInstanceIdentifier" = "lookddak-dev-v2-mysql",
-            }
-
-            metric {
-              name       = "CPUUtilization"
-              statistics = ["Average"]
-              period     = "5m"
-            }
-
-            metric {
-              name       = "FreeableMemory"
-              statistics = ["Average"]
-              period     = "5m"
-            }
-
-            metric {
-              name       = "FreeStorageSpace"
-              statistics = ["Average"]
-              period     = "5m"
-            }
-
-            metric {
-              name       = "DatabaseConnections"
-              statistics = ["Average"]
-              period     = "5m"
-            }
-
-            metric {
-              name       = "ReadIOPS"
-              statistics = ["Average"]
-              period     = "5m"
-            }
-
-            metric {
-              name       = "WriteIOPS"
-              statistics = ["Average"]
-              period     = "5m"
-            }
-
-            metric {
-              name       = "ReadLatency"
-              statistics = ["Average"]
-              period     = "5m"
-            }
-
-            metric {
-              name       = "WriteLatency"
-              statistics = ["Average"]
-              period     = "5m"
-            }
-
-            metric {
-              name       = "DiskQueueDepth"
-              statistics = ["Average"]
-              period     = "5m"
-            }
-          }
-
-          static "postgresql" {
-            regions    = ["ap-northeast-2"]
-            namespace  = "AWS/RDS"
-            dimensions = {
-              "DBInstanceIdentifier" = "lookddak-dev-postgresql",
-            }
+          discovery {
+            type                        = "AWS/RDS"
+            regions                     = ["ap-northeast-2"]
+            search_tags                 = { "Environment" = "dev" }
+            dimension_name_requirements = ["DBInstanceIdentifier"]
 
             metric {
               name       = "CPUUtilization"
