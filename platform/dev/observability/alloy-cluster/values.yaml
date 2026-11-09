@@ -366,8 +366,17 @@ alloy:
           redis_addr = "redis-cache-follower-2.redis-cache-follower-headless.lookddak-redis.svc.cluster.local:6379"
         }
 
+        discovery.relabel "redis_targets" {
+          targets = array.concat(prometheus.exporter.redis.leader_0.targets, prometheus.exporter.redis.leader_1.targets, prometheus.exporter.redis.leader_2.targets, prometheus.exporter.redis.follower_0.targets, prometheus.exporter.redis.follower_1.targets, prometheus.exporter.redis.follower_2.targets)
+
+          rule {
+            target_label = "job"
+            replacement  = "redis"
+          }
+        }
+
         prometheus.scrape "redis" {
-          targets         = array.concat(prometheus.exporter.redis.leader_0.targets, prometheus.exporter.redis.leader_1.targets, prometheus.exporter.redis.leader_2.targets, prometheus.exporter.redis.follower_0.targets, prometheus.exporter.redis.follower_1.targets, prometheus.exporter.redis.follower_2.targets)
+          targets         = discovery.relabel.redis_targets.output
           job_name        = "redis"
           scrape_interval = "60s"
           forward_to      = [prometheus.remote_write.default.receiver]
@@ -391,8 +400,26 @@ alloy:
           data_source_names = ["postgresql://exporter:" + string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(string.replace(convert.nonsensitive(local.file.postgres_exporter_password.content), "%", "%25"), " ", "%20"), "!", "%21"), "#", "%23"), "$", "%24"), "&", "%26"), "'", "%27"), "(", "%28"), ")", "%29"), "*", "%2A"), "+", "%2B"), ",", "%2C"), "/", "%2F"), ":", "%3A"), ";", "%3B"), "=", "%3D"), "?", "%3F"), "@", "%40"), "[", "%5B"), "]", "%5D") + "@lookddak-dev-postgresql.cd8ekqeiua7b.ap-northeast-2.rds.amazonaws.com:5432/lookddak?sslmode=verify-full&sslrootcert=/etc/rds-ca/ap-northeast-2-bundle.pem"]
         }
 
+        discovery.relabel "mysql_targets" {
+          targets = prometheus.exporter.mysql.rds.targets
+
+          rule {
+            target_label = "job"
+            replacement  = "mysql"
+          }
+        }
+
+        discovery.relabel "postgres_targets" {
+          targets = prometheus.exporter.postgres.rds.targets
+
+          rule {
+            target_label = "job"
+            replacement  = "postgres"
+          }
+        }
+
         prometheus.scrape "rds" {
-          targets         = array.concat(prometheus.exporter.mysql.rds.targets, prometheus.exporter.postgres.rds.targets)
+          targets         = array.concat(discovery.relabel.mysql_targets.output, discovery.relabel.postgres_targets.output)
           job_name        = "rds"
           scrape_interval = "60s"
           forward_to      = [prometheus.remote_write.default.receiver]
@@ -526,8 +553,17 @@ alloy:
           }
         }
 
+        discovery.relabel "cloudwatch_targets" {
+          targets = prometheus.exporter.cloudwatch.rds.targets
+
+          rule {
+            target_label = "job"
+            replacement  = "cloudwatch"
+          }
+        }
+
         prometheus.scrape "cloudwatch" {
-          targets         = prometheus.exporter.cloudwatch.rds.targets
+          targets         = discovery.relabel.cloudwatch_targets.output
           job_name        = "cloudwatch"
           scrape_interval = "5m"
           scrape_timeout  = "60s"

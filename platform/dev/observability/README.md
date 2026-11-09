@@ -12,6 +12,7 @@ V3 dev 클러스터 안 모니터링 구성(Prometheus·Loki·Tempo, 수집기 A
 | Loki | `loki` 7.5.0 (SingleBinary) | S3 `lookddak-dev-v3-loki-*`, gp3 10Gi | 보존 7일, IRSA `lookddak-dev-v3-loki` |
 | Alloy Node | `alloy` 1.15.0 (DaemonSet, 모든 노드, hostNetwork, 메시 밖) | — | 자기 노드 Pod 로그(CRI·multiline)·kubelet/containerd journal → Loki, 노드(unix)·kubelet·cAdvisor·KSM·Cilium agent·operator·Hubble → Prometheus |
 | Alloy Cluster | `alloy` 1.15.0 (Deployment 1, Monitoring Node, **Pod 단위 Ambient 등록**) | — | 앱(8080 `/actuator/prometheus`, 8000 `/metrics`)·istiod·ztunnel·Gateway·waypoint·플랫폼(kube-system·argocd `metrics` 포트)·kube-apiserver·Redis 6노드(`prometheus.exporter.redis`)·RDS MySQL/PostgreSQL(내장 exporter, 비밀번호는 Secrets Store CSI)·RDS CloudWatch(9개 지표) → Prometheus, Events → Loki, OTLP 4317·4318 → 20% 샘플링 → Tempo |
+| Grafana | `grafana` 14.4.0 (grafana-community) | gp3 5Gi | 데이터소스 Prometheus·Loki·Tempo(uid 고정, 로그↔트레이스 연결), `LookDDak` 폴더 대시보드 5개(`files/dashboards`, 생성 스크립트 `work/k8s-setting/55-grafana/generate-dashboards.py`). 관리자 계정·로그인 폼 없음, 임시로 익명 Viewer + port-forward (Gateway 인증 후 `auth.proxy`) |
 | db-log-tailer | 평문 매니페스트, ECR `lookddak-dev-v3-db-log-tailer` digest 고정 (Deployment 1, Ambient 등록, Monitoring Node) | gp3 1Gi (읽은 위치) | RDS API(`DescribeDBLogFiles`·`DownloadDBLogFilePortion`, IRSA)로 dev MySQL 감사·error·slowquery, PostgreSQL 로그 → Alloy Cluster `:3500` → Loki. 소스: CLOUD `scripts/monitoring/db-log-tailer` |
 | kube-state-metrics | `kube-state-metrics` 9.0.0 | — | 노드 라벨(NodePool·인스턴스 타입·Zone) 포함. Monitoring Node의 Alloy Node가 수집 |
 | Tempo | `tempo` 3.2.1 (grafana-community) | S3 `lookddak-dev-v3-tempo-*`, gp3 10Gi | 보존 7일, OTLP 수신, service-graphs → Prometheus, IRSA `lookddak-dev-v3-tempo` |
@@ -49,3 +50,18 @@ V3 dev 클러스터 안 모니터링 구성(Prometheus·Loki·Tempo, 수집기 A
 | RDS CloudWatch | `prometheus.exporter.cloudwatch` (5분) | IRSA `lookddak-dev-v3-alloy-cluster` (`cloudwatch:GetMetricData`·`ListMetrics`, 위 SSM 2개 읽기) |
 - 비밀번호는 `SecretProviderClass alloy-cluster-db-exporters` → `/etc/db-exporters` 파일 (K8s Secret 미생성)
 - RDS CA: `files/ap-northeast-2-bundle.pem` → ConfigMap `alloy-cluster-rds-ca` → `/etc/rds-ca`
+
+## 접속 (임시)
+
+```bash
+kubectl -n monitoring port-forward svc/grafana 3000:80
+```
+- `http://localhost:3000` (익명 Viewer). 외부 공개·로그인은 Gateway 인증(oauth2-proxy) 단계에서 추가
+- 대시보드 수정은 JSON(또는 생성 스크립트) PR로만 한다 (`allowUiUpdates: false`)
+
+## job 이름
+
+| job | 수집기 |
+|---|---|
+| `node`, `kubelet`, `cadvisor`, `kube-state-metrics`, `cilium-agent`, `hubble`, `cilium-operator` | Alloy Node |
+| `app`, `istiod`, `mesh-proxy`, `platform`, `apiserver`, `redis`, `mysql`, `postgres`, `cloudwatch`, `db-log-tailer` | Alloy Cluster |

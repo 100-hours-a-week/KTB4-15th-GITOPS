@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require "yaml"
+require "json"
 
 def load_yaml(file)
   YAML.safe_load(File.read(file), aliases: true)
@@ -211,7 +212,7 @@ internal_api_files = %w[
   argocd/dev/internal-api-application.yaml
 ].freeze
 
-monitoring_charts = %w[prometheus loki tempo alloy-node kube-state-metrics alloy-cluster].freeze
+monitoring_charts = %w[prometheus loki tempo alloy-node kube-state-metrics alloy-cluster grafana].freeze
 monitoring_files = (
   monitoring_charts.flat_map { |chart| %W[platform/dev/observability/#{chart}/Chart.yaml platform/dev/observability/#{chart}/Chart.lock platform/dev/observability/#{chart}/values.yaml argocd/dev/#{chart}-application.yaml] } +
   %w[
@@ -1374,7 +1375,7 @@ check_redis_schema = lambda do |schema, value, path|
 end
 check_redis_schema.call(redis_cluster_schema, redis_cluster.fetch("spec"), "spec")
 abort "platform/dev/redis/cluster/redis-cluster.yaml: RedisCluster CRD 스키마와 맞지 않습니다: #{redis_schema_errors}" unless redis_schema_errors.empty?
-redis_external_routes = Dir["{platform,environments}/**/*.yaml"].select do |file|
+redis_external_routes = Dir["{platform,environments}/**/*.yaml"].reject { |file| file.match?(%r{/templates/}) }.select do |file|
   YAML.load_stream(File.read(file)).compact.any? { |doc| doc.is_a?(Hash) && %w[HTTPRoute GRPCRoute TCPRoute TLSRoute].include?(doc["kind"]) && doc.dig("metadata", "namespace") == "lookddak-redis" }
 end
 abort "lookddak-redis에는 Route를 만들지 않습니다(외부 노출 금지): #{redis_external_routes}" unless redis_external_routes.empty?
@@ -1939,5 +1940,36 @@ end
   abort "platform/dev/observability/alloy-cluster/values.yaml: #{placeholder}를 RDS 엔드포인트로 바꿔야 합니다." if alloy_cluster_config.include?(placeholder)
 end
 
+
+
+grafana_dependency = (load_yaml("platform/dev/observability/grafana/Chart.yaml")["dependencies"] || []).find { |item| item["name"] == "grafana" }
+unless grafana_dependency && grafana_dependency["version"] == "14.4.0" && grafana_dependency["repository"] == "https://grafana-community.github.io/helm-charts"
+  abort "platform/dev/observability/grafana/Chart.yaml: grafana-community grafana 14.4.0 의존성을 고정해야 합니다."
+end
+grafana_application = load_yaml("argocd/dev/grafana-application.yaml")
+unless grafana_application.dig("spec", "project") == "lookddak-dev-platform" &&
+       grafana_application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "3" &&
+       grafana_application.dig("spec", "source") == { "repoURL" => gitops_repository, "targetRevision" => "main", "path" => "platform/dev/observability/grafana", "helm" => { "releaseName" => "grafana" } } &&
+       grafana_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "monitoring" }
+  abort "argocd/dev/grafana-application.yaml: Grafana Application 설정이 예상과 다릅니다."
+end
+grafana_values = load_yaml("platform/dev/observability/grafana/values.yaml").fetch("grafana")
+grafana_datasource_uids = grafana_values.dig("datasources", "datasources.yaml", "datasources").to_a.map { |item| item["uid"] }.sort
+unless grafana_values.dig("env", "GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION") == "true" &&
+       grafana_values.dig("grafana.ini", "auth", "disable_login_form") == true &&
+       grafana_values.dig("persistence", "storageClassName") == "gp3" &&
+       grafana_values["nodeSelector"] == monitoring_node_selector && grafana_values["tolerations"] == monitoring_toleration &&
+       grafana_datasource_uids == %w[loki prometheus tempo] &&
+       grafana_values.dig("dashboardsConfigMaps", "lookddak") == "grafana-dashboards-lookddak"
+  abort "platform/dev/observability/grafana/values.yaml: Grafana는 관리자 계정·로그인 폼 미생성(Secret 없음), gp3, Monitoring Node, 데이터소스 3개, LookDDak 대시보드 ConfigMap이 필요합니다."
+end
+grafana_dashboards = Dir["platform/dev/observability/grafana/files/dashboards/*.json"].sort
+abort "platform/dev/observability/grafana/files/dashboards: 대시보드 JSON이 없습니다." if grafana_dashboards.empty?
+grafana_dashboards.each do |file|
+  dashboard = JSON.parse(File.read(file))
+  abort "#{file}: 대시보드 uid는 파일 이름과 같아야 합니다." unless dashboard["uid"] == File.basename(file, ".json")
+  datasource_uids = dashboard.fetch("panels").flat_map { |panel| [panel.dig("datasource", "uid")] + panel.fetch("targets", []).map { |target| target.dig("datasource", "uid") } }.compact.uniq
+  abort "#{file}: 데이터소스는 provisioning uid(prometheus·loki·tempo)만 참조해야 합니다. 실제=#{datasource_uids}" unless (datasource_uids - %w[prometheus loki tempo]).empty?
+end
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"
