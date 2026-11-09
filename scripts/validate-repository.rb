@@ -1936,6 +1936,9 @@ end
 unless alloy_cluster_config.include?('data_source_names = ["postgresql://exporter:"') && alloy_cluster_config.include?('string.replace(convert.nonsensitive(local.file.postgres_exporter_password.content), "%", "%25")')
   abort "platform/dev/observability/alloy-cluster/values.yaml: prometheus.exporter.postgres는 postgresql:// URL 형식과 비밀번호 URL 인코딩(% 먼저)이 필요합니다."
 end
+unless alloy_cluster_config.include?('type                        = "AWS/SQS"') && alloy_cluster_config.include?('search_tags                 = { "Environment" = "dev" }') && alloy_cluster_config.include?("decoupled_scraping {")
+  abort "platform/dev/observability/alloy-cluster/values.yaml: CloudWatch는 dev 태그 SQS(V2·V3) discovery와 decoupled_scraping(5분 조회)이 필요합니다."
+end
 %w[__MYSQL_HOST__ __POSTGRES_HOST__].each do |placeholder|
   abort "platform/dev/observability/alloy-cluster/values.yaml: #{placeholder}를 RDS 엔드포인트로 바꿔야 합니다." if alloy_cluster_config.include?(placeholder)
 end
