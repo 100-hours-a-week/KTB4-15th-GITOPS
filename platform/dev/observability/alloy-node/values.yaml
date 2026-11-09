@@ -185,6 +185,11 @@ alloy:
           forward_to = [prometheus.remote_write.default.receiver]
 
           rule {
+            target_label = "job"
+            replacement  = "node"
+          }
+
+          rule {
             target_label = "instance"
             replacement  = sys.env("NODE_NAME")
           }
@@ -255,7 +260,7 @@ alloy:
 
           rule {
             source_labels = ["__name__"]
-            regex         = "container_cpu_usage_seconds_total|container_memory_working_set_bytes|container_memory_rss|container_cpu_cfs_throttled_periods_total|container_cpu_cfs_periods_total|container_network_receive_bytes_total|container_network_transmit_bytes_total|container_oom_events_total|container_fs_reads_bytes_total|container_fs_writes_bytes_total|machine_cpu_cores|machine_memory_bytes"
+            regex         = "up|container_cpu_usage_seconds_total|container_memory_working_set_bytes|container_memory_rss|container_cpu_cfs_throttled_periods_total|container_cpu_cfs_periods_total|container_network_receive_bytes_total|container_network_transmit_bytes_total|container_oom_events_total|container_fs_reads_bytes_total|container_fs_writes_bytes_total|machine_cpu_cores|machine_memory_bytes"
             action        = "keep"
           }
           rule {
