@@ -11,10 +11,9 @@ EKS prod에 설치된 Argo CD가 GitOps 저장소의 prod 목표 상태를 읽�
 - 두 ApplicationSet은 Git 변경을 자동 동기화하고 `Self Heal`, `Prune`, `allowEmpty: false`, `PruneLast=true` 정책을 사용한다.
 - 배포 대상은 각 도메인의 `lookddak-*` Namespace이며, Argo CD가 실행되는 클러스터 내부 주소를 사용한다.
 
-## 적용 전에 결정하거나 준비할 항목
+## Bootstrap 완료 후 단계적으로 준비할 항목
 
-- Argo CD 설치 방법, 버전과 설치 Namespace
-- Private GitHub 저장소를 읽기 위한 Repository Credential 전달 방식
+- 외부 Gateway·DNS를 통한 Argo CD 접근과 GitHub Webhook
 - 운영 Namespace 생성 주체
 - dev에서 검증하여 승격할 ECR Image Digest
 - 워크로드별 Port, Resource, Probe, HPA, PDB, IRSA와 Secret Mount 값
@@ -23,13 +22,11 @@ EKS prod에 설치된 Argo CD가 GitOps 저장소의 prod 목표 상태를 읽�
 - Argo CD Notifications의 수신 채널과 알림 조건
 - 운영 배포 실패 판단과 Git Revert를 실행할 주체 및 절차
 
-위 항목이 준비되고 dev에서 동일 구성이 검증되기 전에는 이 디렉터리의 AppProject와 ApplicationSet을 prod 클러스터에 적용하지 않는다.
+현재 Root Application은 `argocd/prod/bootstrap`만 포함하며 이 디렉터리의 Domain·Workload ApplicationSet은 아직 적용하지 않는다.
 
 ## 최초 등록 순서
 
-1. Argo CD와 ApplicationSet Controller가 정상 동작하는지 확인한다.
-2. Private GitOps 저장소 Credential을 등록한다.
-3. `lookddak-prod` AppProject를 등록한다.
-4. 대상 Namespace와 승인된 prod values가 준비되었는지 확인한다.
-5. prod의 Domain ApplicationSet과 Workload ApplicationSet을 등록한다.
-6. 생성된 Application의 Sync 및 Health 상태를 확인한다.
+1. `platform/prod/argocd` Wrapper Chart로 Argo CD를 최초 설치한다.
+2. `root-application.yaml`을 적용해 Project·Namespace·자기관리 Application을 등록한다.
+3. Root와 `argocd` Application의 Sync 및 Health 상태를 확인한다.
+4. 플랫폼 Controller 검증 후 별도 PR에서 Domain·Workload ApplicationSet을 Root에 연결한다.
