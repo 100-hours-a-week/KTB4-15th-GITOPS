@@ -1,5 +1,5 @@
 # Istio Gateway가 TLS를 종료할 인증서
-# - CloudFront가 사용자 Host(dev·argocd·grafana.dev.lookddak.com)를 전달하고, 이 이름으로 origin 인증서를 검증한다
+# - CloudFront가 사용자 Host(dev·v3-dev·argocd.dev·grafana.v3-dev.lookddak.com)를 전달하고, 이 이름으로 origin 인증서를 검증한다
 # - letsencrypt-staging으로 DNS-01 발급(SAN 3개)을 확인(2026-11-05)한 뒤 letsencrypt-prod로 전환했다
 #   (staging 인증서는 신뢰되지 않는 CA라 CloudFront 검증을 통과하지 못한다)
 apiVersion: cert-manager.io/v1
@@ -13,7 +13,7 @@ spec:
     - dev.lookddak.com
     - v3-dev.lookddak.com
     - argocd.dev.lookddak.com
-    - grafana.dev.lookddak.com
+    - grafana.v3-dev.lookddak.com
   issuerRef:
     group: cert-manager.io
     kind: ClusterIssuer

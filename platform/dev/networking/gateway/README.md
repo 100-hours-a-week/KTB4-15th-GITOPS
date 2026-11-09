@@ -17,7 +17,7 @@ dev의 공용 Istio Gateway(Gateway API)를 GitOps로 관리한다. 각 도메�
 |---|---|
 | GatewayClass | `istio` (istiod가 제공) |
 | Gateway | `istio-ingress/lookddak-gateway` |
-| Listener | 443 HTTPS, `tls.mode: Terminate`, 인증서 1개 공유<br>`https`: `dev.lookddak.com` → `lookddak.com/domain` 라벨 Namespace (V2 전환 후 사용)<br>`https-v3-dev`: `v3-dev.lookddak.com` → `lookddak.com/domain` 라벨 Namespace (V3 검증, CloudFront 연결됨)<br>`https-argocd`: `argocd.dev.lookddak.com` → `argocd` Namespace<br>`https-grafana`: `grafana.dev.lookddak.com` → `monitoring` Namespace |
+| Listener | 443 HTTPS, `tls.mode: Terminate`, 인증서 1개 공유<br>`https`: `dev.lookddak.com` → `lookddak.com/domain` 라벨 Namespace (V2 전환 후 사용)<br>`https-v3-dev`: `v3-dev.lookddak.com` → `lookddak.com/domain` 라벨 Namespace (V3 검증, CloudFront 연결됨)<br>`https-argocd`: `argocd.dev.lookddak.com` → `argocd` Namespace<br>`https-grafana`: `grafana.v3-dev.lookddak.com` → `monitoring` Namespace (oauth2-proxy ext_authz) |
 | 인증서 | Certificate `dev-lookddak-com` → Secret `dev-lookddak-com-tls`, SAN 4개(dev·v3-dev·argocd·grafana), cert-manager Route53 DNS-01, ECDSA P-256 |
 | NLB | `internal`, target-type `ip`, TCP 443 Listener만 (status-port 15021 제거), cross-zone 활성 |
 | NLB 보안그룹 | `sg-0a82732290785f373` (CLOUD `dev/v3/edge`): CloudFront origin-facing Prefix List에서 443만. Pod 쪽 규칙은 LB Controller 관리 |
@@ -65,3 +65,9 @@ dev의 공용 Istio Gateway(Gateway API)를 GitOps로 관리한다. 각 도메�
 
 - `telemetry.yaml`: 공용 Gateway(`lookddak-gateway`) Envoy 액세스 로그 전부 → stdout → Alloy Node → Loki (`namespace="istio-ingress"`)
 - 형식은 Istio 기본(텍스트). JSON은 istiod `meshConfig.accessLogEncoding` 변경 필요
+
+### Grafana 인증 (ext_authz)
+
+- `grafana-ext-authz.yaml`: `CUSTOM` AuthorizationPolicy. `grafana.v3-dev.lookddak.com` 요청은 `/oauth2/*`를 빼고 istiod `extensionProviders`의 `oauth2-proxy-grafana`(monitoring/oauth2-proxy:4180)가 먼저 확인한다
+- 미인증 → Cognito Hosted UI로 302, 인증 → `X-Auth-Request-Email` 헤더를 붙여 Grafana(`auth.proxy`)로 전달
+- 다른 도구도 hosts에 추가해 같은 인증을 쓸 수 있다
