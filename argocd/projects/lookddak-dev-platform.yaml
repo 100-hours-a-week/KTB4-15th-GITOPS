@@ -10,6 +10,17 @@ spec:
   description: LookDDak dev 클러스터 플랫폼 구성요소 배포 범위
   sourceRepos:
     - https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+    - https://aws.github.io/eks-charts
+    - https://aws.github.io/secrets-store-csi-driver-provider-aws
+    - https://blob.istio.io/istio-release/charts
+    - https://charts.jetstack.io
+    - https://grafana-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
+    - https://kubernetes-sigs.github.io/metrics-server/
+    - https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+    - https://ot-container-kit.github.io/helm-charts
+    - https://prometheus-community.github.io/helm-charts
+    - oci://public.ecr.aws/karpenter
   destinations:
     - server: https://kubernetes.default.svc
       namespace: kube-system

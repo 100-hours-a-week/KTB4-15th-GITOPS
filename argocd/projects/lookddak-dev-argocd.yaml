@@ -10,6 +10,7 @@ spec:
   description: 기존 Argo CD 설치를 GitOps로 관리하는 전용 Project
   sourceRepos:
     - https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+    - https://argoproj.github.io/argo-helm
   destinations:
     - server: https://kubernetes.default.svc
       namespace: argocd

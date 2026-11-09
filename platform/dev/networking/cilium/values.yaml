@@ -43,8 +43,13 @@ socketLB:
 bpf:
   hostLegacyRouting: true
 
+prometheus:
+  enabled: true
+
 operator:
   replicas: 2
+  prometheus:
+    enabled: true
   # System Node에만 배치 (Application Node가 비면 Karpenter가 회수할 수 있게)
   nodeSelector:
     kubernetes.io/os: linux
@@ -73,6 +78,13 @@ envoy:
 # Hubble: 흐름 수집만 켠다. Relay/UI는 관측 단계에서 켠다
 hubble:
   enabled: true
+  metrics:
+    enabled:
+      - dns:query;ignoreAAAA
+      - drop:sourceContext=namespace;destinationContext=namespace
+      - tcp
+      - flow:sourceContext=namespace;destinationContext=namespace
+      - policy:sourceContext=namespace;destinationContext=namespace
   # Relay: 노드별 Hubble 흐름을 모아 CLI·UI에 제공 (agent ↔ relay mTLS 인증서는 helm이 생성)
   relay:
     enabled: true
