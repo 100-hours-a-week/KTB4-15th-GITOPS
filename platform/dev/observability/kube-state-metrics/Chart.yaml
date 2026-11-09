@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-kube-state-metrics
+description: LookDDak EKS dev kube-state-metrics 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: kube-state-metrics
+    version: 9.0.0
+    repository: https://prometheus-community.github.io/helm-charts
