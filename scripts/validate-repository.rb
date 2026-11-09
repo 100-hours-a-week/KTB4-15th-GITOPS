@@ -143,7 +143,7 @@ internal_api_files = %w[
   argocd/dev/internal-api-application.yaml
 ].freeze
 
-monitoring_charts = %w[prometheus loki tempo].freeze
+monitoring_charts = %w[prometheus loki tempo alloy-node kube-state-metrics].freeze
 monitoring_files = (
   monitoring_charts.flat_map { |chart| %W[platform/dev/observability/#{chart}/Chart.yaml platform/dev/observability/#{chart}/Chart.lock platform/dev/observability/#{chart}/values.yaml argocd/dev/#{chart}-application.yaml] } +
   %w[
@@ -1312,6 +1312,10 @@ monitoring_dependencies = {
   "loki" => ["7.5.0", "https://grafana.github.io/helm-charts"],
   "tempo" => ["3.2.1", "https://grafana-community.github.io/helm-charts"]
 }.freeze
+monitoring_collector_dependencies = {
+  "alloy-node" => ["alloy", "1.15.0", "https://grafana.github.io/helm-charts"],
+  "kube-state-metrics" => ["kube-state-metrics", "9.0.0", "https://prometheus-community.github.io/helm-charts"]
+}.freeze
 monitoring_toleration = [{ "key" => "dedicated", "operator" => "Equal", "value" => "monitoring", "effect" => "NoSchedule" }].freeze
 monitoring_node_selector = { "lookddak.io/node-pool" => "monitoring" }.freeze
 monitoring_dependencies.each do |chart, (version, repository)|
@@ -1368,6 +1372,40 @@ unless tempo_values.dig("serviceAccount", "name") == "tempo" &&
        tempo_values.dig("persistence", "storageClassName") == "gp3" &&
        tempo_values["nodeSelector"] == monitoring_node_selector && tempo_values["tolerations"] == monitoring_toleration
   abort "platform/dev/observability/tempo/values.yaml: Tempo는 IRSA·S3 버킷, 보존 7일, gp3, 모니터링 노드 배치가 필요합니다."
+end
+
+
+monitoring_collector_dependencies.each do |chart, (dependency_name, version, repository)|
+  chart_file = "platform/dev/observability/#{chart}/Chart.yaml"
+  dependency = (load_yaml(chart_file)["dependencies"] || []).find { |item| item["name"] == dependency_name }
+  abort "#{chart_file}: #{dependency_name} #{version} 의존성을 고정해야 합니다." unless dependency && dependency["version"] == version && dependency["repository"] == repository
+
+  file = "argocd/dev/#{chart}-application.yaml"
+  application = load_yaml(file)
+  unless application.dig("metadata", "name") == "lookddak-dev-#{chart}" &&
+         application.dig("spec", "project") == "lookddak-dev-platform" &&
+         application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == "2" &&
+         application.dig("spec", "source") == { "repoURL" => gitops_repository, "targetRevision" => "main", "path" => "platform/dev/observability/#{chart}", "helm" => { "releaseName" => chart } } &&
+         application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "monitoring" }
+    abort "#{file}: #{chart} Application 설정이 예상과 다릅니다."
+  end
+end
+
+alloy_node_values = load_yaml("platform/dev/observability/alloy-node/values.yaml").fetch("alloy")
+alloy_node_config = alloy_node_values.dig("alloy", "configMap", "content").to_s
+unless alloy_node_values.dig("controller", "type") == "daemonset" &&
+       alloy_node_values.dig("controller", "tolerations") == [{ "operator" => "Exists" }] &&
+       !(alloy_node_values.dig("controller", "podLabels") || {}).key?("istio.io/dataplane-mode") &&
+       alloy_node_values.dig("crds", "create") == false &&
+       alloy_node_config.include?('field = "spec.nodeName=" + sys.env("NODE_NAME")') &&
+       alloy_node_config.include?("http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push") &&
+       alloy_node_config.include?("http://prometheus-server.monitoring.svc.cluster.local/api/v1/write")
+  abort "platform/dev/observability/alloy-node/values.yaml: Alloy Node는 메시 밖 DaemonSet(전체 Toleration), 자기 노드 Pod만 수집, Loki·Prometheus 클러스터 주소 전송이 필요합니다."
+end
+
+ksm_values = load_yaml("platform/dev/observability/kube-state-metrics/values.yaml").fetch("kube-state-metrics")
+unless ksm_values["nodeSelector"] == monitoring_node_selector && ksm_values["tolerations"] == monitoring_toleration
+  abort "platform/dev/observability/kube-state-metrics/values.yaml: kube-state-metrics는 Monitoring Node에 배치해야 합니다."
 end
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"

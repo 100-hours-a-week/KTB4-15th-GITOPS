@@ -109,7 +109,7 @@ jobs:
       - name: 모니터링 Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: |
-          for chart in prometheus loki tempo; do
+          for chart in prometheus loki tempo alloy-node kube-state-metrics; do
             helm dependency build "platform/dev/observability/$chart"
           done
 
@@ -141,7 +141,7 @@ jobs:
           done
           helm lint platform/dev/cert-manager/controller --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/redis/operator --namespace lookddak-redis --kube-version 1.36.0
-          for chart in prometheus loki tempo; do
+          for chart in prometheus loki tempo alloy-node kube-state-metrics; do
             helm lint "platform/dev/observability/$chart" --namespace monitoring --kube-version 1.36.0
           done
 
