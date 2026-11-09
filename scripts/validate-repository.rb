@@ -43,6 +43,7 @@ prod_argocd_files = %w[
   platform/prod/argocd/Chart.lock
   platform/prod/argocd/values.yaml
   platform/prod/argocd/README.md
+  platform/prod/argocd/templates/httproute.yaml
   argocd/projects/lookddak-prod.yaml
   argocd/projects/lookddak-prod-argocd.yaml
   argocd/prod/root-application.yaml
@@ -534,6 +535,26 @@ unless prod_argocd_values.dig("global", "nodeSelector", "lookddak.io/node-pool")
        prod_argocd_values.dig("notifications", "enabled") == false &&
        prod_argocd_values.dig("configs", "cm", "admin.enabled") == true
   abort "platform/prod/argocd/values.yaml: System Node 배치와 비공개 Bootstrap 설정이 필요합니다."
+end
+
+prod_argocd_route_file = "platform/prod/argocd/templates/httproute.yaml"
+prod_argocd_route = load_yaml(prod_argocd_route_file)
+expected_prod_argocd_parent = [{
+  "group" => "gateway.networking.k8s.io",
+  "kind" => "Gateway",
+  "name" => "lookddak-gateway",
+  "namespace" => "istio-ingress",
+  "sectionName" => "https-argocd"
+}]
+expected_prod_argocd_rules = [{ "backendRefs" => [{ "name" => "argocd-server", "port" => 80 }] }]
+unless prod_argocd_route["apiVersion"] == "gateway.networking.k8s.io/v1" &&
+       prod_argocd_route["kind"] == "HTTPRoute" &&
+       prod_argocd_route.dig("metadata", "name") == "argocd-server" &&
+       prod_argocd_route.dig("metadata", "namespace") == "argocd" &&
+       prod_argocd_route.dig("spec", "parentRefs") == expected_prod_argocd_parent &&
+       prod_argocd_route.dig("spec", "hostnames") == ["argocd.lookddak.com"] &&
+       prod_argocd_route.dig("spec", "rules") == expected_prod_argocd_rules
+  abort "#{prod_argocd_route_file}: Prod Argo CD Gateway·Hostname·Backend 계약이 예상과 다릅니다."
 end
 
 prod_namespace_documents = YAML.load_stream(File.read("argocd/prod/bootstrap/namespaces.yaml")).compact
