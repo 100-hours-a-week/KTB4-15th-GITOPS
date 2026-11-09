@@ -16,7 +16,10 @@ spec:
       service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: /healthz/ready
       service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: deregistration_delay.timeout_seconds=300
       service.beta.kubernetes.io/aws-load-balancer-attributes: load_balancing.cross_zone.enabled=true
-      service.beta.kubernetes.io/load-balancer-source-ranges: 10.20.0.0/16
+      # CloudFront(origin-facing)에서 오는 443만 허용하는 SG (KTB4-15th-CLOUD prod/v3/edge)
+      service.beta.kubernetes.io/aws-load-balancer-security-groups: sg-0993a57cec9f3b5f5
+      # Pod 쪽 SG의 NLB → Pod·Health Check 규칙은 AWS LB Controller가 관리한다
+      service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules: "true"
     parametersRef:
       group: ""
       kind: ConfigMap

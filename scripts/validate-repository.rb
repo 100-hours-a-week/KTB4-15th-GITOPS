@@ -736,9 +736,11 @@ gateway_hostnames = (prod_gateway.dig("spec", "listeners") || []).map { |listene
 unless prod_gateway.dig("spec", "gatewayClassName") == "istio" &&
        gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-scheme"] == "internal" &&
        gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"] == "ip" &&
-       gateway_annotations["service.beta.kubernetes.io/load-balancer-source-ranges"] == "10.20.0.0/16" &&
+       gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-security-groups"] == "sg-0993a57cec9f3b5f5" &&
+       gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules"] == "true" &&
+       !gateway_annotations.key?("service.beta.kubernetes.io/load-balancer-source-ranges") &&
        gateway_hostnames == %w[lookddak.com www.lookddak.com argocd.lookddak.com]
-  abort "Prod Gateway는 내부 NLB·Pod IP·VPC 제한·승인된 Hostname을 유지해야 합니다."
+  abort "Prod Gateway는 내부 NLB·Pod IP·CloudFront 전용 SG·승인된 Hostname을 유지해야 합니다."
 end
 gateway_options = load_yaml("platform/prod/networking/gateway/gateway-options.yaml").dig("data", "deployment").to_s
 unless gateway_options.include?("replicas: 2") &&
