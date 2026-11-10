@@ -10,6 +10,8 @@ container:
   env:
     - name: SPRING_PROFILES_ACTIVE
       value: prod
+    - name: TZ
+      value: Asia/Seoul
     - name: AWS_REGION
       value: ap-northeast-2
     - name: AWS_S3_BUCKET

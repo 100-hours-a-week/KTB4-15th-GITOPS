@@ -10,6 +10,7 @@ container:
   env:
     # Redis Cluster가 구축되기 전에는 기존 로컬 SSE·DB fallback 경로를 사용한다.
     - {name: SPRING_PROFILES_ACTIVE, value: prod}
+    - {name: TZ, value: Asia/Seoul}
     - {name: AWS_REGION, value: ap-northeast-2}
     - {name: AWS_S3_BUCKET, value: lookddak-prod-images-686496667254-ap-northeast-2}
     - {name: AI_SERVER_URL, value: "http://chat-ai:80"}

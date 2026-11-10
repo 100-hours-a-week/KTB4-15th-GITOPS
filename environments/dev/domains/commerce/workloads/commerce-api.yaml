@@ -13,6 +13,8 @@ container:
   env:
     - name: SPRING_PROFILES_ACTIVE
       value: prod
+    - name: TZ
+      value: Asia/Seoul
     - name: AWS_REGION
       value: ap-northeast-2
     # 공용 Spring 이미지의 S3 설정 검증을 통과시키되 Commerce에는 S3 IAM 권한을 주지 않는다.

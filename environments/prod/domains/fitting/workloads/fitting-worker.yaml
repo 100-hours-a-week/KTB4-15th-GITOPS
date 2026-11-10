@@ -9,6 +9,7 @@ container:
   port: 8080
   env:
     - {name: SPRING_PROFILES_ACTIVE, value: prod}
+    - {name: TZ, value: Asia/Seoul}
     - {name: AWS_REGION, value: ap-northeast-2}
     - {name: AWS_S3_BUCKET, value: lookddak-prod-images-686496667254-ap-northeast-2}
     - {name: AI_SERVER_URL, value: "http://vton-orchestrator:80"}

@@ -13,6 +13,8 @@ container:
   env:
     - name: SPRING_PROFILES_ACTIVE
       value: prod
+    - name: TZ
+      value: Asia/Seoul
     - name: AWS_REGION
       value: ap-northeast-2
     # 공용 Spring 이미지의 필수 설정만 채우며 Worker Role에는 S3 권한을 주지 않는다.
