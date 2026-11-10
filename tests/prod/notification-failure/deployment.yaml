@@ -18,7 +18,7 @@ spec:
         app.kubernetes.io/name: notification-test
     spec:
       nodeSelector:
-        lookddak.io/node-pool: application
+        lookddak.io/node-pool: general-purpose
       containers:
         - name: notification-test
           # 존재하지 않는 digest를 의도적으로 사용한다. replicas가 0일 때는 Pull하지 않는다.
