@@ -103,6 +103,33 @@ secrets:
     environment: []
     command: []
 
+tracing:
+  enabled: false
+  runtime: ""
+  serviceName: ""
+  sampler: always_on
+  resourceAttributes: ""
+  endpoints:
+    grpc: http://alloy-cluster.monitoring.svc.cluster.local:4317
+    http: http://alloy-cluster.monitoring.svc.cluster.local:4318
+  agents:
+    java:
+      image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.32.0@sha256:a36b256a59f03d5a4fbc080ca604ec9e971464e66ab53157f7067cf4a8e3d5f8
+      command: ["cp", "/javaagent.jar", "/otel/javaagent.jar"]
+    nodejs:
+      image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.81.2@sha256:2f4215e0fa96ba348002f0025d87b4f4d52b1be424c54efc490c7c205f69c4d0
+      command: ["cp", "-r", "/autoinstrumentation/.", "/otel/"]
+    python:
+      image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.66b1-3@sha256:c92261b2dbbb0316e0a42a62721c0064ddf47f4090c7744450a9cc87a20ac762
+      command: ["cp", "-r", "/autoinstrumentation/.", "/otel/"]
+  initResources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  env: []
+
 routing:
   enabled: false
   parentRefs: []

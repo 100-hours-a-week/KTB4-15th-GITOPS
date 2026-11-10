@@ -1,4 +1,5 @@
 {{- if eq .Values.workload.type "deployment" }}
+{{- include "lookddak-workload.validateTracing" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,6 +43,21 @@ spec:
         {{- end }}
       {{- end }}
       serviceAccountName: {{ include "lookddak-workload.serviceAccountName" . }}
+      {{- if .Values.tracing.enabled }}
+      {{- $agent := index .Values.tracing.agents .Values.tracing.runtime }}
+      initContainers:
+        - name: otel-init
+          image: {{ required "tracing agent image is required" $agent.image | quote }}
+          command:
+            {{- toYaml $agent.command | nindent 12 }}
+          {{- with .Values.tracing.initResources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: otel-agent
+              mountPath: /otel
+      {{- end }}
       containers:
         - name: {{ include "lookddak-workload.name" . }}
           image: {{ include "lookddak-workload.image" . | quote }}
@@ -71,7 +87,7 @@ spec:
               containerPort: {{ .Values.container.port }}
               protocol: TCP
           {{- end }}
-          {{- if or .Values.workload.runtimeRole .Values.container.env }}
+          {{- if or .Values.workload.runtimeRole .Values.container.env .Values.tracing.enabled }}
           env:
             {{- if .Values.workload.runtimeRole }}
             - name: LOOKDDAK_RUNTIME_ROLE
@@ -79,6 +95,9 @@ spec:
             {{- end }}
             {{- with .Values.container.env }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if .Values.tracing.enabled }}
+            {{- include "lookddak-workload.tracingEnv" . | nindent 12 }}
             {{- end }}
           {{- end }}
           {{- with .Values.resources }}
@@ -97,8 +116,14 @@ spec:
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if .Values.secrets.enabled }}
+          {{- if or .Values.secrets.enabled .Values.tracing.enabled }}
           volumeMounts:
+            {{- if .Values.tracing.enabled }}
+            - name: otel-agent
+              mountPath: /otel
+              readOnly: true
+            {{- end }}
+            {{- if .Values.secrets.enabled }}
             - name: secrets-store-inline
               mountPath: {{ required "secrets.mountPath is required when secrets are enabled" .Values.secrets.mountPath | quote }}
               readOnly: true
@@ -107,9 +132,16 @@ spec:
               mountPath: {{ .Values.secrets.startup.scriptMountPath | quote }}
               readOnly: true
             {{- end }}
+            {{- end }}
           {{- end }}
-      {{- if .Values.secrets.enabled }}
+      {{- if or .Values.secrets.enabled .Values.tracing.enabled }}
       volumes:
+        {{- if .Values.tracing.enabled }}
+        - name: otel-agent
+          emptyDir:
+            sizeLimit: 256Mi
+        {{- end }}
+        {{- if .Values.secrets.enabled }}
         - name: secrets-store-inline
           csi:
             driver: secrets-store.csi.k8s.io
@@ -121,6 +153,7 @@ spec:
           configMap:
             name: {{ include "lookddak-workload.secretStartupConfigMapName" . }}
             defaultMode: 0555
+        {{- end }}
         {{- end }}
       {{- end }}
 {{- end }}
