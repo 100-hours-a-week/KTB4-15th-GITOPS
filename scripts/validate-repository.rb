@@ -1018,7 +1018,8 @@ unless prod_notification_test_app.dig("metadata", "name") == "lookddak-prod-noti
        prod_notification_test_app.dig("spec", "project") == "lookddak-prod" &&
        prod_notification_test_app.dig("spec", "source") == { "repoURL" => gitops_repository, "targetRevision" => "main", "path" => "tests/prod/notification-failure" } &&
        prod_notification_test_app.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-notification-test" } &&
-       prod_notification_test_app.dig("spec", "syncPolicy", "automated") == expected_root_automation
+       prod_notification_test_app.dig("spec", "syncPolicy", "automated") == expected_root_automation &&
+       prod_notification_test_app.dig("spec", "syncPolicy", "syncOptions") == ["PruneLast=true"]
   abort "Prod 알림 테스트 Application은 격리된 Namespace에서 Auto Sync되어야 합니다."
 end
 
@@ -1051,7 +1052,7 @@ unless prod_argocd_route["apiVersion"] == "gateway.networking.k8s.io/v1" &&
 end
 
 prod_namespace_documents = YAML.load_stream(File.read("argocd/prod/bootstrap/namespaces.yaml")).compact
-expected_prod_namespaces = %w[argocd istio-ingress istio-system lookddak-chat lookddak-commerce lookddak-fitting lookddak-identity lookddak-redis lookddak-web monitoring]
+expected_prod_namespaces = %w[argocd istio-ingress istio-system lookddak-chat lookddak-commerce lookddak-fitting lookddak-identity lookddak-notification-test lookddak-redis lookddak-web monitoring]
 actual_prod_namespaces = prod_namespace_documents.map { |item| item.dig("metadata", "name") }.sort
 abort "Prod Bootstrap Namespace 구성이 예상과 다릅니다." unless actual_prod_namespaces == expected_prod_namespaces
 prod_namespace_documents.each do |namespace|
