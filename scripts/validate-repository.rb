@@ -493,11 +493,14 @@ end
 
 prod_active_application_files = Dir["argocd/prod/workloads/*.yaml"].sort
 expected_prod_active_application_files = %w[
+  argocd/prod/workloads/body-image-validator-application.yaml
+  argocd/prod/workloads/identity-api-application.yaml
+  argocd/prod/workloads/identity-domain-application.yaml
   argocd/prod/workloads/web-bff-application.yaml
   argocd/prod/workloads/web-domain-application.yaml
 ]
 unless prod_active_application_files == expected_prod_active_application_files
-  abort "Prod 단계 배포는 현재 Web Domain과 web-bff Application만 활성화해야 합니다. 실제=#{prod_active_application_files}"
+  abort "Prod 단계 배포는 현재 Web·Identity Domain과 승인된 세 Workload만 활성화해야 합니다. 실제=#{prod_active_application_files}"
 end
 
 prod_web_domain_app = load_yaml("argocd/prod/workloads/web-domain-application.yaml")
@@ -539,11 +542,57 @@ unless prod_web_workload_app.dig("metadata", "name") == "prod-web-bff" &&
   abort "Prod web-bff Application의 Chart·values·대상·Auto Sync 설정이 예상과 다릅니다."
 end
 
+prod_identity_applications = {
+  "identity-domain" => {
+    file: "argocd/prod/workloads/identity-domain-application.yaml",
+    chart: "charts/lookddak-domain",
+    values: ["$values/environments/prod/domains/identity/domain.yaml"],
+    wave: "2"
+  },
+  "body-image-validator" => {
+    file: "argocd/prod/workloads/body-image-validator-application.yaml",
+    chart: "charts/lookddak-workload",
+    values: ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/identity/workloads/body-image-validator.yaml"],
+    wave: "3"
+  },
+  "identity-api" => {
+    file: "argocd/prod/workloads/identity-api-application.yaml",
+    chart: "charts/lookddak-workload",
+    values: ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/identity/workloads/identity-api.yaml"],
+    wave: "4"
+  }
+}
+
+prod_identity_applications.each do |name, expected|
+  application = load_yaml(expected.fetch(:file))
+  unless application.dig("metadata", "name") == "prod-#{name}" &&
+         application.dig("metadata", "namespace") == "argocd" &&
+         application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == expected.fetch(:wave) &&
+         application.dig("spec", "project") == "lookddak-prod" &&
+         application.dig("spec", "sources", 0, "path") == expected.fetch(:chart) &&
+         application.dig("spec", "sources", 0, "helm", "valueFiles") == expected.fetch(:values) &&
+         application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-identity" } &&
+         application.dig("spec", "syncPolicy", "automated") == expected_prod_automation
+    abort "#{expected.fetch(:file)}: Prod Identity 단계 Application 설정이 예상과 다릅니다."
+  end
+end
+
 prod_images = load_yaml("environments/prod/images.yaml").fetch("images")
 prod_fe_image = prod_images.fetch("fe")
 unless prod_fe_image.fetch("repository").match?(%r{\A686496667254\.dkr\.ecr\.ap-northeast-2\.amazonaws\.com/lookddak-dev-nextjs\z}) &&
        prod_fe_image.fetch("digest").match?(/\Asha256:[0-9a-f]{64}\z/)
   abort "Prod FE 이미지는 Dev에서 검증한 ECR repository와 불변 digest를 사용해야 합니다."
+end
+
+expected_prod_identity_images = {
+  "be" => "686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-spring",
+  "ai" => "686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-fastapi"
+}
+expected_prod_identity_images.each do |group, repository|
+  image = prod_images.fetch(group)
+  unless image.fetch("repository") == repository && image.fetch("digest").match?(/\Asha256:[0-9a-f]{64}\z/)
+    abort "Prod #{group.upcase} 이미지는 Dev에서 검증한 ECR repository와 불변 digest를 사용해야 합니다."
+  end
 end
 
 prod_web_values = load_yaml("environments/prod/domains/web/workloads/web-bff.yaml")
@@ -558,6 +607,62 @@ unless prod_web_values["replicaCount"] == 2 &&
          prod_web_spread.any? { |rule| rule["topologyKey"] == key && rule["minDomains"] == 2 && rule["whenUnsatisfiable"] == "DoNotSchedule" }
        end
   abort "Prod web-bff는 2개 Pod·Probe·PDB·AZ/Node 강제 분산 설정이 필요합니다."
+end
+
+prod_identity_workloads = {
+  "identity-api" => {
+    image_group: "be",
+    port: 8080,
+    role: "arn:aws:iam::686496667254:role/lookddak-prod-v3-identity-api",
+    probe_paths: ["/actuator/health/liveness", "/actuator/health/liveness", "/actuator/health/readiness"],
+    parameters: %w[
+      /lookddak/prod/v3/mysql/jdbc-url
+      /lookddak/prod/v3/mysql/app/username
+      /lookddak/prod/v3/mysql/app/password
+      /lookddak/prod/spring/jwt-secret
+      /lookddak/prod/internal/ai-api-key
+      /lookddak/prod/v3/s3/images/bucket
+    ]
+  },
+  "body-image-validator" => {
+    image_group: "ai",
+    port: 8000,
+    role: "arn:aws:iam::686496667254:role/lookddak-prod-v3-body-image-validator",
+    probe_paths: ["/health", "/health", "/health"],
+    parameters: %w[
+      /lookddak/prod/internal/ai-api-key
+      /lookddak/prod/fastapi/body-image-validation/url
+      /lookddak/prod/fastapi/body-image-validation/proxy-key
+      /lookddak/prod/fastapi/body-image-validation/proxy-secret
+      /lookddak/prod/fastapi/body-image-validation/api-key
+      /lookddak/prod/fastapi/runware-vton-api-key
+      /lookddak/prod/fastapi/runware-llm-api-key
+    ]
+  }
+}
+
+prod_identity_workloads.each do |name, expected|
+  file = "environments/prod/domains/identity/workloads/#{name}.yaml"
+  values = load_yaml(file)
+  spread = values.dig("scheduling", "topologySpreadConstraints") || []
+  probe_paths = %w[startup liveness readiness].map { |probe| values.dig("probes", probe, "httpGet", "path") }
+  parameter_objects = YAML.safe_load(values.dig("secrets", "parameters", "objects")).map { |object| object.fetch("objectName") }
+
+  unless values["imageGroup"] == expected.fetch(:image_group) &&
+         values["replicaCount"] == 2 &&
+         values.dig("container", "port") == expected.fetch(:port) &&
+         values.dig("service") == { "enabled" => true, "port" => 80 } &&
+         values.dig("pdb") == { "enabled" => true, "maxUnavailable" => 1 } &&
+         values.dig("serviceAccount") == { "create" => true, "roleArn" => expected.fetch(:role) } &&
+         values.dig("secrets", "enabled") == true &&
+         values.dig("secrets", "rolloutOnChange") == true &&
+         parameter_objects == expected.fetch(:parameters) &&
+         probe_paths == expected.fetch(:probe_paths) &&
+         %w[topology.kubernetes.io/zone kubernetes.io/hostname].all? do |key|
+           spread.any? { |rule| rule["topologyKey"] == key && rule["minDomains"] == 2 && rule["whenUnsatisfiable"] == "DoNotSchedule" }
+         end
+    abort "#{file}: Prod Identity의 이미지·IRSA·Secret·Probe·PDB·AZ/Node 분산 설정이 예상과 다릅니다."
+  end
 end
 
 prod_project_file = "argocd/projects/lookddak-prod.yaml"

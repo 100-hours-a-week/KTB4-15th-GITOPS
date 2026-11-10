@@ -92,6 +92,23 @@ if [[ -f argocd/prod/workloads/web-bff-application.yaml ]]; then
     > "$output_dir/web-domain-prod.yaml"
 fi
 
+if [[ -f argocd/prod/workloads/identity-api-application.yaml ]]; then
+  for workload in identity-api body-image-validator; do
+    helm template "$workload" charts/lookddak-workload \
+      --namespace lookddak-identity \
+      --kube-version 1.36.0 \
+      -f environments/prod/images.yaml \
+      -f "environments/prod/domains/identity/workloads/$workload.yaml" \
+      > "$output_dir/$workload-prod.yaml"
+  done
+
+  helm template identity-domain charts/lookddak-domain \
+    --namespace lookddak-identity \
+    --kube-version 1.36.0 \
+    -f environments/prod/domains/identity/domain.yaml \
+    > "$output_dir/identity-domain-prod.yaml"
+fi
+
 if [[ -f platform/dev/argocd/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/argocd >/dev/null
   helm template argocd platform/dev/argocd \
