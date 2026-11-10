@@ -13,3 +13,4 @@ data:
     maxmemory-policy volatile-lru
     cluster-require-full-coverage no
     cluster-node-timeout 15000
+    user be-readonly on #f1869491b42f8598d8f775e805a74134317edb3553b5709c6e70f6f3e997a885 ~* resetchannels -@all +@read +@connection +cluster|slots +cluster|shards +cluster|nodes +cluster|info -@dangerous +info

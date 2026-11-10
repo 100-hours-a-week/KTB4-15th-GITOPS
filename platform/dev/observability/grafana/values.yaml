@@ -6,6 +6,45 @@ grafana:
   testFramework:
     enabled: false
 
+  podLabels:
+    istio.io/dataplane-mode: ambient
+
+  serviceAccount:
+    create: true
+    name: grafana
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-dev-v3-grafana
+
+  extraInitContainers:
+    - name: install-redis-datasource
+      image: docker.io/grafana/grafana:13.3.0
+      command:
+        - /bin/sh
+        - -c
+        - test -d /var/lib/grafana/plugins/redis-datasource || grafana cli --pluginsDir /var/lib/grafana/plugins plugins install redis-datasource 2.2.0
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+      volumeMounts:
+        - name: storage
+          mountPath: /var/lib/grafana
+
+  extraVolumes:
+    - name: redis-readonly
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: grafana-redis-readonly
+
+  extraVolumeMounts:
+    - name: redis-readonly
+      mountPath: /etc/grafana/secrets/redis
+      readOnly: true
+
   rbac:
     namespaced: true
 
@@ -108,6 +147,19 @@ grafana:
               datasourceUid: prometheus
             nodeGraph:
               enabled: true
+        - name: Redis
+          uid: redis
+          type: redis-datasource
+          access: proxy
+          url: redis://redis-cache-master.lookddak-redis.svc.cluster.local:6379
+          jsonData:
+            client: cluster
+            acl: true
+            user: be-readonly
+            poolSize: 2
+            timeout: 10
+          secureJsonData:
+            password: $__file{/etc/grafana/secrets/redis/password}
 
   dashboardProviders:
     dashboardproviders.yaml:

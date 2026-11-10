@@ -1871,11 +1871,19 @@ end
 abort "lookddak-redis에는 Route를 만들지 않습니다(외부 노출 금지): #{redis_external_routes}" unless redis_external_routes.empty?
 redis_policies = YAML.load_stream(File.read("platform/dev/networking/policies/redis-network-policy.yaml")).compact
 redis_ingress_clients = redis_policies.find { |policy| policy.dig("metadata", "name") == "lookddak-redis" }&.dig("spec", "ingress").to_a.flat_map { |rule| rule["fromEndpoints"].to_a }.map { |endpoint| endpoint["matchLabels"] }
-unless redis_ingress_clients.sort_by(&:to_s) == [{ "k8s:io.kubernetes.pod.namespace" => "lookddak-redis" }, { "k8s:io.kubernetes.pod.namespace" => "lookddak-chat", "k8s:app.kubernetes.io/name" => "chat-api" }, { "k8s:io.kubernetes.pod.namespace" => "monitoring", "k8s:app.kubernetes.io/instance" => "alloy-cluster" }].sort_by(&:to_s)
-  abort "platform/dev/networking/policies/redis-network-policy.yaml: Redis ingress는 같은 Namespace, chat-api, 메트릭 수집(monitoring/alloy-cluster)만 허용해야 합니다. 실제=#{redis_ingress_clients}"
+unless redis_ingress_clients.sort_by(&:to_s) == [{ "k8s:io.kubernetes.pod.namespace" => "lookddak-redis" }, { "k8s:io.kubernetes.pod.namespace" => "lookddak-chat", "k8s:app.kubernetes.io/name" => "chat-api" }, { "k8s:io.kubernetes.pod.namespace" => "monitoring", "k8s:app.kubernetes.io/instance" => "alloy-cluster" }, { "k8s:io.kubernetes.pod.namespace" => "monitoring", "k8s:app.kubernetes.io/name" => "grafana" }].sort_by(&:to_s)
+  abort "platform/dev/networking/policies/redis-network-policy.yaml: Redis ingress는 같은 Namespace, chat-api, 메트릭 수집(monitoring/alloy-cluster), Grafana 읽기 전용 조회만 허용해야 합니다. 실제=#{redis_ingress_clients}"
 end
 redis_authz_principals = YAML.load_stream(File.read("platform/dev/redis/cluster/authorization-policy.yaml")).compact.flat_map { |policy| policy.dig("spec", "rules").to_a.flat_map { |rule| rule["from"].to_a.flat_map { |from| from.dig("source", "principals").to_a } } }
-abort "platform/dev/redis/cluster/authorization-policy.yaml: 외부 신원은 chat-api와 메트릭 수집(alloy-cluster)만 허용합니다. 실제=#{redis_authz_principals}" unless redis_authz_principals.sort == ["cluster.local/ns/lookddak-chat/sa/chat-api", "cluster.local/ns/monitoring/sa/alloy-cluster"].sort
+abort "platform/dev/redis/cluster/authorization-policy.yaml: 외부 신원은 chat-api, 메트릭 수집(alloy-cluster), Grafana만 허용합니다. 실제=#{redis_authz_principals}" unless redis_authz_principals.sort == ["cluster.local/ns/lookddak-chat/sa/chat-api", "cluster.local/ns/monitoring/sa/alloy-cluster", "cluster.local/ns/monitoring/sa/grafana"].sort
+redis_grafana_policy = YAML.load_stream(File.read("platform/dev/redis/cluster/authorization-policy.yaml")).compact.find { |policy| policy.dig("metadata", "name") == "allow-grafana-readonly" }
+unless redis_grafana_policy && redis_grafana_policy.dig("spec", "rules", 0, "to") == [{ "operation" => { "ports" => ["6379"] } }]
+  abort "platform/dev/redis/cluster/authorization-policy.yaml: Grafana는 6379만 허용해야 합니다."
+end
+redis_acl_lines = load_yaml("platform/dev/redis/cluster/redis-cluster-config.yaml").dig("data", "redis-additional.conf").to_s.lines.map(&:strip).select { |line| line.start_with?("user ", "__") }
+unless redis_acl_lines.size == 1 && redis_acl_lines[0].match?(/\Auser be-readonly on #[0-9a-f]{64} ~\* resetchannels -@all \+@read \+@connection .*-@dangerous \+info\z/)
+  abort "platform/dev/redis/cluster/redis-cluster-config.yaml: Redis ACL은 be-readonly 읽기 전용 사용자 하나(비밀번호 SHA-256 해시, 쓰기·@dangerous 차단)만 둡니다. terraform output dev_v3_redis_readonly_acl_rule 값으로 채우세요."
+end
 redis_alloy_policy = YAML.load_stream(File.read("platform/dev/redis/cluster/authorization-policy.yaml")).compact.find { |policy| policy.dig("metadata", "name") == "allow-alloy-cluster-metrics" }
 unless redis_alloy_policy && redis_alloy_policy.dig("spec", "rules", 0, "to") == [{ "operation" => { "ports" => ["6379"] } }]
   abort "platform/dev/redis/cluster/authorization-policy.yaml: alloy-cluster는 6379만 허용해야 합니다."
@@ -2454,9 +2462,10 @@ unless grafana_values.dig("env", "GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION") =
        grafana_values.dig("grafana.ini", "auth", "disable_login_form") == true &&
        grafana_values.dig("persistence", "storageClassName") == "gp3" &&
        grafana_values["nodeSelector"] == monitoring_node_selector && grafana_values["tolerations"] == monitoring_toleration &&
-       grafana_datasource_uids == %w[loki prometheus tempo] &&
+       grafana_datasource_uids == %w[loki prometheus redis tempo] &&
+       grafana_values.dig("podLabels", "istio.io/dataplane-mode") == "ambient" &&
        grafana_values.dig("dashboardsConfigMaps", "lookddak") == "grafana-dashboards-lookddak"
-  abort "platform/dev/observability/grafana/values.yaml: Grafana는 관리자 계정·로그인 폼 미생성(Secret 없음), gp3, Monitoring Node, 데이터소스 3개, LookDDak 대시보드 ConfigMap이 필요합니다."
+  abort "platform/dev/observability/grafana/values.yaml: Grafana는 관리자 계정·로그인 폼 미생성(Secret 없음), gp3, Monitoring Node, Pod 단위 Ambient, 데이터소스 4개(Redis 포함), LookDDak 대시보드 ConfigMap이 필요합니다."
 end
 grafana_dashboards = Dir["platform/dev/observability/grafana/files/dashboards/*.json"].sort
 abort "platform/dev/observability/grafana/files/dashboards: 대시보드 JSON이 없습니다." if grafana_dashboards.empty?
@@ -2494,11 +2503,22 @@ unless grafana_auth_values.dig("grafana.ini", "auth.proxy", "enabled") == true &
 end
 grafana_ingress_policies = YAML.load_stream(File.read("platform/dev/networking/policies/monitoring-grafana.yaml")).compact.to_h { |policy| [policy.dig("spec", "endpointSelector", "matchLabels", "k8s:app.kubernetes.io/name"), policy] }
 gateway_endpoint = [{ "matchLabels" => { "k8s:io.kubernetes.pod.namespace" => "istio-ingress", "k8s:gateway.networking.k8s.io/gateway-name" => "lookddak-gateway" } }]
-{ "grafana" => "3000", "oauth2-proxy" => "4180" }.each do |name, port|
+{ "oauth2-proxy" => "4180" }.each do |name, port|
   policy = grafana_ingress_policies[name]
   unless policy && policy.dig("metadata", "namespace") == "monitoring" && policy.dig("spec", "ingress") == [{ "fromEndpoints" => gateway_endpoint, "toPorts" => [{ "ports" => [{ "port" => port, "protocol" => "TCP" }] }] }]
     abort "platform/dev/networking/policies/monitoring-grafana.yaml: #{name}는 공용 Gateway에서 #{port}만 받아야 합니다 (auth.proxy 헤더 위조 방지)."
   end
+end
+grafana_cnp = grafana_ingress_policies["grafana"]
+unless grafana_cnp && grafana_cnp.dig("metadata", "namespace") == "monitoring" &&
+       grafana_cnp.dig("spec", "ingress") == [{ "fromCIDR" => ["169.254.7.127/32"] }, { "fromEndpoints" => gateway_endpoint, "toPorts" => [{ "ports" => [{ "port" => "15008", "protocol" => "TCP" }] }] }]
+  abort "platform/dev/networking/policies/monitoring-grafana.yaml: Ambient Grafana는 공용 Gateway HBONE(15008)과 kubelet probe만 받아야 합니다 (auth.proxy 헤더 위조 방지)."
+end
+grafana_authz = YAML.load(File.read("platform/dev/observability/grafana/templates/authorization-policy.yaml").gsub("{{ .Release.Namespace }}", "monitoring"))
+unless grafana_authz["kind"] == "AuthorizationPolicy" && grafana_authz.dig("spec", "action") == "ALLOW" &&
+       grafana_authz.dig("spec", "selector", "matchLabels") == { "app.kubernetes.io/name" => "grafana" } &&
+       grafana_authz.dig("spec", "rules") == [{ "from" => [{ "source" => { "principals" => ["cluster.local/ns/istio-ingress/sa/lookddak-gateway-istio"] } }], "to" => [{ "operation" => { "ports" => ["3000"] } }] }]
+  abort "platform/dev/observability/grafana/templates/authorization-policy.yaml: Grafana 3000은 공용 Gateway 신원만 허용해야 합니다."
 end
 oauth2_proxy = load_yaml("platform/dev/observability/grafana-auth/deployment.yaml")
 oauth2_proxy_args = oauth2_proxy.dig("spec", "template", "spec", "containers", 0, "args").to_a
