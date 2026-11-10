@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-web-bff
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: lookddak-prod
+  sources:
+    - repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+      targetRevision: main
+      path: charts/lookddak-workload
+      helm:
+        releaseName: web-bff
+        valueFiles:
+          - $values/environments/prod/images.yaml
+          - $values/environments/prod/domains/web/workloads/web-bff.yaml
+    - repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lookddak-web
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

@@ -50,6 +50,7 @@ prod_argocd_files = %w[
   argocd/prod/root-application.yaml
   argocd/prod/bootstrap/argocd-application.yaml
   argocd/prod/bootstrap/namespaces.yaml
+  argocd/prod/bootstrap/workloads-application.yaml
 ].freeze
 
 prod_platform_charts = %w[
@@ -483,11 +484,80 @@ expected_prod_root_sources = {
   "argocd/prod/bootstrap" => nil,
   "argocd/prod/platform" => nil
 }
-abort "#{prod_root_file}: Bootstrap Root가 Domain·Workload ApplicationSet을 포함하면 안 됩니다." unless prod_root_sources == expected_prod_root_sources
+abort "#{prod_root_file}: Root는 Bootstrap과 Platform 경로만 직접 관리해야 합니다." unless prod_root_sources == expected_prod_root_sources
 unless prod_root.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "argocd" } &&
        prod_root.dig("spec", "syncPolicy", "automated") == expected_root_automation &&
        prod_root.dig("spec", "syncPolicy", "syncOptions") == ["PruneLast=true"]
   abort "#{prod_root_file}: Prod Root의 배포 대상·Auto Sync 안전 정책이 예상과 다릅니다."
+end
+
+prod_active_application_files = Dir["argocd/prod/workloads/*.yaml"].sort
+expected_prod_active_application_files = %w[
+  argocd/prod/workloads/web-bff-application.yaml
+  argocd/prod/workloads/web-domain-application.yaml
+]
+unless prod_active_application_files == expected_prod_active_application_files
+  abort "Prod 단계 배포는 현재 Web Domain과 web-bff Application만 활성화해야 합니다. 실제=#{prod_active_application_files}"
+end
+
+prod_web_domain_app = load_yaml("argocd/prod/workloads/web-domain-application.yaml")
+prod_web_workload_app = load_yaml("argocd/prod/workloads/web-bff-application.yaml")
+expected_prod_automation = { "enabled" => true, "prune" => true, "selfHeal" => true, "allowEmpty" => false }
+
+prod_workloads_loader = load_yaml("argocd/prod/bootstrap/workloads-application.yaml")
+unless prod_workloads_loader.dig("metadata", "name") == "lookddak-prod-workloads" &&
+       prod_workloads_loader.dig("metadata", "namespace") == "argocd" &&
+       prod_workloads_loader.dig("spec", "project") == "lookddak-prod-argocd" &&
+       prod_workloads_loader.dig("spec", "source") == {
+         "repoURL" => gitops_repository,
+         "targetRevision" => "main",
+         "path" => "argocd/prod/workloads",
+         "directory" => { "recurse" => false }
+       } &&
+       prod_workloads_loader.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "argocd" } &&
+       prod_workloads_loader.dig("spec", "syncPolicy", "automated") == expected_prod_automation
+  abort "Prod Workload Loader는 승인된 Application 디렉터리만 자동 동기화해야 합니다."
+end
+
+unless prod_web_domain_app.dig("metadata", "name") == "prod-web-domain" &&
+       prod_web_domain_app.dig("metadata", "namespace") == "argocd" &&
+       prod_web_domain_app.dig("spec", "project") == "lookddak-prod" &&
+       prod_web_domain_app.dig("spec", "sources", 0, "path") == "charts/lookddak-domain" &&
+       prod_web_domain_app.dig("spec", "sources", 0, "helm", "valueFiles") == ["$values/environments/prod/domains/web/domain.yaml"] &&
+       prod_web_domain_app.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-web" } &&
+       prod_web_domain_app.dig("spec", "syncPolicy", "automated") == expected_prod_automation
+  abort "Prod Web Domain Application의 Chart·values·대상·Auto Sync 설정이 예상과 다릅니다."
+end
+
+unless prod_web_workload_app.dig("metadata", "name") == "prod-web-bff" &&
+       prod_web_workload_app.dig("metadata", "namespace") == "argocd" &&
+       prod_web_workload_app.dig("spec", "project") == "lookddak-prod" &&
+       prod_web_workload_app.dig("spec", "sources", 0, "path") == "charts/lookddak-workload" &&
+       prod_web_workload_app.dig("spec", "sources", 0, "helm", "valueFiles") == ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/web/workloads/web-bff.yaml"] &&
+       prod_web_workload_app.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-web" } &&
+       prod_web_workload_app.dig("spec", "syncPolicy", "automated") == expected_prod_automation
+  abort "Prod web-bff Application의 Chart·values·대상·Auto Sync 설정이 예상과 다릅니다."
+end
+
+prod_images = load_yaml("environments/prod/images.yaml").fetch("images")
+prod_fe_image = prod_images.fetch("fe")
+unless prod_fe_image.fetch("repository").match?(%r{\A686496667254\.dkr\.ecr\.ap-northeast-2\.amazonaws\.com/lookddak-dev-nextjs\z}) &&
+       prod_fe_image.fetch("digest").match?(/\Asha256:[0-9a-f]{64}\z/)
+  abort "Prod FE 이미지는 Dev에서 검증한 ECR repository와 불변 digest를 사용해야 합니다."
+end
+
+prod_web_values = load_yaml("environments/prod/domains/web/workloads/web-bff.yaml")
+prod_web_spread = prod_web_values.dig("scheduling", "topologySpreadConstraints") || []
+unless prod_web_values["replicaCount"] == 2 &&
+       prod_web_values.dig("container", "port") == 3000 &&
+       prod_web_values.dig("service", "enabled") == true &&
+       prod_web_values.dig("service", "port") == 80 &&
+       prod_web_values.dig("pdb") == { "enabled" => true, "minAvailable" => 1 } &&
+       %w[startup liveness readiness].all? { |probe| prod_web_values.dig("probes", probe, "httpGet", "path") == "/health" } &&
+       %w[topology.kubernetes.io/zone kubernetes.io/hostname].all? do |key|
+         prod_web_spread.any? { |rule| rule["topologyKey"] == key && rule["minDomains"] == 2 && rule["whenUnsatisfiable"] == "DoNotSchedule" }
+       end
+  abort "Prod web-bff는 2개 Pod·Probe·PDB·AZ/Node 강제 분산 설정이 필요합니다."
 end
 
 prod_project_file = "argocd/projects/lookddak-prod.yaml"
