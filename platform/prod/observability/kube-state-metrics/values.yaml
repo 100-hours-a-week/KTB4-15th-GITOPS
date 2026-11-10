@@ -1,0 +1,33 @@
+kube-state-metrics:
+  prometheusScrape: false
+  collectors:
+    - cronjobs
+    - daemonsets
+    - deployments
+    - horizontalpodautoscalers
+    - jobs
+    - namespaces
+    - nodes
+    - persistentvolumeclaims
+    - persistentvolumes
+    - poddisruptionbudgets
+    - pods
+    - replicasets
+    - services
+    - statefulsets
+  metricLabelsAllowlist:
+    - nodes=[lookddak.io/node-pool,karpenter.sh/nodepool,node.kubernetes.io/instance-type,topology.kubernetes.io/zone]
+    - pods=[app.kubernetes.io/name]
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  nodeSelector:
+    lookddak.io/node-pool: monitoring
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: monitoring
+      effect: NoSchedule

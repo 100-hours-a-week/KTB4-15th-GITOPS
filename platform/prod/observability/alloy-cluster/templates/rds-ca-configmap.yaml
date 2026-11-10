@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-cluster-rds-ca
+  namespace: {{ .Release.Namespace }}
+data:
+  ap-northeast-2-bundle.pem: |
+    {{- .Files.Get "files/ap-northeast-2-bundle.pem" | required "files/ap-northeast-2-bundle.pem(RDS CA 번들)이 필요합니다" | nindent 4 }}

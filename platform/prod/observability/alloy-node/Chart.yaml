@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-alloy-node
+description: LookDDak EKS prod Alloy Node(DaemonSet) 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: alloy
+    version: 1.15.0
+    repository: https://grafana.github.io/helm-charts

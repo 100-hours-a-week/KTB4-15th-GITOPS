@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-alloy-cluster
+description: LookDDak EKS prod Alloy Cluster(메시 등록 수집기) 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: alloy
+    version: 1.15.0
+    repository: https://grafana.github.io/helm-charts
