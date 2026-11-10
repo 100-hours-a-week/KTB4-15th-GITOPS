@@ -22,7 +22,7 @@ EKS prod에 설치된 Argo CD가 GitOps 저장소의 prod 목표 상태를 읽�
 - Argo CD Notifications의 수신 채널과 알림 조건
 - 운영 배포 실패 판단과 Git Revert를 실행할 주체 및 절차
 
-현재 Root Application은 `argocd/prod/bootstrap`과 `argocd/prod/platform`을 포함한다. Bootstrap의 `lookddak-prod-workloads` Application이 단계적으로 승인된 `argocd/prod/workloads`를 관리하며, 현재는 Web·Identity Domain과 `web-bff`·`identity-api`·`body-image-validator`를 활성화한다. 전체 Domain·Workload ApplicationSet은 아직 적용하지 않는다.
+현재 Root Application은 `argocd/prod/bootstrap`과 `argocd/prod/platform`을 포함한다. Bootstrap의 `lookddak-prod-workloads` Application이 단계적으로 승인된 `argocd/prod/workloads`를 관리하며, 현재는 Web·Identity·Commerce Domain과 `web-bff`·`identity-api`·`body-image-validator`·`commerce-api`·`price-crawler`를 활성화한다. Crawler 정기 실행은 운영 검증 전까지 suspend한다. 전체 Domain·Workload ApplicationSet은 아직 적용하지 않는다.
 
 ## 네트워크 정책과 Route 준비 범위
 
@@ -31,7 +31,7 @@ EKS prod에 설치된 Argo CD가 GitOps 저장소의 prod 목표 상태를 읽�
 - `lookddak.com`, `www.lookddak.com` Listener는 향후 운영 전환용으로 보존하지만 현재 Prod V3 워크로드 Route는 연결하지 않는다.
 - Chat과 Fitting 알림 SSE 경로는 `request: 0s`로 Gateway 요청 시간 제한을 비활성화한다.
 - Redis·모니터링 전용 정책은 해당 구성 배포 시 별도로 추가한다.
-- 승인한 도메인의 Application만 `argocd/prod/workloads`에 추가해 순차 배포한다. 현재는 Web·Identity HTTPRoute와 Pod만 생성되며, 운영 V2 주 도메인 트래픽은 바뀌지 않는다.
+- 승인한 도메인의 Application만 `argocd/prod/workloads`에 추가해 순차 배포한다. 현재는 Web·Identity·Commerce HTTPRoute와 Pod/CronJob만 생성되며, 운영 V2 주 도메인 트래픽은 바뀌지 않는다.
 
 ## 플랫폼 Controller 단계
 
