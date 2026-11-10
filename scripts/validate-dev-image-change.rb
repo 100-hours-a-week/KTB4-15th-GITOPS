@@ -124,6 +124,7 @@ if $PROGRAM_NAME == __FILE__
     if output_file
       File.open(output_file, "a") do |file|
         file.puts "image_only=true"
+        file.puts "image_environment=dev"
         file.puts "image_group=#{image_group}"
       end
     end
