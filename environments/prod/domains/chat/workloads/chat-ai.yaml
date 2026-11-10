@@ -5,11 +5,91 @@ workload:
 
 imageGroup: ai
 
-service:
-  enabled: true
+container:
+  port: 8000
+  env:
+    - {name: AWS_REGION, value: ap-northeast-2}
+    - {name: BODY_IMAGE_VALIDATION_MODE, value: remote}
+    - {name: VIRTUAL_FITTING_REQUEST_WORKER_ENABLED, value: "false"}
+    - {name: VIRTUAL_FITTING_POSTPROCESS_WORKER_ENABLED, value: "false"}
+    - {name: VIRTUAL_FITTING_RESULT_PUBLISHER_ENABLED, value: "false"}
+    - {name: VIRTUAL_FITTING_WATCHDOG_ENABLED, value: "false"}
 
-routing:
-  enabled: false
+replicaCount: 2
+
+deployment:
+  terminationGracePeriodSeconds: 120
+
+scheduling:
+  nodeSelector:
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: general-purpose
+  topologySpreadConstraints:
+    - {maxSkew: 1, minDomains: 2, topologyKey: topology.kubernetes.io/zone, whenUnsatisfiable: DoNotSchedule}
+    - {maxSkew: 1, minDomains: 2, topologyKey: kubernetes.io/hostname, whenUnsatisfiable: DoNotSchedule}
+
+resources:
+  requests: {cpu: 500m, memory: 1Gi}
+  limits: {cpu: "1", memory: 2Gi}
+
+probes:
+  startup:
+    httpGet: {path: /health, port: http}
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 60
+  liveness:
+    httpGet: {path: /health, port: http}
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    httpGet: {path: /health, port: http}
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 6
+
+service: {enabled: true, port: 80}
+autoscaling: {enabled: false}
+pdb: {enabled: true, maxUnavailable: 1}
+routing: {enabled: false}
 
 serviceAccount:
   create: true
+  roleArn: arn:aws:iam::686496667254:role/lookddak-prod-v3-chat-ai
+
+secrets:
+  enabled: true
+  rolloutOnChange: true
+  secretProviderClassName: chat-ai
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: /lookddak/prod/v3/postgresql/app/database-url
+        objectType: ssmparameter
+        objectAlias: DATABASE_URL
+      - objectName: /lookddak/prod/v3/postgresql/app/checkpoint-dsn
+        objectType: ssmparameter
+        objectAlias: CHECKPOINT_DSN
+      - objectName: /lookddak/prod/internal/ai-api-key
+        objectType: ssmparameter
+        objectAlias: INTERNAL_API_KEY
+      - objectName: /lookddak/prod/fastapi/runware-llm-api-key
+        objectType: ssmparameter
+        objectAlias: RUNWARE_LLM_API_KEY
+      - objectName: /lookddak/prod/fastapi/runware-vton-api-key
+        objectType: ssmparameter
+        objectAlias: RUNWARE_VTON_API_KEY
+      - objectName: /lookddak/prod/fastapi/openAI-api-key
+        objectType: ssmparameter
+        objectAlias: OPENAI_API_KEY
+  startup:
+    enabled: true
+    environment:
+      - {name: DATABASE_URL, fileName: DATABASE_URL}
+      - {name: CHECKPOINT_DSN, fileName: CHECKPOINT_DSN}
+      - {name: INTERNAL_API_KEY, fileName: INTERNAL_API_KEY}
+      - {name: RUNWARE_LLM_API_KEY, fileName: RUNWARE_LLM_API_KEY}
+      - {name: RUNWARE_VTON_API_KEY, fileName: RUNWARE_VTON_API_KEY}
+      - {name: OPENAI_API_KEY, fileName: OPENAI_API_KEY}
+    command: [uvicorn, "app.main:app", --host, 0.0.0.0, --port, "8000"]

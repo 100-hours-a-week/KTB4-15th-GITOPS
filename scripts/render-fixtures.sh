@@ -126,6 +126,23 @@ if [[ -f argocd/prod/workloads/commerce-api-application.yaml ]]; then
     > "$output_dir/commerce-domain-prod.yaml"
 fi
 
+if [[ -f argocd/prod/workloads/chat-api-application.yaml ]]; then
+  for workload in chat-api chat-ai; do
+    helm template "$workload" charts/lookddak-workload \
+      --namespace lookddak-chat \
+      --kube-version 1.36.0 \
+      -f environments/prod/images.yaml \
+      -f "environments/prod/domains/chat/workloads/$workload.yaml" \
+      > "$output_dir/$workload-prod.yaml"
+  done
+
+  helm template chat-domain charts/lookddak-domain \
+    --namespace lookddak-chat \
+    --kube-version 1.36.0 \
+    -f environments/prod/domains/chat/domain.yaml \
+    > "$output_dir/chat-domain-prod.yaml"
+fi
+
 if [[ -f platform/dev/argocd/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/argocd >/dev/null
   helm template argocd platform/dev/argocd \
