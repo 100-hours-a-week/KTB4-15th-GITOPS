@@ -249,7 +249,17 @@ dev_image_automation_files = %w[
   scripts/test-update-dev-image.rb
 ].freeze
 
-[argocd_files, prod_argocd_files, prod_platform_files, karpenter_files, metrics_server_files, secrets_store_csi_files, prod_cilium_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files].flatten.each do |file|
+prod_image_automation_files = %w[
+  .github/workflows/promote-prod-image.yaml
+  scripts/update-prod-image.rb
+  scripts/validate-prod-image-change.rb
+  scripts/test-update-prod-image.rb
+  scripts/test-validate-prod-image-change.rb
+  scripts/render-prod-image-workloads.sh
+  scripts/diff-prod-image-manifests.sh
+].freeze
+
+[argocd_files, prod_argocd_files, prod_platform_files, karpenter_files, metrics_server_files, secrets_store_csi_files, prod_cilium_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files, prod_image_automation_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -524,8 +534,7 @@ unless prod_workloads_loader.dig("metadata", "name") == "lookddak-prod-workloads
        prod_workloads_loader.dig("spec", "source") == {
          "repoURL" => gitops_repository,
          "targetRevision" => "main",
-         "path" => "argocd/prod/workloads",
-         "directory" => { "recurse" => false }
+         "path" => "argocd/prod/workloads"
        } &&
        prod_workloads_loader.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "argocd" } &&
        prod_workloads_loader.dig("spec", "syncPolicy", "automated") == expected_prod_automation
@@ -1374,6 +1383,18 @@ end
 unless image_workflow.include?('--subject "chore(dev): $IMAGE_KEY 이미지 digest 갱신"') &&
        image_workflow.include?('--body "$MERGE_BODY"')
   abort "자동 이미지 Squash Merge에서 배포 추적 메타데이터를 보존해야 합니다."
+end
+
+prod_image_workflow = File.read(".github/workflows/promote-prod-image.yaml")
+%w[source-repository source-sha source-actions image-key digest].each do |field|
+  abort "Prod 자동 승격 Merge commit에 #{field} 메타데이터가 필요합니다." unless prod_image_workflow.scan("#{field}:").length >= 2
+end
+unless prod_image_workflow.include?("types: [prod-image-published]") &&
+       prod_image_workflow.include?("repos/$SOURCE_REPOSITORY/compare/$SOURCE_SHA...main") &&
+       prod_image_workflow.include?('changed_files[0]}" != "environments/prod/images.yaml"') &&
+       prod_image_workflow.include?('--subject "chore(prod): $IMAGE_KEY 이미지 digest 승격"') &&
+       prod_image_workflow.include?('--body "$MERGE_BODY"')
+  abort "Prod 이미지 승격은 main Commit·단일 Prod images.yaml 변경·추적 가능한 Auto Merge를 보장해야 합니다."
 end
 
 istio_version = "1.31.3"
