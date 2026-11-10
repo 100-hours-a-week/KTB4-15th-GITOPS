@@ -989,13 +989,45 @@ unless prod_argocd_dependency && prod_argocd_dependency["version"] == "10.11.6" 
   abort "Prod Argo CD는 Dev에서 검증한 공식 Chart 10.11.6을 유지해야 합니다."
 end
 prod_argocd_values = load_yaml("platform/prod/argocd/values.yaml").fetch("argo-cd")
+prod_notifications = prod_argocd_values.fetch("notifications")
 unless prod_argocd_values.dig("global", "nodeSelector", "lookddak.io/node-pool") == "system" &&
        (prod_argocd_values.dig("global", "tolerations") || []).include?({ "key" => "CriticalAddonsOnly", "operator" => "Equal", "value" => "true", "effect" => "NoSchedule" }) &&
        prod_argocd_values.dig("server", "service", "type") == "ClusterIP" &&
        prod_argocd_values.dig("server", "ingress", "enabled") == false &&
-       prod_argocd_values.dig("notifications", "enabled") == false &&
+       prod_notifications["enabled"] == true &&
+       prod_notifications["argocdUrl"] == "https://argocd.lookddak.com" &&
+       prod_notifications.dig("serviceAccount", "annotations", "eks.amazonaws.com/role-arn") == "arn:aws:iam::686496667254:role/lookddak-prod-argocd-notifications" &&
+       prod_notifications.dig("context", "environment") == "prod" &&
+       prod_notifications.dig("notifiers", "service.awssqs").include?("queue: lookddak-alert-queue") &&
+       prod_notifications.dig("triggers", "trigger.on-deploy-failed").include?("app.status.health.status == 'Degraded'") &&
        prod_argocd_values.dig("configs", "cm", "admin.enabled") == true
-  abort "platform/prod/argocd/values.yaml: System Node 배치와 비공개 Bootstrap 설정이 필요합니다."
+  abort "platform/prod/argocd/values.yaml: System Node 배치와 Prod 실패 알림 설정이 필요합니다."
+end
+
+prod_notification_subscription = "lookddak-alert-queue"
+%w[lookddak-prod lookddak-prod-platform lookddak-prod-argocd].each do |project_name|
+  project = load_yaml("argocd/projects/#{project_name}.yaml")
+  unless project.dig("metadata", "annotations", "notifications.argoproj.io/subscribe.on-deploy-failed.awssqs") == prod_notification_subscription
+    abort "#{project_name}: Prod 배포 실패 Trigger 구독이 필요합니다."
+  end
+end
+
+prod_notification_test_app = load_yaml("argocd/prod/bootstrap/notification-test-application.yaml")
+unless prod_notification_test_app.dig("metadata", "name") == "lookddak-prod-notification-test" &&
+       prod_notification_test_app.dig("metadata", "finalizers") == ["resources-finalizer.argocd.argoproj.io"] &&
+       prod_notification_test_app.dig("spec", "project") == "lookddak-prod" &&
+       prod_notification_test_app.dig("spec", "source") == { "repoURL" => gitops_repository, "targetRevision" => "main", "path" => "tests/prod/notification-failure" } &&
+       prod_notification_test_app.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-notification-test" } &&
+       prod_notification_test_app.dig("spec", "syncPolicy", "automated") == expected_root_automation
+  abort "Prod 알림 테스트 Application은 격리된 Namespace에서 Auto Sync되어야 합니다."
+end
+
+prod_notification_test = load_yaml("tests/prod/notification-failure/deployment.yaml")
+unless prod_notification_test.dig("metadata", "namespace") == "lookddak-notification-test" &&
+       prod_notification_test.dig("spec", "replicas") == 0 &&
+       prod_notification_test.dig("spec", "progressDeadlineSeconds") == 60 &&
+       prod_notification_test.dig("spec", "template", "spec", "containers", 0, "image").match?(/@sha256:0{64}\z/)
+  abort "Prod 알림 테스트 Deployment는 평상시 replica 0과 의도적인 실패 digest를 유지해야 합니다."
 end
 
 prod_argocd_route_file = "platform/prod/argocd/templates/httproute.yaml"

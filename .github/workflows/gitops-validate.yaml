@@ -154,6 +154,7 @@ jobs:
           helm lint charts/lookddak-workload
           helm lint charts/lookddak-domain
           helm lint platform/dev/argocd --namespace argocd --kube-version 1.36.0
+          helm lint platform/prod/argocd --namespace argocd --kube-version 1.36.0
           helm lint platform/dev/karpenter/crd --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/karpenter/controller --namespace kube-system --kube-version 1.36.0
           helm lint platform/dev/metrics-server --namespace kube-system --kube-version 1.36.0
@@ -186,7 +187,9 @@ jobs:
 
       - name: Argo CD System 배치·자기 관리 보호 설정 검사
         if: steps.change.outputs.image_only != 'true'
-        run: ruby scripts/validate-argocd-install.rb "$RUNNER_TEMP/rendered/argocd-dev.yaml"
+        run: |
+          ruby scripts/validate-argocd-install.rb "$RUNNER_TEMP/rendered/argocd-dev.yaml" dev
+          ruby scripts/validate-argocd-install.rb "$RUNNER_TEMP/rendered/argocd-prod.yaml" prod
 
       - name: 전체 Helm Manifest 변경점 출력
         if: github.event_name == 'pull_request' && steps.change.outputs.image_only != 'true'
@@ -271,7 +274,11 @@ jobs:
             /workspace/argocd/dev/namespace-identity.yaml \
             /workspace/argocd/dev/namespace-commerce.yaml \
             /workspace/argocd/dev/namespace-chat.yaml \
-            /workspace/argocd/dev/namespace-fitting.yaml
+            /workspace/argocd/dev/namespace-fitting.yaml \
+            /workspace/argocd/projects/lookddak-prod.yaml \
+            /workspace/argocd/projects/lookddak-prod-argocd.yaml \
+            /workspace/argocd/projects/lookddak-prod-platform.yaml \
+            /workspace/argocd/prod/bootstrap/notification-test-application.yaml
 
       - name: GitOps 정책 검사
         run: ruby scripts/validate-policy.rb

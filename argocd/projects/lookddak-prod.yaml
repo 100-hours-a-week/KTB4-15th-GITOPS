@@ -5,6 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-2"
+    notifications.argoproj.io/subscribe.on-deploy-failed.awssqs: lookddak-alert-queue
 spec:
   description: LookDDak prod 애플리케이션 배포 범위
   sourceRepos:

@@ -5,6 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-2"
+    notifications.argoproj.io/subscribe.on-deploy-failed.awssqs: lookddak-alert-queue
 spec:
   description: Prod Argo CD 설치를 GitOps로 관리하는 전용 Project
   sourceRepos:

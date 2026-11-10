@@ -2,7 +2,9 @@
 
 require "yaml"
 
-abort "사용법: #{$PROGRAM_NAME} <렌더링된 Argo CD Manifest>" unless ARGV.length == 1
+abort "사용법: #{$PROGRAM_NAME} <렌더링된 Argo CD Manifest> [dev|prod]" unless (1..2).cover?(ARGV.length)
+environment = ARGV[1] || "dev"
+abort "환경은 dev 또는 prod만 허용합니다." unless %w[dev prod].include?(environment)
 resources = YAML.load_stream(File.read(ARGV[0])).compact
 expected_toleration = { "key" => "CriticalAddonsOnly", "operator" => "Equal", "value" => "true", "effect" => "NoSchedule" }
 expected_pods = %w[
@@ -52,7 +54,7 @@ end
 notifications_service_account = resources.find do |item|
   item["kind"] == "ServiceAccount" && item.dig("metadata", "name") == "argocd-notifications-controller"
 end
-expected_notifications_role = "arn:aws:iam::686496667254:role/lookddak-dev-argocd-notifications"
+expected_notifications_role = "arn:aws:iam::686496667254:role/lookddak-#{environment}-argocd-notifications"
 unless notifications_service_account&.dig("metadata", "annotations", "eks.amazonaws.com/role-arn") == expected_notifications_role
   abort "Notifications Controller ServiceAccount에는 Cloud에서 만든 전용 IRSA Role이 필요합니다."
 end
@@ -96,10 +98,10 @@ routes = resources.select { |item| item["kind"] == "HTTPRoute" }
 expected_parent = { "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway", "namespace" => "istio-ingress", "sectionName" => "https-argocd" }
 unless routes.length == 1 &&
        routes[0].dig("spec", "parentRefs") == [expected_parent] &&
-       routes[0].dig("spec", "hostnames") == ["argocd.dev.lookddak.com"] &&
+       routes[0].dig("spec", "hostnames") == [environment == "dev" ? "argocd.dev.lookddak.com" : "argocd.lookddak.com"] &&
        routes[0].dig("spec", "rules").flat_map { |rule| rule["backendRefs"] } == [{ "name" => "argocd-server", "port" => 80 }]
   abort "Argo CD HTTPRoute는 공용 Gateway https-argocd Listener에서 argocd-server:80으로만 연결해야 합니다."
 end
 params = resources.find { |item| item["kind"] == "ConfigMap" && item.dig("metadata", "name") == "argocd-cmd-params-cm" }
 abort "Gateway에서 TLS를 종료하므로 server.insecure가 필요합니다." unless params&.dig("data", "server.insecure") == "true"
-puts "Argo CD 설치 검증 완료: 실행 구성요소 6개·Hook 1개 System 배치, SQS 실패 알림·IRSA, CRD 3개·런타임 Secret 보호, HTTPRoute 1개"
+puts "Argo CD #{environment} 설치 검증 완료: 실행 구성요소 6개·Hook 1개 System 배치, SQS 실패 알림·IRSA, CRD 3개·런타임 Secret 보호, HTTPRoute 1개"
