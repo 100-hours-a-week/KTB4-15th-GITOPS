@@ -1,0 +1,178 @@
+grafana:
+  replicas: 1
+  deploymentStrategy:
+    type: Recreate
+
+  testFramework:
+    enabled: false
+
+  podLabels:
+    istio.io/dataplane-mode: ambient
+
+  serviceAccount:
+    create: true
+    name: grafana
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-prod-v3-grafana
+
+  extraInitContainers:
+    - name: install-redis-datasource
+      image: docker.io/grafana/grafana:13.3.0
+      command:
+        - /bin/sh
+        - -c
+        - test -d /var/lib/grafana/plugins/redis-datasource || grafana cli --pluginsDir /var/lib/grafana/plugins plugins install redis-datasource 2.2.0
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+      volumeMounts:
+        - name: storage
+          mountPath: /var/lib/grafana
+
+  extraVolumes:
+    - name: redis-readonly
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: grafana-redis-readonly
+
+  extraVolumeMounts:
+    - name: redis-readonly
+      mountPath: /etc/grafana/secrets/redis
+      readOnly: true
+
+  rbac:
+    namespaced: true
+
+  initChownData:
+    enabled: false
+
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: gp3
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: grafana
+    periodSeconds: 10
+    failureThreshold: 60
+
+  nodeSelector:
+    lookddak.io/node-pool: monitoring
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: monitoring
+      effect: NoSchedule
+
+  env:
+    GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"
+
+  grafana.ini:
+    analytics:
+      check_for_updates: false
+      check_for_plugin_updates: false
+      reporting_enabled: false
+    plugins:
+      preinstall_disabled: true
+    server:
+      root_url: https://grafana.v3-prod.lookddak.com
+    auth:
+      disable_login_form: true
+      signout_redirect_url: https://grafana.v3-prod.lookddak.com/oauth2/sign_out?rd=https%3A%2F%2Flookddak-prod-grafana.auth.ap-northeast-2.amazoncognito.com%2Flogout%3Fclient_id%3D7pte89vh5cgk1m0jncjqgdsl6b%26logout_uri%3Dhttps%253A%252F%252Fgrafana.v3-prod.lookddak.com%252F
+    auth.anonymous:
+      enabled: false
+    auth.proxy:
+      enabled: true
+      header_name: X-Auth-Request-Email
+      header_property: email
+      auto_sign_up: true
+      enable_login_token: false
+    users:
+      allow_sign_up: false
+      auto_assign_org: true
+      auto_assign_org_role: Editor
+    dashboards:
+      default_home_dashboard_path: /var/lib/grafana/dashboards/lookddak/lookddak-cluster.json
+
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          uid: prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus-server.monitoring.svc.cluster.local
+          isDefault: true
+          jsonData:
+            timeInterval: 60s
+        - name: Loki
+          uid: loki
+          type: loki
+          access: proxy
+          url: http://loki.monitoring.svc.cluster.local:3100
+          jsonData:
+            maxLines: 1000
+            derivedFields:
+              - name: trace_id
+                matcherRegex: '(?:trace_id|traceId|traceid)[=:"\s]+([0-9a-f]{32})'
+                datasourceUid: tempo
+                url: "$${__value.raw}"
+        - name: Tempo
+          uid: tempo
+          type: tempo
+          access: proxy
+          url: http://tempo.monitoring.svc.cluster.local:3200
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+              filterByTraceID: true
+              spanStartTimeShift: -5m
+              spanEndTimeShift: 5m
+            serviceMap:
+              datasourceUid: prometheus
+            nodeGraph:
+              enabled: true
+        - name: Redis
+          uid: redis
+          type: redis-datasource
+          access: proxy
+          url: redis://redis-cache-master.lookddak-redis.svc.cluster.local:6379
+          jsonData:
+            client: cluster
+            acl: true
+            user: be-readonly
+            poolSize: 2
+            timeout: 10
+          secureJsonData:
+            password: $__file{/etc/grafana/secrets/redis/password}
+
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: lookddak
+          orgId: 1
+          folder: LookDDak
+          type: file
+          disableDeletion: true
+          allowUiUpdates: false
+          options:
+            path: /var/lib/grafana/dashboards/lookddak
+
+  dashboardsConfigMaps:
+    lookddak: grafana-dashboards-lookddak

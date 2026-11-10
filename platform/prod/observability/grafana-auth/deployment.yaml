@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy
+    spec:
+      serviceAccountName: oauth2-proxy
+      nodeSelector:
+        lookddak.io/node-pool: monitoring
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: monitoring
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://cognito-idp.ap-northeast-2.amazonaws.com/ap-northeast-2_o3mZVFSTD
+            - --client-id=7pte89vh5cgk1m0jncjqgdsl6b
+            - --client-secret-file=/etc/oauth2-proxy/client-secret
+            - --cookie-secret-file=/etc/oauth2-proxy/cookie-secret
+            - --redirect-url=https://grafana.v3-prod.lookddak.com/oauth2/callback
+            - --code-challenge-method=S256
+            - --scope=openid email
+            - --email-domain=*
+            - --insecure-oidc-allow-unverified-email=true
+            - --http-address=0.0.0.0:4180
+            - --upstream=static://200
+            - --reverse-proxy=true
+            - --trusted-proxy-ip=100.64.0.0/16
+            - --set-xauthrequest=true
+            - --skip-provider-button=true
+            - --cookie-name=_lookddak_grafana
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-expire=12h
+            - --whitelist-domain=grafana.v3-prod.lookddak.com
+            - --whitelist-domain=lookddak-prod-grafana.auth.ap-northeast-2.amazoncognito.com
+            - --silence-ping-logging=true
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: secrets
+              mountPath: /etc/oauth2-proxy
+              readOnly: true
+      volumes:
+        - name: secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: oauth2-proxy
