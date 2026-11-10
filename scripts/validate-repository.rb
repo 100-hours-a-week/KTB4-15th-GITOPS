@@ -1000,6 +1000,7 @@ unless prod_argocd_values.dig("global", "nodeSelector", "lookddak.io/node-pool")
        prod_notifications.dig("context", "environment") == "prod" &&
        prod_notifications.dig("notifiers", "service.awssqs").include?("queue: lookddak-alert-queue") &&
        prod_notifications.dig("triggers", "trigger.on-deploy-failed").include?("app.status.health.status == 'Degraded'") &&
+       prod_notifications.dig("triggers", "trigger.on-deploy-failed").include?("app.status.operationState.phase != 'Running'") &&
        prod_argocd_values.dig("configs", "cm", "admin.enabled") == true
   abort "platform/prod/argocd/values.yaml: System Node 배치와 Prod 실패 알림 설정이 필요합니다."
 end
@@ -1010,26 +1011,6 @@ prod_notification_subscription = "lookddak-alert-queue"
   unless project.dig("metadata", "annotations", "notifications.argoproj.io/subscribe.on-deploy-failed.awssqs") == prod_notification_subscription
     abort "#{project_name}: Prod 배포 실패 Trigger 구독이 필요합니다."
   end
-end
-
-prod_notification_test_app = load_yaml("argocd/prod/bootstrap/notification-test-application.yaml")
-unless prod_notification_test_app.dig("metadata", "name") == "lookddak-prod-notification-test" &&
-       prod_notification_test_app.dig("metadata", "finalizers") == ["resources-finalizer.argocd.argoproj.io"] &&
-       prod_notification_test_app.dig("spec", "project") == "lookddak-prod" &&
-       prod_notification_test_app.dig("spec", "source") == { "repoURL" => gitops_repository, "targetRevision" => "main", "path" => "tests/prod/notification-failure" } &&
-       prod_notification_test_app.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-notification-test" } &&
-       prod_notification_test_app.dig("spec", "syncPolicy", "automated") == expected_root_automation &&
-       prod_notification_test_app.dig("spec", "syncPolicy", "syncOptions") == ["PruneLast=true"]
-  abort "Prod 알림 테스트 Application은 격리된 Namespace에서 Auto Sync되어야 합니다."
-end
-
-prod_notification_test = load_yaml("tests/prod/notification-failure/deployment.yaml")
-unless prod_notification_test.dig("metadata", "namespace") == "lookddak-notification-test" &&
-       prod_notification_test.dig("spec", "replicas") == 0 &&
-       prod_notification_test.dig("spec", "progressDeadlineSeconds") == 60 &&
-       prod_notification_test.dig("spec", "template", "spec", "nodeSelector", "lookddak.io/node-pool") == "general-purpose" &&
-       prod_notification_test.dig("spec", "template", "spec", "containers", 0, "image").match?(/@sha256:0{64}\z/)
-  abort "Prod 알림 테스트 Deployment는 general-purpose NodePool, 평상시 replica 0, 의도적인 실패 digest를 유지해야 합니다."
 end
 
 prod_argocd_route_file = "platform/prod/argocd/templates/httproute.yaml"
@@ -1053,7 +1034,7 @@ unless prod_argocd_route["apiVersion"] == "gateway.networking.k8s.io/v1" &&
 end
 
 prod_namespace_documents = YAML.load_stream(File.read("argocd/prod/bootstrap/namespaces.yaml")).compact
-expected_prod_namespaces = %w[argocd istio-ingress istio-system lookddak-chat lookddak-commerce lookddak-fitting lookddak-identity lookddak-notification-test lookddak-redis lookddak-web monitoring]
+expected_prod_namespaces = %w[argocd istio-ingress istio-system lookddak-chat lookddak-commerce lookddak-fitting lookddak-identity lookddak-redis lookddak-web monitoring]
 actual_prod_namespaces = prod_namespace_documents.map { |item| item.dig("metadata", "name") }.sort
 abort "Prod Bootstrap Namespace 구성이 예상과 다릅니다." unless actual_prod_namespaces == expected_prod_namespaces
 prod_namespace_documents.each do |namespace|

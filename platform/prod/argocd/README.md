@@ -85,6 +85,6 @@ Argo CD Notifications Controller
 ```
 
 - `lookddak-prod`, `lookddak-prod-platform`, `lookddak-prod-argocd` Project가 Sync 실패·Health Degraded·Sync Unknown Trigger를 구독한다.
+- Sync 작업이 `Running`인 동안 일시적으로 보이는 `OutOfSync / Degraded` 상태는 알리지 않는다.
 - 성공·복구 알림은 보내지 않으며 동일 revision은 한 번만 알린다.
 - 자동 Revert는 사용하지 않는다. 복구는 [Prod 배포 실패 수동 복구 Runbook](../../../runbooks/prod-deployment-recovery.md)에 따라 Git Revert PR로 수행한다.
-- 실제 서비스 대신 replica 0인 `lookddak-prod-notification-test` Application으로 실패·복구 리허설을 수행한다.

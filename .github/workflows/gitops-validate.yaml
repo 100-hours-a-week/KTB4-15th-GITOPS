@@ -277,8 +277,7 @@ jobs:
             /workspace/argocd/dev/namespace-fitting.yaml \
             /workspace/argocd/projects/lookddak-prod.yaml \
             /workspace/argocd/projects/lookddak-prod-argocd.yaml \
-            /workspace/argocd/projects/lookddak-prod-platform.yaml \
-            /workspace/argocd/prod/bootstrap/notification-test-application.yaml
+            /workspace/argocd/projects/lookddak-prod-platform.yaml
 
       - name: GitOps 정책 검사
         run: ruby scripts/validate-policy.rb

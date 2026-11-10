@@ -75,12 +75,6 @@ helm template fixture-domain charts/lookddak-domain \
   -f ci/fixtures/domain-policy.yaml \
   > "$output_dir/domain-policy.yaml"
 
-# 실제 서비스와 분리된 Prod 실패 알림 리허설 Deployment도 Schema 검사에 포함한다.
-# Manifest Diff는 변경 전 commit도 같은 스크립트로 렌더링하므로, 파일이 도입되기 전 기준에서는 건너뛴다.
-if [[ -f tests/prod/notification-failure/deployment.yaml ]]; then
-  cp tests/prod/notification-failure/deployment.yaml "$output_dir/notification-test-prod.yaml"
-fi
-
 # Prod는 도메인별로 순차 활성화한다. 활성화 Application이 있는 버전만 실제 values로 렌더링한다.
 # PR Manifest Diff가 활성화 전 기준 커밋의 미완성 values를 렌더링하지 않도록 Application을 기준으로 판별한다.
 if [[ -f argocd/prod/workloads/web-bff-application.yaml ]]; then

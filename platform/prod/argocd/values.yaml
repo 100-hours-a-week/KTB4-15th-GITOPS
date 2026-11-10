@@ -103,11 +103,11 @@ argo-cd:
           }
     triggers:
       trigger.on-deploy-failed: |
-        - description: Sync 실패, Health Degraded 또는 Sync Unknown을 revision당 한 번 알림
+        - description: Sync 실패 또는 완료된 배포의 Health Degraded·Sync Unknown을 revision당 한 번 알림
           oncePer: app.status.sync.revision
           send:
             - lookddak-deploy-failed
-          when: (app.status.operationState != nil && app.status.operationState.phase in ['Error', 'Failed']) || app.status.health.status == 'Degraded' || app.status.sync.status == 'Unknown'
+          when: (app.status.operationState != nil && app.status.operationState.phase in ['Error', 'Failed']) || ((app.status.health.status == 'Degraded' || app.status.sync.status == 'Unknown') && (app.status.operationState == nil || app.status.operationState.phase != 'Running'))
 
   commitServer:
     enabled: false

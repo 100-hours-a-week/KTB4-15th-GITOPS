@@ -50,25 +50,6 @@ git show <실패한-GitOps-커밋-SHA>^:environments/prod/images.yaml > /tmp/ima
 - Discord 성공 알림은 오지 않음
 - 장애 원인과 복구 PR을 이슈 또는 장애 기록에 남김
 
-## 실패 알림 리허설
-
-`lookddak-prod-notification-test`만 사용하며 실제 서비스 Application과 `environments/prod/images.yaml`은 수정하지 않는다.
-
-1. 기준 상태에서 `tests/prod/notification-failure/deployment.yaml`의 `replicas`가 `0`이고 Application이 `Synced / Healthy`인지 확인한다.
-2. 별도 테스트 PR에서 `replicas: 0`을 `replicas: 1`로만 변경한다.
-3. `GitOps CI` 통과 후 PR을 병합한다.
-4. 존재하지 않는 image digest로 Pod Pull이 실패하고 약 1~3분 뒤 Application이 `Degraded`가 되는지 확인한다.
-5. Discord에서 `[PROD][배포 실패] lookddak-prod-notification-test` 알림 한 건을 확인한다.
-6. 알림의 `GitOps 변경` 링크로 실패 커밋을 확인하고, 위 방법 A로 Revert PR을 만든다.
-7. Revert PR을 병합한 뒤 replica가 다시 0이 되고 Application이 `Synced / Healthy`로 복구되는지 확인한다.
-8. 성공·복구 알림이 추가로 오지 않는지 확인한다.
-
-리허설 완료 후 테스트 Application을 제거하려면 별도 정리 PR에서 `argocd/prod/bootstrap/notification-test-application.yaml`과 `tests/prod/notification-failure`를 제거한다. Application finalizer가 Deployment를 Prune한 것을 확인한 후 남은 빈 Namespace를 삭제한다.
-
-```bash
-kubectl delete namespace lookddak-notification-test
-```
-
 ## 금지 사항
 
 - Argo CD UI에서 Live Manifest 직접 수정
