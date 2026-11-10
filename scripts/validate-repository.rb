@@ -1024,13 +1024,12 @@ unless prod_notification_test_app.dig("metadata", "name") == "lookddak-prod-noti
 end
 
 prod_notification_test = load_yaml("tests/prod/notification-failure/deployment.yaml")
-prod_notification_test_replicas = prod_notification_test.dig("spec", "replicas")
 unless prod_notification_test.dig("metadata", "namespace") == "lookddak-notification-test" &&
-       [0, 1].include?(prod_notification_test_replicas) &&
+       prod_notification_test.dig("spec", "replicas") == 0 &&
        prod_notification_test.dig("spec", "progressDeadlineSeconds") == 60 &&
        prod_notification_test.dig("spec", "template", "spec", "nodeSelector", "lookddak.io/node-pool") == "general-purpose" &&
        prod_notification_test.dig("spec", "template", "spec", "containers", 0, "image").match?(/@sha256:0{64}\z/)
-  abort "Prod 알림 테스트 Deployment는 general-purpose NodePool, replica 0 또는 리허설용 1, 의도적인 실패 digest를 유지해야 합니다."
+  abort "Prod 알림 테스트 Deployment는 general-purpose NodePool, 평상시 replica 0, 의도적인 실패 digest를 유지해야 합니다."
 end
 
 prod_argocd_route_file = "platform/prod/argocd/templates/httproute.yaml"
