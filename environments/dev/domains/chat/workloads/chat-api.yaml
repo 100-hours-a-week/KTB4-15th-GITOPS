@@ -36,6 +36,8 @@ container:
     # Redis 장애 시 local/DB fallback으로 서비스하므로 readiness에서 Redis를 제외한다.
     - name: MANAGEMENT_HEALTH_REDIS_ENABLED
       value: "false"
+    - name: SPRING_AUTOCONFIGURE_EXCLUDE
+      value: org.springframework.boot.data.redis.autoconfigure.observation.LettuceObservationAutoConfiguration
     - name: JAVA_TOOL_OPTIONS
       value: >-
         -XX:MaxRAMPercentage=75.0
