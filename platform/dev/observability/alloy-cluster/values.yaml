@@ -586,6 +586,19 @@ alloy:
           limit_percentage       = 70
           spike_limit_percentage = 15
           output {
+            traces = [otelcol.processor.filter.probes.input]
+          }
+        }
+
+        otelcol.processor.filter "probes" {
+          error_mode = "ignore"
+          traces {
+            span = [
+              `kind == SPAN_KIND_SERVER and IsMatch(attributes["url.path"], "^/(actuator/(health|prometheus)|health|metrics)")`,
+              `kind == SPAN_KIND_SERVER and IsMatch(attributes["http.target"], "^/(actuator/(health|prometheus)|health|metrics)")`,
+            ]
+          }
+          output {
             traces = [otelcol.processor.probabilistic_sampler.default.input]
           }
         }

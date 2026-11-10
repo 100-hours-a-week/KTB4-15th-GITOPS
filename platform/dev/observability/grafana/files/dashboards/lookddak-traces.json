@@ -278,7 +278,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"spring\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/fitting.*\"}[5m]))",
+          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=~\"(identity|chat|commerce|fitting)-api|fitting-worker\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/fitting.*\"}[5m]))",
           "legendFormat": "{{span_name}}"
         }
       ],
@@ -328,7 +328,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=\"spring\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/fitting.*\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=~\"(identity|chat|commerce|fitting)-api|fitting-worker\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/fitting.*\"}[5m])))",
           "legendFormat": "{{span_name}}"
         }
       ],
@@ -378,7 +378,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (span_name) (increase(traces_spanmetrics_calls_total{service=\"spring\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/fitting.*\", status_code=\"STATUS_CODE_ERROR\"}[5m])) > 0",
+          "expr": "sum by (span_name) (increase(traces_spanmetrics_calls_total{service=~\"(identity|chat|commerce|fitting)-api|fitting-worker\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/fitting.*\", status_code=\"STATUS_CODE_ERROR\"}[5m])) > 0",
           "legendFormat": "{{span_name}}"
         }
       ],
@@ -528,7 +528,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_calls_total{service=\"fastapi\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v2/webhooks/runware\"}[5m]))",
+          "expr": "sum(increase(traces_spanmetrics_calls_total{service=~\"chat-ai|vton-orchestrator|body-image-validator\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v2/webhooks/runware\"}[5m]))",
           "legendFormat": "수신"
         },
         {
@@ -537,7 +537,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_calls_total{service=\"fastapi\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v2/webhooks/runware\", status_code=\"STATUS_CODE_ERROR\"}[5m]))",
+          "expr": "sum(increase(traces_spanmetrics_calls_total{service=~\"chat-ai|vton-orchestrator|body-image-validator\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v2/webhooks/runware\", status_code=\"STATUS_CODE_ERROR\"}[5m]))",
           "legendFormat": "오류"
         }
       ],
@@ -587,7 +587,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service=\"fastapi\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"POST\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service=~\"chat-ai|vton-orchestrator|body-image-validator\", span_kind=\"SPAN_KIND_CLIENT\", span_name=\"POST\"}[5m])))",
           "legendFormat": "p95"
         }
       ],
@@ -637,7 +637,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service=\"fastapi\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v2/webhooks/runware\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service=~\"chat-ai|vton-orchestrator|body-image-validator\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v2/webhooks/runware\"}[5m])))",
           "legendFormat": "p95"
         }
       ],
@@ -758,7 +758,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"spring\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/chat-rooms.*\", span_name!~\".*/stream\"}[5m]))",
+          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=~\"(identity|chat|commerce|fitting)-api|fitting-worker\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/chat-rooms.*\", span_name!~\".*/stream\"}[5m]))",
           "legendFormat": "{{span_name}}"
         }
       ],
@@ -808,7 +808,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=\"spring\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/chat-rooms.*\", span_name!~\".*/stream\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=~\"(identity|chat|commerce|fitting)-api|fitting-worker\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"[A-Z]+ /api/v1/chat-rooms.*\", span_name!~\".*/stream\"}[5m])))",
           "legendFormat": "{{span_name}}"
         }
       ],
@@ -858,7 +858,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service=\"fastapi\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v1/chat/stream\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(traces_spanmetrics_latency_bucket{service=~\"chat-ai|vton-orchestrator|body-image-validator\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v1/chat/stream\"}[5m])))",
           "legendFormat": "p95"
         }
       ],
@@ -908,7 +908,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_calls_total{service=\"fastapi\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v1/chat/stream\"}[5m]))",
+          "expr": "sum(increase(traces_spanmetrics_calls_total{service=~\"chat-ai|vton-orchestrator|body-image-validator\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v1/chat/stream\"}[5m]))",
           "legendFormat": "요청"
         },
         {
@@ -917,7 +917,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(traces_spanmetrics_calls_total{service=\"fastapi\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v1/chat/stream\", status_code=\"STATUS_CODE_ERROR\"}[5m]))",
+          "expr": "sum(increase(traces_spanmetrics_calls_total{service=~\"chat-ai|vton-orchestrator|body-image-validator\", span_kind=\"SPAN_KIND_SERVER\", span_name=\"POST /api/v1/chat/stream\", status_code=\"STATUS_CODE_ERROR\"}[5m]))",
           "legendFormat": "오류"
         }
       ],
@@ -968,7 +968,7 @@
             "uid": "tempo"
           },
           "queryType": "traceql",
-          "query": "{ resource.service.name = \"fastapi\" && name = \"POST /api/v1/chat/stream\" && duration > 30s }",
+          "query": "{ resource.service.name = \"chat-ai\" && name = \"POST /api/v1/chat/stream\" && duration > 30s }",
           "limit": 20,
           "tableType": "traces"
         }
