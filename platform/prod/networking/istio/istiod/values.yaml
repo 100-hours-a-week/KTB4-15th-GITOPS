@@ -8,6 +8,27 @@ istiod:
       memory: 512Mi
   autoscaleMin: 2
   autoscaleMax: 5
+
+  meshConfig:
+    extensionProviders:
+      - name: oauth2-proxy-grafana
+        envoyExtAuthzHttp:
+          service: oauth2-proxy.monitoring.svc.cluster.local
+          port: 4180
+          includeRequestHeadersInCheck:
+            - authorization
+            - cookie
+          headersToUpstreamOnAllow:
+            - authorization
+            - path
+            - x-auth-request-user
+            - x-auth-request-email
+          headersToDownstreamOnAllow:
+            - set-cookie
+          headersToDownstreamOnDeny:
+            - content-type
+            - set-cookie
+            - location
   nodeSelector:
     kubernetes.io/os: linux
     kubernetes.io/arch: arm64

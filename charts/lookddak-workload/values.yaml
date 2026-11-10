@@ -108,6 +108,7 @@ tracing:
   runtime: ""
   serviceName: ""
   sampler: always_on
+  nodeOptions: ""
   resourceAttributes: ""
   endpoints:
     grpc: http://alloy-cluster.monitoring.svc.cluster.local:4317

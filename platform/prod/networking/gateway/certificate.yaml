@@ -16,3 +16,4 @@ spec:
     - www.lookddak.com
     - v3-prod.lookddak.com
     - argocd.lookddak.com
+    - grafana.v3-prod.lookddak.com

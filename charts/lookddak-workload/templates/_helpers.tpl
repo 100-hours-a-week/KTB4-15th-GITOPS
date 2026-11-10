@@ -131,7 +131,7 @@ default
   value: "true"
 {{- else if eq $t.runtime "nodejs" }}
 - name: NODE_OPTIONS
-  value: --require /otel/autoinstrumentation.js
+  value: {{ trim (printf "%s --require /otel/autoinstrumentation.js" $t.nodeOptions) | quote }}
 - name: OTEL_EXPORTER_OTLP_ENDPOINT
   value: {{ $t.endpoints.http | quote }}
 - name: OTEL_EXPORTER_OTLP_PROTOCOL

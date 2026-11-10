@@ -1019,7 +1019,7 @@ unless prod_argocd_route["apiVersion"] == "gateway.networking.k8s.io/v1" &&
 end
 
 prod_namespace_documents = YAML.load_stream(File.read("argocd/prod/bootstrap/namespaces.yaml")).compact
-expected_prod_namespaces = %w[argocd istio-ingress istio-system lookddak-chat lookddak-commerce lookddak-fitting lookddak-identity lookddak-web]
+expected_prod_namespaces = %w[argocd istio-ingress istio-system lookddak-chat lookddak-commerce lookddak-fitting lookddak-identity lookddak-redis lookddak-web monitoring]
 actual_prod_namespaces = prod_namespace_documents.map { |item| item.dig("metadata", "name") }.sort
 abort "Prod Bootstrap Namespace 구성이 예상과 다릅니다." unless actual_prod_namespaces == expected_prod_namespaces
 prod_namespace_documents.each do |namespace|
@@ -1041,11 +1041,15 @@ expected_prod_platform_repos = [
   "https://aws.github.io/secrets-store-csi-driver-provider-aws",
   "https://blob.istio.io/istio-release/charts",
   "https://charts.jetstack.io",
+  "https://grafana-community.github.io/helm-charts",
+  "https://grafana.github.io/helm-charts",
   "https://kubernetes-sigs.github.io/metrics-server/",
   "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts",
+  "https://ot-container-kit.github.io/helm-charts",
+  "https://prometheus-community.github.io/helm-charts",
   "oci://public.ecr.aws/karpenter"
 ]
-expected_prod_platform_destinations = %w[kube-system istio-system istio-ingress].map do |namespace|
+expected_prod_platform_destinations = %w[kube-system istio-system istio-ingress lookddak-redis monitoring].map do |namespace|
   { "server" => in_cluster_server, "namespace" => namespace }
 end
 expected_prod_platform_resources = [
@@ -1054,6 +1058,7 @@ expected_prod_platform_resources = [
   { "group" => "rbac.authorization.k8s.io", "kind" => "ClusterRoleBinding" },
   { "group" => "apiregistration.k8s.io", "kind" => "APIService" },
   { "group" => "storage.k8s.io", "kind" => "CSIDriver" },
+  { "group" => "storage.k8s.io", "kind" => "StorageClass" },
   { "group" => "scheduling.k8s.io", "kind" => "PriorityClass" },
   { "group" => "admissionregistration.k8s.io", "kind" => "MutatingWebhookConfiguration" },
   { "group" => "admissionregistration.k8s.io", "kind" => "ValidatingWebhookConfiguration" },
@@ -1296,7 +1301,7 @@ unless prod_gateway.dig("spec", "gatewayClassName") == "istio" &&
        gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-security-groups"] == "sg-0993a57cec9f3b5f5" &&
        gateway_annotations["service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules"] == "true" &&
        !gateway_annotations.key?("service.beta.kubernetes.io/load-balancer-source-ranges") &&
-       gateway_hostnames == %w[lookddak.com www.lookddak.com v3-prod.lookddak.com argocd.lookddak.com]
+       gateway_hostnames == %w[lookddak.com www.lookddak.com v3-prod.lookddak.com argocd.lookddak.com grafana.v3-prod.lookddak.com]
   abort "Prod Gateway는 내부 NLB·Pod IP·CloudFront 전용 SG·승인된 Hostname을 유지해야 합니다."
 end
 prod_validation_listener = gateway_listeners.find { |listener| listener["name"] == "https-v3-prod" }
@@ -1331,7 +1336,7 @@ end
 prod_certificate = load_yaml("platform/prod/networking/gateway/certificate.yaml")
 unless prod_certificate.dig("spec", "issuerRef", "name") == "letsencrypt-prod" &&
        prod_certificate.dig("spec", "secretName") == "lookddak-com-tls" &&
-       prod_certificate.dig("spec", "dnsNames") == %w[lookddak.com www.lookddak.com v3-prod.lookddak.com argocd.lookddak.com]
+       prod_certificate.dig("spec", "dnsNames") == %w[lookddak.com www.lookddak.com v3-prod.lookddak.com argocd.lookddak.com grafana.v3-prod.lookddak.com]
   abort "Prod Gateway 인증서는 승인된 Prod Issuer·도메인을 사용해야 합니다."
 end
 
@@ -2638,5 +2643,24 @@ unless oauth2_proxy_args.include?("--client-secret-file=/etc/oauth2-proxy/client
        oauth2_proxy_args.none? { |arg| arg.include?("__COGNITO_POOL_ID__") }
   abort "platform/dev/observability/grafana-auth/deployment.yaml: oauth2-proxy는 비밀값을 CSI 파일로 읽고, X-Auth-Request 헤더·secure 쿠키를 써야 합니다 (사용자 풀 ID 치환 필요)."
 end
+
+prod_placeholder_files = Dir["platform/prod/**/*.{yaml,yml}"].select { |file| File.read(file).match?(/__PROD_COGNITO_[A-Z_]+__|__REDIS_READONLY_ACL_RULE__/) }
+abort "Prod 값이 비어 있습니다 (CLOUD terraform output으로 채우세요): #{prod_placeholder_files.join(', ')}" unless prod_placeholder_files.empty?
+prod_redis_acl_lines = load_yaml("platform/prod/redis/cluster/redis-cluster-config.yaml").dig("data", "redis-additional.conf").to_s.lines.map(&:strip).select { |line| line.start_with?("user ") }
+unless prod_redis_acl_lines.size == 1 && prod_redis_acl_lines[0].match?(/\Auser be-readonly on #[0-9a-f]{64} ~\* resetchannels -@all \+@read \+@connection .*-@dangerous \+info\z/) &&
+       prod_redis_acl_lines[0] != redis_acl_lines[0]
+  abort "platform/prod/redis/cluster/redis-cluster-config.yaml: Prod Redis ACL은 be-readonly 읽기 전용 사용자 하나이고 dev와 다른 비밀번호 해시여야 합니다."
+end
+prod_grafana_values = load_yaml("platform/prod/observability/grafana/values.yaml").fetch("grafana")
+unless prod_grafana_values.dig("grafana.ini", "auth.proxy", "enabled") == true && prod_grafana_values.dig("grafana.ini", "auth.anonymous", "enabled") == false &&
+       prod_grafana_values.dig("grafana.ini", "server", "root_url") == "https://grafana.v3-prod.lookddak.com" &&
+       prod_grafana_values.dig("podLabels", "istio.io/dataplane-mode") == "ambient"
+  abort "platform/prod/observability/grafana/values.yaml: Prod Grafana는 auth.proxy만, grafana.v3-prod, Pod 단위 Ambient여야 합니다."
+end
+prod_grafana_app = load_yaml("argocd/prod/platform/grafana-application.yaml")
+abort "argocd/prod/platform/grafana-application.yaml: 대시보드 ConfigMap 크기 때문에 ServerSideApply=true가 필요합니다." unless prod_grafana_app.dig("spec", "syncPolicy", "syncOptions").to_a.include?("ServerSideApply=true")
+prod_monitoring_text = Dir["platform/prod/{observability,redis,storage,scheduling}/**/*.{yaml,tpl}"].reject { |file| file.end_with?("crds.yaml") }.map { |file| [file, File.read(file)] }
+prod_dev_refs = prod_monitoring_text.select { |file, text| text.gsub("lookddak-dev-v3-db-log-tailer@", "").match?(/lookddak-dev|v3-dev|\/lookddak\/dev\/|"Environment" = "dev"/) }.map(&:first)
+abort "Prod 모니터링 구성에 dev 값이 남아 있습니다: #{prod_dev_refs.join(', ')}" unless prod_dev_refs.empty?
 
 puts "저장소 구조 검사 완료: Argo CD·Karpenter·Metrics Server 플랫폼, dev Namespace 5개, 도메인 5개, 환경별 워크로드 10개, Application 이름 #{application_names.length}개"

@@ -123,3 +123,8 @@ secrets:
       - {name: JWT_SECRET, fileName: JWT_SECRET}
       - {name: INTERNAL_API_KEY, fileName: INTERNAL_API_KEY}
     command: [java, "-XX:+ExitOnOutOfMemoryError", org.springframework.boot.loader.launch.JarLauncher]
+
+tracing:
+  enabled: true
+  runtime: java
+  resourceAttributes: deployment.environment.name=prod,service.namespace=lookddak

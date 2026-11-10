@@ -1,0 +1,29 @@
+# OT-CONTAINER-KIT redis-operator 0.27.0 CRD (차트 crds/crds.yaml을 그대로 보관)
+# - Operator와 분리: Operator 변경·삭제가 CRD → RedisCluster → Redis Pod 삭제로 번지지 않게 한다
+# - prune 끔: Git에서 빠져도 클러스터의 CRD를 지우지 않는다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lookddak-prod-redis-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: lookddak-prod-platform
+  source:
+    repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+    targetRevision: main
+    path: platform/prod/redis/crds
+    directory:
+      include: crds.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lookddak-redis
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - ServerSideApply=true

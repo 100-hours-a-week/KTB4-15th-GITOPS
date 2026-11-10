@@ -13,8 +13,12 @@ spec:
     - https://aws.github.io/secrets-store-csi-driver-provider-aws
     - https://blob.istio.io/istio-release/charts
     - https://charts.jetstack.io
+    - https://grafana-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
     - https://kubernetes-sigs.github.io/metrics-server/
     - https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+    - https://ot-container-kit.github.io/helm-charts
+    - https://prometheus-community.github.io/helm-charts
     - oci://public.ecr.aws/karpenter
   destinations:
     - server: https://kubernetes.default.svc
@@ -23,6 +27,10 @@ spec:
       namespace: istio-system
     - server: https://kubernetes.default.svc
       namespace: istio-ingress
+    - server: https://kubernetes.default.svc
+      namespace: lookddak-redis
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
   clusterResourceWhitelist:
     - group: apiextensions.k8s.io
       kind: CustomResourceDefinition
@@ -34,6 +42,8 @@ spec:
       kind: APIService
     - group: storage.k8s.io
       kind: CSIDriver
+    - group: storage.k8s.io
+      kind: StorageClass
     - group: scheduling.k8s.io
       kind: PriorityClass
     - group: admissionregistration.k8s.io

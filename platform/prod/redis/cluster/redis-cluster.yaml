@@ -1,0 +1,83 @@
+# Redis Cluster: 마스터 3 · 레플리카 3, 영속화·PV 없음, 비밀번호 없음 (k8s-design/11 §4-5·4-6, 18)
+# - 노드 배치: Redis 전용 NodePool(lookddak.io/node-pool=redis), 노드마다 마스터 1·레플리카 1
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisCluster
+metadata:
+  name: redis-cache
+  namespace: lookddak-redis
+spec:
+  clusterSize: 3
+  clusterVersion: v7
+  persistenceEnabled: false
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v7.2.17
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 250m
+        memory: 450Mi
+      limits:
+        memory: 450Mi
+  # redisExporter 블록 없음 → exporter 사이드카를 만들지 않는다 (수집은 Alloy 내장 prometheus.exporter.redis)
+  # 주의: 블록을 쓰면 CRD가 image를 필수로 요구한다 (enabled: false만으로는 거부됨)
+  redisLeader:
+    redisConfig:
+      additionalRedisConfig: redis-cache-config
+    nodeSelector:
+      lookddak.io/node-pool: redis
+    tolerations:
+      - key: lookddak.io/dedicated
+        operator: Equal
+        value: redis
+        effect: NoSchedule
+    # 노드마다 마스터 1개 (과반 유지)
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: redis-cache-leader
+            topologyKey: kubernetes.io/hostname
+    # AZ 분산: 3개를 2a·2c에 2:1로 (한 AZ에 몰리면 AZ 장애 = Redis 전체 장애)
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: redis-cache-leader
+    pdb:
+      enabled: true
+      maxUnavailable: 1
+  redisFollower:
+    redisConfig:
+      additionalRedisConfig: redis-cache-config
+    nodeSelector:
+      lookddak.io/node-pool: redis
+    tolerations:
+      - key: lookddak.io/dedicated
+        operator: Equal
+        value: redis
+        effect: NoSchedule
+    # 노드마다 레플리카 1개. 자기 마스터와 다른 노드인지는 검증 항목 (k8s-design/18 §4 T1)
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: redis-cache-follower
+            topologyKey: kubernetes.io/hostname
+    # AZ 분산: 3개를 2a·2c에 2:1로 (한 AZ에 몰리면 AZ 장애 = Redis 전체 장애)
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: redis-cache-follower
+    pdb:
+      enabled: true
+      maxUnavailable: 1

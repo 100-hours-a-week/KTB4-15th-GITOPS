@@ -1,0 +1,21 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: grafana-ext-authz
+  namespace: istio-ingress
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lookddak-gateway
+  action: CUSTOM
+  provider:
+    name: oauth2-proxy-grafana
+  rules:
+    - to:
+        - operation:
+            hosts:
+              - grafana.v3-prod.lookddak.com
+              - grafana.v3-prod.lookddak.com:*
+            notPaths:
+              - /oauth2/*

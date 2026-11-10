@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lookddak-grafana
+description: LookDDak EKS prod Grafana 설치 설정
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: grafana
+    version: 14.4.0
+    repository: https://grafana-community.github.io/helm-charts

@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lookddak-prod-redis-cluster
+  namespace: argocd
+  annotations:
+    # CRD(-1)·Operator(0) 이후
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: lookddak-prod-platform
+  source:
+    repoURL: https://github.com/100-hours-a-week/KTB4-15th-GITOPS.git
+    targetRevision: main
+    path: platform/prod/redis/cluster
+    directory:
+      include: "*.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lookddak-redis
+  syncPolicy:
+    automated:
+      enabled: true
+      # RedisCluster를 실수로 지우지 않도록 prune 끔 (리소스 삭제는 PR로 명시적으로)
+      prune: false
+      selfHeal: true
+      allowEmpty: false
