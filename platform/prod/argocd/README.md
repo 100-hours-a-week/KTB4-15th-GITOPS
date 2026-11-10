@@ -10,7 +10,7 @@ Prod EKS에 Argo CD를 최초 설치하고, 설치 직후부터 GitOps `main`의
 - 모든 Argo CD Pod를 `lookddak.io/node-pool=system` Node에 배치한다.
 - Controller, ApplicationSet, Repo Server, Server와 Redis는 Bootstrap 단계에서 각각 단일 Replica로 실행한다.
 - Argo CD 자체 Ingress는 만들지 않는다. 플랫폼 Controller 설치 전에는 `kubectl port-forward`로만 접근하고, 이후에는 Wrapper Chart의 HTTPRoute가 공용 Istio Gateway를 통해 `argocd-server:80`으로 연결한다.
-- 기본 관리자 로그인을 활성화하고 Dex와 Notifications를 비활성화한다. OAuth·운영 알림은 별도 작업으로 구성한다.
+- 기본 관리자 로그인을 활성화하고 Dex를 비활성화한다. Notifications Controller는 전용 IRSA로 기존 Alert Queue에 배포 실패 이벤트만 전송한다.
 - CRD와 `argocd-secret`은 Prune·삭제로부터 보호한다. Secret 원문은 Git에 저장하지 않는다.
 
 ## 최초 Bootstrap
@@ -74,3 +74,17 @@ HTTPRoute는 클러스터 내부 연결만 담당한다. CloudFront·WAF·Route 
 ## 자기 관리 전환 후 주의사항
 
 Root가 `argocd` Application을 생성한 뒤에는 Argo CD 변경을 Git PR로 수행한다. 기존 Helm Release Secret은 남아 있어도 정상이며 `helm upgrade`, `rollback`, `uninstall`을 임의로 실행하지 않는다.
+
+## 배포 실패 알림과 수동 복구
+
+```text
+Argo CD Notifications Controller
+→ lookddak-alert-queue
+→ lookddak-discord-alert Lambda
+→ 팀 Discord Critical 채널
+```
+
+- `lookddak-prod`, `lookddak-prod-platform`, `lookddak-prod-argocd` Project가 Sync 실패·Health Degraded·Sync Unknown Trigger를 구독한다.
+- 성공·복구 알림은 보내지 않으며 동일 revision은 한 번만 알린다.
+- 자동 Revert는 사용하지 않는다. 복구는 [Prod 배포 실패 수동 복구 Runbook](../../../runbooks/prod-deployment-recovery.md)에 따라 Git Revert PR로 수행한다.
+- 실제 서비스 대신 replica 0인 `lookddak-prod-notification-test` Application으로 실패·복구 리허설을 수행한다.
