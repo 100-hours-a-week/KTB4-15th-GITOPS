@@ -75,6 +75,20 @@ helm template fixture-domain charts/lookddak-domain \
   -f ci/fixtures/domain-policy.yaml \
   > "$output_dir/domain-policy.yaml"
 
+# Prod는 도메인별로 순차 활성화한다. 현재 활성화한 Web만 실제 Prod values로 렌더링한다.
+helm template web-bff charts/lookddak-workload \
+  --namespace lookddak-web \
+  --kube-version 1.36.0 \
+  -f environments/prod/images.yaml \
+  -f environments/prod/domains/web/workloads/web-bff.yaml \
+  > "$output_dir/web-bff-prod.yaml"
+
+helm template web-domain charts/lookddak-domain \
+  --namespace lookddak-web \
+  --kube-version 1.36.0 \
+  -f environments/prod/domains/web/domain.yaml \
+  > "$output_dir/web-domain-prod.yaml"
+
 if [[ -f platform/dev/argocd/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/argocd >/dev/null
   helm template argocd platform/dev/argocd \
