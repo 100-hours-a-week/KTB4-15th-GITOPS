@@ -524,8 +524,7 @@ unless prod_workloads_loader.dig("metadata", "name") == "lookddak-prod-workloads
        prod_workloads_loader.dig("spec", "source") == {
          "repoURL" => gitops_repository,
          "targetRevision" => "main",
-         "path" => "argocd/prod/workloads",
-         "directory" => { "recurse" => false }
+         "path" => "argocd/prod/workloads"
        } &&
        prod_workloads_loader.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "argocd" } &&
        prod_workloads_loader.dig("spec", "syncPolicy", "automated") == expected_prod_automation
