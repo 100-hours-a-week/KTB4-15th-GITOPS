@@ -494,6 +494,9 @@ end
 prod_active_application_files = Dir["argocd/prod/workloads/*.yaml"].sort
 expected_prod_active_application_files = %w[
   argocd/prod/workloads/body-image-validator-application.yaml
+  argocd/prod/workloads/chat-ai-application.yaml
+  argocd/prod/workloads/chat-api-application.yaml
+  argocd/prod/workloads/chat-domain-application.yaml
   argocd/prod/workloads/commerce-api-application.yaml
   argocd/prod/workloads/commerce-domain-application.yaml
   argocd/prod/workloads/identity-api-application.yaml
@@ -503,7 +506,7 @@ expected_prod_active_application_files = %w[
   argocd/prod/workloads/web-domain-application.yaml
 ]
 unless prod_active_application_files == expected_prod_active_application_files
-  abort "Prod 단계 배포는 현재 Web·Identity·Commerce Domain과 승인된 Workload만 활성화해야 합니다. 실제=#{prod_active_application_files}"
+  abort "Prod 단계 배포는 현재 Web·Identity·Commerce·Chat Domain과 승인된 Workload만 활성화해야 합니다. 실제=#{prod_active_application_files}"
 end
 
 prod_web_domain_app = load_yaml("argocd/prod/workloads/web-domain-application.yaml")
@@ -612,6 +615,41 @@ prod_commerce_applications.each do |name, expected|
          application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-commerce" } &&
          application.dig("spec", "syncPolicy", "automated") == expected_prod_automation
     abort "#{expected.fetch(:file)}: Prod Commerce 단계 Application 설정이 예상과 다릅니다."
+  end
+end
+
+prod_chat_applications = {
+  "chat-domain" => {
+    file: "argocd/prod/workloads/chat-domain-application.yaml",
+    chart: "charts/lookddak-domain",
+    values: ["$values/environments/prod/domains/chat/domain.yaml"],
+    wave: "8"
+  },
+  "chat-ai" => {
+    file: "argocd/prod/workloads/chat-ai-application.yaml",
+    chart: "charts/lookddak-workload",
+    values: ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/chat/workloads/chat-ai.yaml"],
+    wave: "9"
+  },
+  "chat-api" => {
+    file: "argocd/prod/workloads/chat-api-application.yaml",
+    chart: "charts/lookddak-workload",
+    values: ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/chat/workloads/chat-api.yaml"],
+    wave: "10"
+  }
+}
+
+prod_chat_applications.each do |name, expected|
+  application = load_yaml(expected.fetch(:file))
+  unless application.dig("metadata", "name") == "prod-#{name}" &&
+         application.dig("metadata", "namespace") == "argocd" &&
+         application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == expected.fetch(:wave) &&
+         application.dig("spec", "project") == "lookddak-prod" &&
+         application.dig("spec", "sources", 0, "path") == expected.fetch(:chart) &&
+         application.dig("spec", "sources", 0, "helm", "valueFiles") == expected.fetch(:values) &&
+         application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-chat" } &&
+         application.dig("spec", "syncPolicy", "automated") == expected_prod_automation
+    abort "#{expected.fetch(:file)}: Prod Chat 단계 Application 설정이 예상과 다릅니다."
   end
 end
 
@@ -749,6 +787,59 @@ unless prod_crawler["imageGroup"] == "crawler" &&
        prod_crawler.dig("secrets", "startup", "command") == %w[python -m price_refresh --apply] &&
        prod_cron["extraJobs"] == [{ "nameSuffix" => "deliver", "schedule" => "40 11,13 * * *", "command" => %w[python -m price_refresh --deliver] }]
   abort "#{prod_crawler_file}: Prod Crawler의 IRSA·Secret·apply/deliver 일정·초기 suspend 설정이 예상과 다릅니다."
+end
+
+prod_chat_workloads = {
+  "chat-api" => {
+    image_group: "be",
+    port: 8080,
+    termination: 330,
+    role: "arn:aws:iam::686496667254:role/lookddak-prod-v3-chat-api",
+    parameters: %w[/lookddak/prod/v3/mysql/jdbc-url /lookddak/prod/v3/mysql/app/username /lookddak/prod/v3/mysql/app/password /lookddak/prod/spring/jwt-secret /lookddak/prod/internal/ai-api-key]
+  },
+  "chat-ai" => {
+    image_group: "ai",
+    port: 8000,
+    termination: 120,
+    role: "arn:aws:iam::686496667254:role/lookddak-prod-v3-chat-ai",
+    parameters: %w[/lookddak/prod/v3/postgresql/app/database-url /lookddak/prod/v3/postgresql/app/checkpoint-dsn /lookddak/prod/internal/ai-api-key /lookddak/prod/fastapi/runware-llm-api-key /lookddak/prod/fastapi/runware-vton-api-key /lookddak/prod/fastapi/openAI-api-key]
+  }
+}
+
+prod_chat_workloads.each do |name, expected|
+  file = "environments/prod/domains/chat/workloads/#{name}.yaml"
+  values = load_yaml(file)
+  spread = values.dig("scheduling", "topologySpreadConstraints") || []
+  parameters = YAML.safe_load(values.dig("secrets", "parameters", "objects")).map { |object| object.fetch("objectName") }
+  probe_paths = %w[startup liveness readiness].map { |probe| values.dig("probes", probe, "httpGet", "path") }
+  expected_probe = name == "chat-api" ? ["/actuator/health/liveness", "/actuator/health/liveness", "/actuator/health/readiness"] : ["/health", "/health", "/health"]
+
+  unless values["imageGroup"] == expected.fetch(:image_group) &&
+         values["replicaCount"] == 2 &&
+         values.dig("container", "port") == expected.fetch(:port) &&
+         values.dig("deployment", "terminationGracePeriodSeconds") == expected.fetch(:termination) &&
+         values.dig("service") == { "enabled" => true, "port" => 80 } &&
+         values.dig("pdb") == { "enabled" => true, "maxUnavailable" => 1 } &&
+         values.dig("serviceAccount") == { "create" => true, "roleArn" => expected.fetch(:role) } &&
+         values.dig("secrets", "enabled") == true &&
+         values.dig("secrets", "rolloutOnChange") == true &&
+         parameters == expected.fetch(:parameters) &&
+         probe_paths == expected_probe &&
+         %w[topology.kubernetes.io/zone kubernetes.io/hostname].all? do |key|
+           spread.any? { |rule| rule["topologyKey"] == key && rule["minDomains"] == 2 && rule["whenUnsatisfiable"] == "DoNotSchedule" }
+         end
+    abort "#{file}: Prod Chat의 이미지·IRSA·Secret·Probe·PDB·AZ/Node 분산 설정이 예상과 다릅니다."
+  end
+end
+
+prod_chat_api = load_yaml("environments/prod/domains/chat/workloads/chat-api.yaml")
+prod_chat_env = prod_chat_api.dig("container", "env") || []
+unless prod_chat_env.include?({ "name" => "SPRING_PROFILES_ACTIVE", "value" => "prod" }) &&
+       prod_chat_env.include?({ "name" => "CHAT_REDIS_ENABLED", "value" => "false" }) &&
+       prod_chat_env.include?({ "name" => "MANAGEMENT_HEALTH_REDIS_ENABLED", "value" => "false" }) &&
+       prod_chat_env.none? { |entry| %w[REDIS_CLUSTER_NODES REDIS_HOST REDIS_PORT REDIS_PASSWORD].include?(entry["name"]) } &&
+       prod_chat_api.dig("routing", "rules", 0, "timeouts", "request") == "0s"
+  abort "Prod Chat API는 Redis 구축 전 비활성 fallback과 SSE 무제한 Route를 사용해야 합니다."
 end
 
 prod_project_file = "argocd/projects/lookddak-prod.yaml"
