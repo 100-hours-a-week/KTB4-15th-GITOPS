@@ -139,3 +139,8 @@ secrets:
       - java
       - -XX:+ExitOnOutOfMemoryError
       - org.springframework.boot.loader.launch.JarLauncher
+
+tracing:
+  enabled: true
+  runtime: java
+  resourceAttributes: deployment.environment.name=dev,service.namespace=lookddak

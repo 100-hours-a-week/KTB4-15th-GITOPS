@@ -74,3 +74,82 @@ default
   {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "lookddak-workload.validateTracing" -}}
+{{- if .Values.tracing.enabled -}}
+  {{- $runtime := .Values.tracing.runtime -}}
+  {{- if not (has $runtime (list "java" "nodejs" "python")) -}}
+    {{- fail "tracing.runtime must be one of java, nodejs, python" -}}
+  {{- end -}}
+  {{- $reserved := list "JDK_JAVA_OPTIONS" "NODE_OPTIONS" "PYTHONPATH" -}}
+  {{- range .Values.container.env -}}
+    {{- if or (has .name $reserved) (hasPrefix "OTEL_" .name) -}}
+      {{- fail (printf "container.env.%s is managed by tracing; use tracing.env" .name) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end }}
+
+{{- define "lookddak-workload.tracingEnv" -}}
+{{- $t := .Values.tracing -}}
+- name: OTEL_K8S_NAMESPACE
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.namespace
+- name: OTEL_K8S_POD_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: OTEL_K8S_NODE_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: spec.nodeName
+- name: OTEL_SERVICE_NAME
+  value: {{ default (include "lookddak-workload.name" .) $t.serviceName | quote }}
+- name: OTEL_RESOURCE_ATTRIBUTES
+  value: {{ printf "k8s.namespace.name=$(OTEL_K8S_NAMESPACE),k8s.pod.name=$(OTEL_K8S_POD_NAME),k8s.node.name=$(OTEL_K8S_NODE_NAME)%s" (ternary (printf ",%s" $t.resourceAttributes) "" (ne $t.resourceAttributes "")) | quote }}
+- name: OTEL_TRACES_EXPORTER
+  value: otlp
+- name: OTEL_METRICS_EXPORTER
+  value: none
+- name: OTEL_LOGS_EXPORTER
+  value: none
+- name: OTEL_TRACES_SAMPLER
+  value: {{ $t.sampler | quote }}
+- name: OTEL_PROPAGATORS
+  value: tracecontext,baggage
+{{- if eq $t.runtime "java" }}
+- name: JDK_JAVA_OPTIONS
+  value: -javaagent:/otel/javaagent.jar
+- name: OTEL_EXPORTER_OTLP_ENDPOINT
+  value: {{ $t.endpoints.grpc | quote }}
+- name: OTEL_EXPORTER_OTLP_PROTOCOL
+  value: grpc
+- name: OTEL_INSTRUMENTATION_AWS_SDK_EXPERIMENTAL_USE_PROPAGATOR_FOR_MESSAGING
+  value: "true"
+- name: OTEL_INSTRUMENTATION_MESSAGING_EXPERIMENTAL_RECEIVE_TELEMETRY_ENABLED
+  value: "true"
+{{- else if eq $t.runtime "nodejs" }}
+- name: NODE_OPTIONS
+  value: --require /otel/autoinstrumentation.js
+- name: OTEL_EXPORTER_OTLP_ENDPOINT
+  value: {{ $t.endpoints.http | quote }}
+- name: OTEL_EXPORTER_OTLP_PROTOCOL
+  value: http/protobuf
+- name: OTEL_NODE_ENABLED_INSTRUMENTATIONS
+  value: http,undici
+{{- else if eq $t.runtime "python" }}
+- name: PYTHONPATH
+  value: /otel/opentelemetry/instrumentation/auto_instrumentation:/otel
+- name: OTEL_EXPORTER_OTLP_ENDPOINT
+  value: {{ $t.endpoints.http | quote }}
+- name: OTEL_EXPORTER_OTLP_PROTOCOL
+  value: http/protobuf
+- name: OTEL_PYTHON_EXCLUDED_URLS
+  value: health,metrics
+{{- end }}
+{{- with $t.env }}
+{{ toYaml . }}
+{{- end }}
+{{- end }}
+

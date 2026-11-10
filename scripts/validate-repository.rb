@@ -225,6 +225,7 @@ monitoring_files = (
     platform/dev/scheduling/priority-classes.yaml
     argocd/dev/scheduling-application.yaml
     platform/dev/networking/policies/alloy-cluster-scrape.yaml
+    platform/dev/networking/policies/domain-otlp-export.yaml
     platform/dev/networking/gateway/telemetry.yaml
     platform/dev/networking/gateway/grafana-ext-authz.yaml
     platform/dev/networking/policies/monitoring-grafana.yaml

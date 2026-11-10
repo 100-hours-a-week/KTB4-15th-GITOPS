@@ -11,7 +11,7 @@ V3 dev 클러스터 안 모니터링 구성(Prometheus·Loki·Tempo, 수집기 A
 | Prometheus | `prometheus` 29.45.1 | gp3 30Gi, 보존 7일 | remote write 수신. 기본 수집 비활성 (수집은 Alloy) |
 | Loki | `loki` 7.5.0 (SingleBinary) | S3 `lookddak-dev-v3-loki-*`, gp3 10Gi | 보존 7일, IRSA `lookddak-dev-v3-loki` |
 | Alloy Node | `alloy` 1.15.0 (DaemonSet, 모든 노드, hostNetwork, 메시 밖) | — | 자기 노드 Pod 로그(CRI·multiline)·kubelet/containerd journal → Loki, 노드(unix)·kubelet·cAdvisor·KSM·Cilium agent·operator·Hubble → Prometheus |
-| Alloy Cluster | `alloy` 1.15.0 (Deployment 1, Monitoring Node, **Pod 단위 Ambient 등록**) | — | 앱(8080 `/actuator/prometheus`, 8000 `/metrics`)·istiod·ztunnel·Gateway·waypoint·플랫폼(kube-system·argocd `metrics` 포트)·kube-apiserver·Redis 6노드(`prometheus.exporter.redis`)·RDS MySQL/PostgreSQL(내장 exporter, 비밀번호는 Secrets Store CSI)·RDS CloudWatch(9개 지표) → Prometheus, Events → Loki, OTLP 4317·4318 → 20% 샘플링 → Tempo |
+| Alloy Cluster | `alloy` 1.15.0 (Deployment 1, Monitoring Node, **Pod 단위 Ambient 등록**) | — | 앱(8080 `/actuator/prometheus`, 8000 `/metrics`)·istiod·ztunnel·Gateway·waypoint·플랫폼(kube-system·argocd `metrics` 포트)·kube-apiserver·Redis 6노드(`prometheus.exporter.redis`)·RDS MySQL/PostgreSQL(내장 exporter, 비밀번호는 Secrets Store CSI)·RDS CloudWatch(9개 지표) → Prometheus, Events → Loki, OTLP 4317·4318 → probe·메트릭 수집 구간 제외 → 20% 샘플링 → Tempo |
 | Grafana | `grafana` 14.4.0 (grafana-community) | gp3 5Gi | 데이터소스 Prometheus·Loki·Tempo(uid 고정, 로그↔트레이스 연결), `LookDDak` 폴더 대시보드 5개(`files/dashboards`, 생성 스크립트 `work/k8s-setting/55-grafana/generate-dashboards.py`). 관리자 계정·로그인 폼 없음, 임시로 익명 Viewer + port-forward (Gateway 인증 후 `auth.proxy`) |
 | db-log-tailer | 평문 매니페스트, ECR `lookddak-dev-v3-db-log-tailer` digest 고정 (Deployment 1, Ambient 등록, Monitoring Node) | gp3 1Gi (읽은 위치) | RDS API(`DescribeDBLogFiles`·`DownloadDBLogFilePortion`, IRSA)로 dev MySQL 감사·error·slowquery, PostgreSQL 로그 → Alloy Cluster `:3500` → Loki. 소스: CLOUD `scripts/monitoring/db-log-tailer` |
 | kube-state-metrics | `kube-state-metrics` 9.0.0 | — | 노드 라벨(NodePool·인스턴스 타입·Zone) 포함. Monitoring Node의 Alloy Node가 수집 |
@@ -65,3 +65,12 @@ V3 dev 클러스터 안 모니터링 구성(Prometheus·Loki·Tempo, 수집기 A
 |---|---|
 | `node`, `kubelet`, `cadvisor`, `kube-state-metrics`, `cilium-agent`, `hubble`, `cilium-operator` | Alloy Node |
 | `app`, `istiod`, `mesh-proxy`, `platform`, `apiserver`, `redis`, `mysql`, `postgres`, `cloudwatch`, `db-log-tailer` | Alloy Cluster |
+
+## 트레이스 (앱 자동 계측)
+
+- `charts/lookddak-workload` `tracing`: `otel-init` initContainer가 OpenTelemetry Operator 자동 계측 이미지(arm64 digest 고정, V2와 같은 버전)에서 에이전트를 emptyDir `/otel`로 복사
+- `runtime`별 적재: `java` `JDK_JAVA_OPTIONS=-javaagent:/otel/javaagent.jar`(OTLP gRPC 4317), `nodejs` `NODE_OPTIONS=--require /otel/autoinstrumentation.js`(OTLP HTTP 4318), `python` `PYTHONPATH`(sitecustomize, OTLP HTTP 4318)
+- `OTEL_SERVICE_NAME` = 워크로드 이름, 리소스 속성 `k8s.namespace.name`·`k8s.pod.name`·`k8s.node.name`
+- 대상: Spring 5개(java), FastAPI 3개(python), web-bff(nodejs). price-crawler(CronJob)는 제외
+- 네트워크: `platform/dev/networking/policies/domain-otlp-export.yaml` 도메인 Pod → alloy-cluster HBONE 15008
+
