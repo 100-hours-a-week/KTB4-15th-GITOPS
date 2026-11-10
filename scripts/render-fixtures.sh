@@ -143,6 +143,23 @@ if [[ -f argocd/prod/workloads/chat-api-application.yaml ]]; then
     > "$output_dir/chat-domain-prod.yaml"
 fi
 
+if [[ -f argocd/prod/workloads/fitting-api-application.yaml ]]; then
+  for workload in fitting-api fitting-worker vton-orchestrator; do
+    helm template "$workload" charts/lookddak-workload \
+      --namespace lookddak-fitting \
+      --kube-version 1.36.0 \
+      -f environments/prod/images.yaml \
+      -f "environments/prod/domains/fitting/workloads/$workload.yaml" \
+      > "$output_dir/$workload-prod.yaml"
+  done
+
+  helm template fitting-domain charts/lookddak-domain \
+    --namespace lookddak-fitting \
+    --kube-version 1.36.0 \
+    -f environments/prod/domains/fitting/domain.yaml \
+    > "$output_dir/fitting-domain-prod.yaml"
+fi
+
 if [[ -f platform/dev/argocd/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/argocd >/dev/null
   helm template argocd platform/dev/argocd \
