@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-test
+  namespace: lookddak-notification-test
+  labels:
+    app.kubernetes.io/name: notification-test
+spec:
+  # 평상시에는 Pod를 만들지 않는다. 실패 리허설 PR에서만 1로 변경한다.
+  replicas: 0
+  progressDeadlineSeconds: 60
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-test
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: notification-test
+    spec:
+      nodeSelector:
+        lookddak.io/node-pool: application
+      containers:
+        - name: notification-test
+          # 존재하지 않는 digest를 의도적으로 사용한다. replicas가 0일 때는 Pull하지 않는다.
+          image: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-nextjs@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 20m
+              memory: 32Mi
