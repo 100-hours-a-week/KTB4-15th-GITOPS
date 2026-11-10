@@ -77,3 +77,8 @@ pdb:
 
 serviceAccount:
   create: true
+
+tracing:
+  enabled: true
+  runtime: nodejs
+  resourceAttributes: deployment.environment.name=dev,service.namespace=lookddak
