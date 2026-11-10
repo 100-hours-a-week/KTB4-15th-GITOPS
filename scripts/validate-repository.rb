@@ -494,13 +494,16 @@ end
 prod_active_application_files = Dir["argocd/prod/workloads/*.yaml"].sort
 expected_prod_active_application_files = %w[
   argocd/prod/workloads/body-image-validator-application.yaml
+  argocd/prod/workloads/commerce-api-application.yaml
+  argocd/prod/workloads/commerce-domain-application.yaml
   argocd/prod/workloads/identity-api-application.yaml
   argocd/prod/workloads/identity-domain-application.yaml
+  argocd/prod/workloads/price-crawler-application.yaml
   argocd/prod/workloads/web-bff-application.yaml
   argocd/prod/workloads/web-domain-application.yaml
 ]
 unless prod_active_application_files == expected_prod_active_application_files
-  abort "Prod 단계 배포는 현재 Web·Identity Domain과 승인된 세 Workload만 활성화해야 합니다. 실제=#{prod_active_application_files}"
+  abort "Prod 단계 배포는 현재 Web·Identity·Commerce Domain과 승인된 Workload만 활성화해야 합니다. 실제=#{prod_active_application_files}"
 end
 
 prod_web_domain_app = load_yaml("argocd/prod/workloads/web-domain-application.yaml")
@@ -577,6 +580,41 @@ prod_identity_applications.each do |name, expected|
   end
 end
 
+prod_commerce_applications = {
+  "commerce-domain" => {
+    file: "argocd/prod/workloads/commerce-domain-application.yaml",
+    chart: "charts/lookddak-domain",
+    values: ["$values/environments/prod/domains/commerce/domain.yaml"],
+    wave: "5"
+  },
+  "commerce-api" => {
+    file: "argocd/prod/workloads/commerce-api-application.yaml",
+    chart: "charts/lookddak-workload",
+    values: ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/commerce/workloads/commerce-api.yaml"],
+    wave: "6"
+  },
+  "price-crawler" => {
+    file: "argocd/prod/workloads/price-crawler-application.yaml",
+    chart: "charts/lookddak-workload",
+    values: ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/commerce/workloads/price-crawler.yaml"],
+    wave: "7"
+  }
+}
+
+prod_commerce_applications.each do |name, expected|
+  application = load_yaml(expected.fetch(:file))
+  unless application.dig("metadata", "name") == "prod-#{name}" &&
+         application.dig("metadata", "namespace") == "argocd" &&
+         application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == expected.fetch(:wave) &&
+         application.dig("spec", "project") == "lookddak-prod" &&
+         application.dig("spec", "sources", 0, "path") == expected.fetch(:chart) &&
+         application.dig("spec", "sources", 0, "helm", "valueFiles") == expected.fetch(:values) &&
+         application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-commerce" } &&
+         application.dig("spec", "syncPolicy", "automated") == expected_prod_automation
+    abort "#{expected.fetch(:file)}: Prod Commerce 단계 Application 설정이 예상과 다릅니다."
+  end
+end
+
 prod_images = load_yaml("environments/prod/images.yaml").fetch("images")
 prod_fe_image = prod_images.fetch("fe")
 unless prod_fe_image.fetch("repository").match?(%r{\A686496667254\.dkr\.ecr\.ap-northeast-2\.amazonaws\.com/lookddak-dev-nextjs\z}) &&
@@ -593,6 +631,12 @@ expected_prod_identity_images.each do |group, repository|
   unless image.fetch("repository") == repository && image.fetch("digest").match?(/\Asha256:[0-9a-f]{64}\z/)
     abort "Prod #{group.upcase} 이미지는 Dev에서 검증한 ECR repository와 불변 digest를 사용해야 합니다."
   end
+end
+
+prod_crawler_image = prod_images.fetch("crawler")
+unless prod_crawler_image.fetch("repository") == "686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-crawler" &&
+       prod_crawler_image.fetch("digest").match?(/\Asha256:[0-9a-f]{64}\z/)
+  abort "Prod CRAWLER 이미지는 Dev에서 검증한 ECR repository와 불변 digest를 사용해야 합니다."
 end
 
 prod_web_values = load_yaml("environments/prod/domains/web/workloads/web-bff.yaml")
@@ -663,6 +707,48 @@ prod_identity_workloads.each do |name, expected|
          end
     abort "#{file}: Prod Identity의 이미지·IRSA·Secret·Probe·PDB·AZ/Node 분산 설정이 예상과 다릅니다."
   end
+end
+
+prod_commerce_file = "environments/prod/domains/commerce/workloads/commerce-api.yaml"
+prod_commerce = load_yaml(prod_commerce_file)
+prod_commerce_spread = prod_commerce.dig("scheduling", "topologySpreadConstraints") || []
+prod_commerce_parameters = YAML.safe_load(prod_commerce.dig("secrets", "parameters", "objects")).map { |object| object.fetch("objectName") }
+unless prod_commerce["imageGroup"] == "be" &&
+       prod_commerce["replicaCount"] == 2 &&
+       prod_commerce.dig("container", "port") == 8080 &&
+       prod_commerce.dig("service") == { "enabled" => true, "port" => 80 } &&
+       prod_commerce.dig("pdb") == { "enabled" => true, "maxUnavailable" => 1 } &&
+       prod_commerce.dig("serviceAccount") == { "create" => true, "roleArn" => "arn:aws:iam::686496667254:role/lookddak-prod-v3-commerce-api" } &&
+       prod_commerce.dig("secrets", "enabled") == true &&
+       prod_commerce.dig("secrets", "rolloutOnChange") == true &&
+       prod_commerce_parameters == %w[/lookddak/prod/v3/mysql/jdbc-url /lookddak/prod/v3/mysql/app/username /lookddak/prod/v3/mysql/app/password /lookddak/prod/spring/jwt-secret /lookddak/prod/spring/internal-api-key] &&
+       %w[startup liveness readiness].all? { |probe| prod_commerce.dig("probes", probe, "httpGet", "path").to_s.start_with?("/actuator/health/") } &&
+       %w[topology.kubernetes.io/zone kubernetes.io/hostname].all? do |key|
+         prod_commerce_spread.any? { |rule| rule["topologyKey"] == key && rule["minDomains"] == 2 && rule["whenUnsatisfiable"] == "DoNotSchedule" }
+       end
+  abort "#{prod_commerce_file}: Prod Commerce API의 이미지·IRSA·Secret·Probe·PDB·AZ/Node 분산 설정이 예상과 다릅니다."
+end
+
+prod_crawler_file = "environments/prod/domains/commerce/workloads/price-crawler.yaml"
+prod_crawler = load_yaml(prod_crawler_file)
+prod_cron = prod_crawler.fetch("cronJob")
+prod_crawler_parameters = YAML.safe_load(prod_crawler.dig("secrets", "parameters", "objects")).map { |object| object.fetch("objectName") }
+unless prod_crawler["imageGroup"] == "crawler" &&
+       prod_crawler.dig("container", "env")&.include?({ "name" => "PRICE_REFRESH_BACKEND_BASE_URL", "value" => "http://commerce-api" }) &&
+       prod_crawler.dig("serviceAccount") == { "create" => true, "roleArn" => "arn:aws:iam::686496667254:role/lookddak-prod-v3-price-crawler" } &&
+       prod_crawler.dig("secrets", "enabled") == true &&
+       prod_crawler.dig("secrets", "secretProviderClassName") == "price-crawler" &&
+       prod_crawler_parameters == %w[/lookddak/prod/v3/postgresql/app/database-url /lookddak/prod/internal/price-refresh-backend-auth-headers] &&
+       prod_cron["nameSuffix"] == "apply" &&
+       prod_cron["schedule"] == "0 11 * * *" &&
+       prod_cron["timeZone"] == "Asia/Seoul" &&
+       prod_cron["suspend"] == true &&
+       prod_cron["concurrencyPolicy"] == "Forbid" &&
+       prod_cron["startingDeadlineSeconds"] == 3600 &&
+       prod_cron["activeDeadlineSeconds"] == 3600 &&
+       prod_crawler.dig("secrets", "startup", "command") == %w[python -m price_refresh --apply] &&
+       prod_cron["extraJobs"] == [{ "nameSuffix" => "deliver", "schedule" => "40 11,13 * * *", "command" => %w[python -m price_refresh --deliver] }]
+  abort "#{prod_crawler_file}: Prod Crawler의 IRSA·Secret·apply/deliver 일정·초기 suspend 설정이 예상과 다릅니다."
 end
 
 prod_project_file = "argocd/projects/lookddak-prod.yaml"

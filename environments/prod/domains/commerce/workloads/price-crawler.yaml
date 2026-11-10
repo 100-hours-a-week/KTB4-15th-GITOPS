@@ -4,11 +4,60 @@ workload:
 
 imageGroup: crawler
 
-service:
-  enabled: false
+container:
+  env:
+    - {name: PRICE_REFRESH_BACKEND_BASE_URL, value: "http://commerce-api"}
+    - {name: TZ, value: Asia/Seoul}
 
-routing:
-  enabled: false
+scheduling:
+  nodeSelector:
+    kubernetes.io/arch: arm64
+    lookddak.io/node-pool: general-purpose
+
+resources:
+  requests: {cpu: 250m, memory: 512Mi}
+  limits: {cpu: "1", memory: 1Gi}
+
+service: {enabled: false}
+routing: {enabled: false}
 
 serviceAccount:
   create: true
+  roleArn: arn:aws:iam::686496667254:role/lookddak-prod-v3-price-crawler
+
+secrets:
+  enabled: true
+  secretProviderClassName: price-crawler
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: /lookddak/prod/v3/postgresql/app/database-url
+        objectType: ssmparameter
+        objectAlias: DATABASE_URL
+      - objectName: /lookddak/prod/internal/price-refresh-backend-auth-headers
+        objectType: ssmparameter
+        objectAlias: PRICE_REFRESH_BACKEND_AUTH_HEADERS_JSON
+  startup:
+    enabled: true
+    environment:
+      - {name: DATABASE_URL, fileName: DATABASE_URL}
+      - {name: PRICE_REFRESH_BACKEND_AUTH_HEADERS_JSON, fileName: PRICE_REFRESH_BACKEND_AUTH_HEADERS_JSON}
+    command: [python, -m, price_refresh, --apply]
+
+cronJob:
+  nameSuffix: apply
+  schedule: "0 11 * * *"
+  timeZone: Asia/Seoul
+  # 운영 데이터 변경은 수동 Job 검증 후 별도 PR에서 해제한다.
+  suspend: true
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  backoffLimit: 3
+  activeDeadlineSeconds: 3600
+  restartPolicy: Never
+  extraJobs:
+    - nameSuffix: deliver
+      schedule: "40 11,13 * * *"
+      command: [python, -m, price_refresh, --deliver]

@@ -109,6 +109,23 @@ if [[ -f argocd/prod/workloads/identity-api-application.yaml ]]; then
     > "$output_dir/identity-domain-prod.yaml"
 fi
 
+if [[ -f argocd/prod/workloads/commerce-api-application.yaml ]]; then
+  for workload in commerce-api price-crawler; do
+    helm template "$workload" charts/lookddak-workload \
+      --namespace lookddak-commerce \
+      --kube-version 1.36.0 \
+      -f environments/prod/images.yaml \
+      -f "environments/prod/domains/commerce/workloads/$workload.yaml" \
+      > "$output_dir/$workload-prod.yaml"
+  done
+
+  helm template commerce-domain charts/lookddak-domain \
+    --namespace lookddak-commerce \
+    --kube-version 1.36.0 \
+    -f environments/prod/domains/commerce/domain.yaml \
+    > "$output_dir/commerce-domain-prod.yaml"
+fi
+
 if [[ -f platform/dev/argocd/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/argocd >/dev/null
   helm template argocd platform/dev/argocd \
