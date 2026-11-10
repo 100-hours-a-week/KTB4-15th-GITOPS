@@ -1,0 +1,1884 @@
+{
+ "uid": "lookddak-logs",
+ "title": "LookDDak / 로그",
+ "tags": [
+  "lookddak",
+  "logs"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "refresh": "1m",
+ "templating": {
+  "list": [
+   {
+    "name": "namespace",
+    "type": "query",
+    "datasource": {
+     "type": "loki",
+     "uid": "loki"
+    },
+    "query": "label_values({source=\"pod\"}, namespace)",
+    "definition": "label_values({source=\"pod\"}, namespace)",
+    "regex": "lookddak-.*",
+    "refresh": 2,
+    "includeAll": true,
+    "multi": true,
+    "allValue": "lookddak-.*",
+    "current": {
+     "selected": true,
+     "text": [
+      "All"
+     ],
+     "value": [
+      "$__all"
+     ]
+    },
+    "sort": 1
+   },
+   {
+    "name": "workload",
+    "type": "query",
+    "datasource": {
+     "type": "loki",
+     "uid": "loki"
+    },
+    "query": "label_values({source=\"pod\", namespace=~\"$namespace\"}, workload)",
+    "definition": "label_values({source=\"pod\", namespace=~\"$namespace\"}, workload)",
+    "refresh": 2,
+    "includeAll": true,
+    "multi": true,
+    "allValue": ".*",
+    "current": {
+     "selected": true,
+     "text": [
+      "All"
+     ],
+     "value": [
+      "$__all"
+     ]
+    },
+    "sort": 1
+   },
+   {
+    "name": "search",
+    "type": "textbox",
+    "label": "검색(정규식)",
+    "query": "",
+    "current": {
+     "text": "",
+     "value": ""
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "row",
+   "title": "요약 (최근 1시간)",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "id": 2,
+   "panels": []
+  },
+  {
+   "type": "stat",
+   "title": "Gateway 5xx",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 0,
+    "y": 1
+   },
+   "id": 3,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 50
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({namespace=\"istio-ingress\", container=\"istio-proxy\"} |= \"HTTP/\" | pattern `[<_>] \"<method> <path> <_>\" <status> <flags> <_>` | status >= 500 [1h])) or vector(0)",
+     "refId": "A",
+     "legendFormat": "",
+     "queryType": "instant"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "앱 에러 로그",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 4,
+    "y": 1
+   },
+   "id": 4,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 100
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({source=\"pod\", namespace=~\"lookddak-.*\"} |~ \"(?i)(\\\\b|\\\\[)(error|exception|fatal|panic)(\\\\b|\\\\])\" [1h])) or vector(0)",
+     "refId": "A",
+     "legendFormat": "",
+     "queryType": "instant"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "RDS 에러 로그",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 8,
+    "y": 1
+   },
+   "id": 5,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 20
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({source=\"rds\"} |~ \"(?i)(error|fatal|panic)\" [1h])) or vector(0)",
+     "refId": "A",
+     "legendFormat": "",
+     "queryType": "instant"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "DB 쿼리 로그",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 12,
+    "y": 1
+   },
+   "id": 6,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({source=\"db-query\"} [1h])) or vector(0)",
+     "refId": "A",
+     "legendFormat": "",
+     "queryType": "instant"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "K8s Warning 이벤트",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 16,
+    "y": 1
+   },
+   "id": 7,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 50
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({source=\"event\"} |= \"type=Warning\" [1h])) or vector(0)",
+     "refId": "A",
+     "legendFormat": "",
+     "queryType": "instant"
+    }
+   ]
+  },
+  {
+   "type": "stat",
+   "title": "ztunnel 연결 오류",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 20,
+    "y": 1
+   },
+   "id": 8,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 50
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({namespace=\"istio-system\", container=\"ztunnel\"} |= \"error=\" [1h])) or vector(0)",
+     "refId": "A",
+     "legendFormat": "",
+     "queryType": "instant"
+    }
+   ]
+  },
+  {
+   "type": "row",
+   "title": "1. Gateway API 로그",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 5
+   },
+   "id": 9,
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "상태 코드별 요청 수",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 6
+   },
+   "id": 10,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (status) (count_over_time({namespace=\"istio-ingress\", container=\"istio-proxy\"} |= \"HTTP/\" | pattern `[<_>] \"<method> <path> <_>\" <status> <flags> <_>` [$__interval]))",
+     "refId": "A",
+     "legendFormat": "{{status}}",
+     "queryType": "range"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "5xx·4xx 요청 수",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 6
+   },
+   "id": 11,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({namespace=\"istio-ingress\", container=\"istio-proxy\"} |= \"HTTP/\" | pattern `[<_>] \"<method> <path> <_>\" <status> <flags> <_>` | status >= 500 [$__interval]))",
+     "refId": "A",
+     "legendFormat": "5xx",
+     "queryType": "range"
+    },
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({namespace=\"istio-ingress\", container=\"istio-proxy\"} |= \"HTTP/\" | pattern `[<_>] \"<method> <path> <_>\" <status> <flags> <_>` | status >= 400 | status < 500 [$__interval]))",
+     "refId": "B",
+     "legendFormat": "4xx",
+     "queryType": "range"
+    }
+   ]
+  },
+  {
+   "type": "table",
+   "title": "에러 많은 경로 Top 10 (4xx·5xx)",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 14
+   },
+   "id": 12,
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "sortBy": [
+     {
+      "displayName": "Value #A",
+      "desc": true
+     }
+    ]
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "topk(10, sum by (method, path, status) (count_over_time({namespace=\"istio-ingress\", container=\"istio-proxy\"} |= \"HTTP/\" | pattern `[<_>] \"<method> <path> <_>\" <status> <flags> <_>` | status >= 400 [$__range])))",
+     "refId": "A",
+     "legendFormat": "",
+     "queryType": "instant",
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      }
+     }
+    }
+   ]
+  },
+  {
+   "type": "table",
+   "title": "요청 많은 경로 Top 10",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 14
+   },
+   "id": 13,
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "sortBy": [
+     {
+      "displayName": "Value #A",
+      "desc": true
+     }
+    ]
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "topk(10, sum by (method, path) (count_over_time({namespace=\"istio-ingress\", container=\"istio-proxy\"} |= \"HTTP/\" | pattern `[<_>] \"<method> <path> <_>\" <status> <flags> <_>` [$__range])))",
+     "refId": "A",
+     "legendFormat": "",
+     "queryType": "instant",
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      }
+     }
+    }
+   ]
+  },
+  {
+   "type": "logs",
+   "title": "Gateway access log",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 12,
+    "w": 24,
+    "x": 0,
+    "y": 22
+   },
+   "id": 14,
+   "options": {
+    "showTime": true,
+    "showLabels": false,
+    "showCommonLabels": false,
+    "wrapLogMessage": true,
+    "prettifyLogMessage": false,
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{namespace=\"istio-ingress\", container=\"istio-proxy\"} |= \"HTTP/\" |~ \"$search\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 500
+    }
+   ],
+   "description": "Istio Gateway(Envoy) access log. 형식: [시각] \"메서드 경로 프로토콜\" 상태 플래그 ... 소요(ms) ... \"X-Forwarded-For\" \"User-Agent\" \"X-Request-Id\" \"Host\" \"Upstream\""
+  },
+  {
+   "type": "row",
+   "title": "2. RDS 쿼리 로그",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 34
+   },
+   "id": 15,
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "DB·사용자별 쿼리 로그 수",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 35
+   },
+   "id": 16,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (db, db_user) (count_over_time({source=\"db-query\"} [$__interval]))",
+     "refId": "A",
+     "legendFormat": "{{db}} / {{db_user}}",
+     "queryType": "range"
+    }
+   ],
+   "description": "db-log-tailer가 RDS API로 읽은 MySQL audit·PostgreSQL 쿼리 로그"
+  },
+  {
+   "type": "timeseries",
+   "title": "RDS 로그 그룹별 에러·슬로우 로그 수",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 35
+   },
+   "id": 17,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (log_group) (count_over_time({source=\"rds\"} [$__interval]))",
+     "refId": "A",
+     "legendFormat": "{{log_group}}",
+     "queryType": "range"
+    }
+   ]
+  },
+  {
+   "type": "logs",
+   "title": "쿼리 로그",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 14,
+    "w": 12,
+    "x": 0,
+    "y": 43
+   },
+   "id": 18,
+   "options": {
+    "showTime": true,
+    "showLabels": false,
+    "showCommonLabels": false,
+    "wrapLogMessage": true,
+    "prettifyLogMessage": false,
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{source=\"db-query\", db_user!~\"rdsadmin|exporter|lookddak_v3_exporter\"} |~ \"$search\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 500
+    }
+   ],
+   "description": "모니터링 계정·rdsadmin 쿼리는 제외"
+  },
+  {
+   "type": "logs",
+   "title": "RDS 에러·슬로우 쿼리 로그",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 14,
+    "w": 12,
+    "x": 12,
+    "y": 43
+   },
+   "id": 19,
+   "options": {
+    "showTime": true,
+    "showLabels": false,
+    "showCommonLabels": false,
+    "wrapLogMessage": true,
+    "prettifyLogMessage": false,
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{source=\"rds\"} |~ \"$search\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 500
+    }
+   ]
+  },
+  {
+   "type": "row",
+   "title": "3. Redis",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 57
+   },
+   "id": 20,
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "명령어별 처리량 Top 10",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 58
+   },
+   "id": 21,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "lastNotNull",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "topk(10, sum by (cmd) (rate(redis_commands_total[5m])))",
+     "refId": "A",
+     "legendFormat": "{{cmd}}",
+     "instant": false
+    }
+   ],
+   "description": "Redis는 쿼리 로그가 없다(MONITOR는 부하가 커 쓰지 않는다). 명령어 통계와 SLOWLOG로 대신한다"
+  },
+  {
+   "type": "timeseries",
+   "title": "명령어별 평균 처리 시간",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 58
+   },
+   "id": 22,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "lastNotNull",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "topk(10, sum by (cmd) (rate(redis_commands_duration_seconds_total[5m])) / sum by (cmd) (rate(redis_commands_total[5m])))",
+     "refId": "A",
+     "legendFormat": "{{cmd}}",
+     "instant": false
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "SLOWLOG 길이·마지막 슬로우 실행 시간",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 58
+   },
+   "id": 23,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "lastNotNull",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (instance) (redis_slowlog_length)",
+     "refId": "A",
+     "legendFormat": "slowlog {{instance}}",
+     "instant": false
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max by (instance) (redis_last_slow_execution_duration_seconds)",
+     "refId": "B",
+     "legendFormat": "last slow(s) {{instance}}",
+     "instant": false
+    }
+   ]
+  },
+  {
+   "type": "logs",
+   "title": "Redis Pod 로그",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 10,
+    "w": 24,
+    "x": 0,
+    "y": 66
+   },
+   "id": 24,
+   "options": {
+    "showTime": true,
+    "showLabels": false,
+    "showCommonLabels": false,
+    "wrapLogMessage": true,
+    "prettifyLogMessage": false,
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{source=\"pod\", namespace=\"lookddak-redis\"} |~ \"$search\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 500
+    }
+   ]
+  },
+  {
+   "type": "row",
+   "title": "4. 애플리케이션 로그",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 76
+   },
+   "id": 25,
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "워크로드별 로그 수",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 77
+   },
+   "id": 26,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (workload) (count_over_time({source=\"pod\", namespace=~\"$namespace\", workload=~\"$workload\"} [$__interval]))",
+     "refId": "A",
+     "legendFormat": "{{workload}}",
+     "queryType": "range"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "워크로드별 에러 로그 수",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 77
+   },
+   "id": 27,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (workload) (count_over_time({source=\"pod\", namespace=~\"$namespace\", workload=~\"$workload\"} |~ \"(?i)(\\\\b|\\\\[)(error|exception|fatal|panic)(\\\\b|\\\\])\" [$__interval]))",
+     "refId": "A",
+     "legendFormat": "{{workload}}",
+     "queryType": "range"
+    }
+   ]
+  },
+  {
+   "type": "logs",
+   "title": "에러 로그",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 10,
+    "w": 24,
+    "x": 0,
+    "y": 85
+   },
+   "id": 28,
+   "options": {
+    "showTime": true,
+    "showLabels": false,
+    "showCommonLabels": false,
+    "wrapLogMessage": true,
+    "prettifyLogMessage": false,
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{source=\"pod\", namespace=~\"$namespace\", workload=~\"$workload\"} |~ \"(?i)(\\\\b|\\\\[)(error|exception|fatal|panic)(\\\\b|\\\\])\" |~ \"$search\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 500
+    }
+   ]
+  },
+  {
+   "type": "logs",
+   "title": "애플리케이션 로그",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 16,
+    "w": 24,
+    "x": 0,
+    "y": 95
+   },
+   "id": 29,
+   "options": {
+    "showTime": true,
+    "showLabels": false,
+    "showCommonLabels": false,
+    "wrapLogMessage": true,
+    "prettifyLogMessage": false,
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{source=\"pod\", namespace=~\"$namespace\", workload=~\"$workload\"} |~ \"$search\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 500
+    }
+   ]
+  },
+  {
+   "type": "row",
+   "title": "5. Kube API",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 111
+   },
+   "id": 30,
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "API Server 요청 수 (코드별)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 112
+   },
+   "id": 31,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "lastNotNull",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (code) (rate(apiserver_request_total[5m]))",
+     "refId": "A",
+     "legendFormat": "{{code}}",
+     "instant": false
+    }
+   ],
+   "description": "EKS Control Plane 로그(apiserver·audit)는 CloudWatch Logs로만 나가 수집하지 않는다. API Server 메트릭과 K8s 이벤트로 대신한다"
+  },
+  {
+   "type": "timeseries",
+   "title": "API Server 평균 응답 시간 (verb별)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 112
+   },
+   "id": 32,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "lastNotNull",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (verb) (rate(apiserver_request_duration_seconds_sum{verb!~\"WATCH|CONNECT\"}[5m])) / sum by (verb) (rate(apiserver_request_duration_seconds_count{verb!~\"WATCH|CONNECT\"}[5m]))",
+     "refId": "A",
+     "legendFormat": "{{verb}}",
+     "instant": false
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Warning 이벤트 (reason별)",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 112
+   },
+   "id": 33,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (reason) (count_over_time({source=\"event\"} |= \"type=Warning\" | logfmt reason [$__interval]))",
+     "refId": "A",
+     "legendFormat": "{{reason}}",
+     "queryType": "range"
+    }
+   ]
+  },
+  {
+   "type": "table",
+   "title": "Warning 이벤트 Top 10 (kind/name·reason)",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 24,
+    "x": 0,
+    "y": 120
+   },
+   "id": 34,
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "sortBy": [
+     {
+      "displayName": "Value #A",
+      "desc": true
+     }
+    ]
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "topk(10, sum by (namespace, kind, name, reason) (count_over_time({source=\"event\"} |= \"type=Warning\" | logfmt kind, name, reason [$__range])))",
+     "refId": "A",
+     "legendFormat": "",
+     "queryType": "instant",
+     "format": "table"
+    }
+   ],
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true
+      }
+     }
+    }
+   ]
+  },
+  {
+   "type": "logs",
+   "title": "K8s 이벤트",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 12,
+    "w": 24,
+    "x": 0,
+    "y": 128
+   },
+   "id": 35,
+   "options": {
+    "showTime": true,
+    "showLabels": false,
+    "showCommonLabels": false,
+    "wrapLogMessage": true,
+    "prettifyLogMessage": false,
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{source=\"event\"} |~ \"$search\" | logfmt type, kind, name, reason, msg | line_format \"{{.type}} {{.kind}}/{{.name}} | {{.reason}} | {{.msg}}\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 500
+    }
+   ]
+  },
+  {
+   "type": "row",
+   "title": "6. 네트워크",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 140
+   },
+   "id": 36,
+   "panels": []
+  },
+  {
+   "type": "timeseries",
+   "title": "Cilium Drop (reason별)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 141
+   },
+   "id": 37,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "pps",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "lastNotNull",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (reason) (rate(hubble_drop_total[5m]))",
+     "refId": "A",
+     "legendFormat": "{{reason}}",
+     "instant": false
+    }
+   ],
+   "description": "Hubble flow 원본 로그는 수집하지 않는다(Cilium hubble.export 필요). 정책·Drop은 Hubble 메트릭으로 본다"
+  },
+  {
+   "type": "timeseries",
+   "title": "ztunnel 연결 오류 수",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 141
+   },
+   "id": 38,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (pod) (count_over_time({namespace=\"istio-system\", container=\"ztunnel\"} |= \"error=\" [$__interval]))",
+     "refId": "A",
+     "legendFormat": "{{pod}}",
+     "queryType": "range"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Cilium agent 경고·에러 로그 수",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 141
+   },
+   "id": 39,
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({namespace=\"kube-system\", container=\"cilium-agent\"} |~ \"level=(warn|warning|error)\" [$__interval]))",
+     "refId": "A",
+     "legendFormat": "cilium-agent",
+     "queryType": "range"
+    }
+   ]
+  },
+  {
+   "type": "logs",
+   "title": "ztunnel 로그 (mTLS·L4 연결)",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 14,
+    "w": 12,
+    "x": 0,
+    "y": 149
+   },
+   "id": 40,
+   "options": {
+    "showTime": true,
+    "showLabels": false,
+    "showCommonLabels": false,
+    "wrapLogMessage": true,
+    "prettifyLogMessage": false,
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{namespace=\"istio-system\", container=\"ztunnel\"} |~ \"$search\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 500
+    }
+   ],
+   "description": "Ambient 메시 L4 연결 로그. connection complete 줄에 src·dst 워크로드, 바이트, 소요 시간, error가 나온다"
+  },
+  {
+   "type": "logs",
+   "title": "Cilium agent 경고·에러 로그",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "h": 14,
+    "w": 12,
+    "x": 12,
+    "y": 149
+   },
+   "id": 41,
+   "options": {
+    "showTime": true,
+    "showLabels": false,
+    "showCommonLabels": false,
+    "wrapLogMessage": true,
+    "prettifyLogMessage": false,
+    "enableLogDetails": true,
+    "dedupStrategy": "none",
+    "sortOrder": "Descending"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{namespace=\"kube-system\", container=\"cilium-agent\"} |~ \"level=(warn|warning|error)\" |~ \"$search\"",
+     "refId": "A",
+     "queryType": "range",
+     "maxLines": 500
+    }
+   ]
+  }
+ ],
+ "annotations": {
+  "list": []
+ }
+}

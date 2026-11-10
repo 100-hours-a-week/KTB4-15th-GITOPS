@@ -24,3 +24,4 @@ spec:
       allowEmpty: false
     syncOptions:
       - PruneLast=true
+      - ServerSideApply=true
