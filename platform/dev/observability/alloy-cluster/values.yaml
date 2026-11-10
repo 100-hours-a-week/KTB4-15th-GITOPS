@@ -599,13 +599,6 @@ alloy:
             ]
           }
           output {
-            traces = [otelcol.processor.probabilistic_sampler.default.input]
-          }
-        }
-
-        otelcol.processor.probabilistic_sampler "default" {
-          sampling_percentage = 20
-          output {
             traces = [otelcol.processor.batch.default.input]
           }
         }
