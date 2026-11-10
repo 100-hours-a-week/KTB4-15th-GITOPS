@@ -18,7 +18,7 @@ def walk(value, file, sensitive_keys)
     end
 
     value.each do |key, child|
-      if key.to_s.match?(sensitive_keys) && !child.nil? && child.to_s != ""
+      if key.to_s.match?(sensitive_keys) && !child.nil? && child.to_s != "" && !child.to_s.match?(/\A\$__file\{\/[^}]+\}\z/)
         abort "#{file}: Secret 원문으로 의심되는 '#{key}' 값이 있습니다. 외부 Secret 참조를 사용하세요."
       end
       walk(child, file, sensitive_keys)
