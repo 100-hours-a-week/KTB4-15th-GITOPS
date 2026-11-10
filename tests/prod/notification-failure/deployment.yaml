@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: notification-test
 spec:
   # 평상시에는 Pod를 만들지 않는다. 실패 리허설 PR에서만 1로 변경한다.
-  replicas: 0
+  replicas: 1
   progressDeadlineSeconds: 60
   selector:
     matchLabels:
