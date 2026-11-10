@@ -75,19 +75,22 @@ helm template fixture-domain charts/lookddak-domain \
   -f ci/fixtures/domain-policy.yaml \
   > "$output_dir/domain-policy.yaml"
 
-# Prod는 도메인별로 순차 활성화한다. 현재 활성화한 Web만 실제 Prod values로 렌더링한다.
-helm template web-bff charts/lookddak-workload \
-  --namespace lookddak-web \
-  --kube-version 1.36.0 \
-  -f environments/prod/images.yaml \
-  -f environments/prod/domains/web/workloads/web-bff.yaml \
-  > "$output_dir/web-bff-prod.yaml"
+# Prod는 도메인별로 순차 활성화한다. 활성화 Application이 있는 버전만 실제 values로 렌더링한다.
+# PR Manifest Diff가 활성화 전 기준 커밋의 미완성 values를 렌더링하지 않도록 Application을 기준으로 판별한다.
+if [[ -f argocd/prod/workloads/web-bff-application.yaml ]]; then
+  helm template web-bff charts/lookddak-workload \
+    --namespace lookddak-web \
+    --kube-version 1.36.0 \
+    -f environments/prod/images.yaml \
+    -f environments/prod/domains/web/workloads/web-bff.yaml \
+    > "$output_dir/web-bff-prod.yaml"
 
-helm template web-domain charts/lookddak-domain \
-  --namespace lookddak-web \
-  --kube-version 1.36.0 \
-  -f environments/prod/domains/web/domain.yaml \
-  > "$output_dir/web-domain-prod.yaml"
+  helm template web-domain charts/lookddak-domain \
+    --namespace lookddak-web \
+    --kube-version 1.36.0 \
+    -f environments/prod/domains/web/domain.yaml \
+    > "$output_dir/web-domain-prod.yaml"
+fi
 
 if [[ -f platform/dev/argocd/Chart.yaml ]]; then
   "$helm_dependency_build" platform/dev/argocd >/dev/null
