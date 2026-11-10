@@ -5,13 +5,55 @@ workload:
 
 imageGroup: ai
 
-service:
-  enabled: true
-  port: 80
+container:
+  port: 8000
+  env:
+    - {name: AWS_REGION, value: ap-northeast-2}
+    - {name: BODY_IMAGE_VALIDATION_MODE, value: remote}
+    - {name: VIRTUAL_FITTING_REQUEST_WORKER_ENABLED, value: "true"}
+    - {name: VIRTUAL_FITTING_POSTPROCESS_WORKER_ENABLED, value: "true"}
+    - {name: VIRTUAL_FITTING_RESULT_PUBLISHER_ENABLED, value: "true"}
+    - {name: VIRTUAL_FITTING_WATCHDOG_ENABLED, value: "true"}
+    - {name: WEB_CONCURRENCY, value: "1"}
+    - {name: MALLOC_ARENA_MAX, value: "2"}
+    - {name: UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN, value: "300"}
+
+replicaCount: 2
+deployment: {terminationGracePeriodSeconds: 330}
+
+scheduling:
+  nodeSelector: {kubernetes.io/arch: arm64, lookddak.io/node-pool: general-purpose}
+  topologySpreadConstraints:
+    - {maxSkew: 1, minDomains: 2, topologyKey: topology.kubernetes.io/zone, whenUnsatisfiable: DoNotSchedule}
+    - {maxSkew: 1, minDomains: 2, topologyKey: kubernetes.io/hostname, whenUnsatisfiable: DoNotSchedule}
+
+resources:
+  requests: {cpu: 500m, memory: 1Gi}
+  limits: {cpu: "1", memory: 2Gi}
+
+probes:
+  startup:
+    httpGet: {path: /health, port: http}
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 60
+  liveness:
+    httpGet: {path: /health, port: http}
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    httpGet: {path: /health, port: http}
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 6
+
+service: {enabled: true, port: 80}
+autoscaling: {enabled: false}
+pdb: {enabled: true, maxUnavailable: 1}
 
 routing:
   enabled: true
-  # Runware 결과 Webhook만 외부에 공개한다.
   parentRefs:
     - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https-v3-prod}
   hostnames: [v3-prod.lookddak.com]
@@ -21,3 +63,56 @@ routing:
 
 serviceAccount:
   create: true
+  roleArn: arn:aws:iam::686496667254:role/lookddak-prod-v3-vton-orchestrator
+
+secrets:
+  enabled: true
+  rolloutOnChange: true
+  secretProviderClassName: vton-orchestrator
+  mountPath: /mnt/secrets-store
+  parameters:
+    objects: |
+      - objectName: /lookddak/prod/v3/postgresql/app/database-url
+        objectType: ssmparameter
+        objectAlias: DATABASE_URL
+      - objectName: /lookddak/prod/internal/ai-api-key
+        objectType: ssmparameter
+        objectAlias: INTERNAL_API_KEY
+      - objectName: /lookddak/prod/fastapi/runware-vton-api-key
+        objectType: ssmparameter
+        objectAlias: RUNWARE_VTON_API_KEY
+      - objectName: /lookddak/prod/fastapi/runware-llm-api-key
+        objectType: ssmparameter
+        objectAlias: RUNWARE_LLM_API_KEY
+      - objectName: /lookddak/prod/fastapi/webhook-token
+        objectType: ssmparameter
+        objectAlias: WEBHOOK_TOKEN
+      - objectName: /lookddak/prod/fastapi/virtual-fitting-runware-webhook-url
+        objectType: ssmparameter
+        objectAlias: VIRTUAL_FITTING_RUNWARE_WEBHOOK_URL
+      - objectName: /lookddak/prod/v3/s3/images/bucket
+        objectType: ssmparameter
+        objectAlias: S3_BUCKET
+      - objectName: /lookddak/prod/v3/sqs/be-fitting-request/url
+        objectType: ssmparameter
+        objectAlias: BE_FITTING_REQUEST_QUEUE_URL
+      - objectName: /lookddak/prod/v3/sqs/ai-fitting-response/url
+        objectType: ssmparameter
+        objectAlias: AI_FITTING_RESPONSE_QUEUE_URL
+      - objectName: /lookddak/prod/v3/sqs/be-fitting-response/url
+        objectType: ssmparameter
+        objectAlias: BE_FITTING_RESPONSE_QUEUE_URL
+  startup:
+    enabled: true
+    environment:
+      - {name: DATABASE_URL, fileName: DATABASE_URL}
+      - {name: INTERNAL_API_KEY, fileName: INTERNAL_API_KEY}
+      - {name: RUNWARE_VTON_API_KEY, fileName: RUNWARE_VTON_API_KEY}
+      - {name: RUNWARE_LLM_API_KEY, fileName: RUNWARE_LLM_API_KEY}
+      - {name: WEBHOOK_TOKEN, fileName: WEBHOOK_TOKEN}
+      - {name: VIRTUAL_FITTING_RUNWARE_WEBHOOK_URL, fileName: VIRTUAL_FITTING_RUNWARE_WEBHOOK_URL}
+      - {name: S3_BUCKET, fileName: S3_BUCKET}
+      - {name: BE_FITTING_REQUEST_QUEUE_URL, fileName: BE_FITTING_REQUEST_QUEUE_URL}
+      - {name: AI_FITTING_RESPONSE_QUEUE_URL, fileName: AI_FITTING_RESPONSE_QUEUE_URL}
+      - {name: BE_FITTING_RESPONSE_QUEUE_URL, fileName: BE_FITTING_RESPONSE_QUEUE_URL}
+    command: [uvicorn, "app.main:app", --host, 0.0.0.0, --port, "8000"]

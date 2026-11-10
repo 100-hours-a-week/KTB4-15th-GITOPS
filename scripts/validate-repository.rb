@@ -499,14 +499,18 @@ expected_prod_active_application_files = %w[
   argocd/prod/workloads/chat-domain-application.yaml
   argocd/prod/workloads/commerce-api-application.yaml
   argocd/prod/workloads/commerce-domain-application.yaml
+  argocd/prod/workloads/fitting-api-application.yaml
+  argocd/prod/workloads/fitting-domain-application.yaml
+  argocd/prod/workloads/fitting-worker-application.yaml
   argocd/prod/workloads/identity-api-application.yaml
   argocd/prod/workloads/identity-domain-application.yaml
   argocd/prod/workloads/price-crawler-application.yaml
+  argocd/prod/workloads/vton-orchestrator-application.yaml
   argocd/prod/workloads/web-bff-application.yaml
   argocd/prod/workloads/web-domain-application.yaml
 ]
 unless prod_active_application_files == expected_prod_active_application_files
-  abort "Prod 단계 배포는 현재 Web·Identity·Commerce·Chat Domain과 승인된 Workload만 활성화해야 합니다. 실제=#{prod_active_application_files}"
+  abort "Prod 단계 배포는 Web·Identity·Commerce·Chat·Fitting 전체 Domain과 승인된 Workload만 활성화해야 합니다. 실제=#{prod_active_application_files}"
 end
 
 prod_web_domain_app = load_yaml("argocd/prod/workloads/web-domain-application.yaml")
@@ -650,6 +654,28 @@ prod_chat_applications.each do |name, expected|
          application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-chat" } &&
          application.dig("spec", "syncPolicy", "automated") == expected_prod_automation
     abort "#{expected.fetch(:file)}: Prod Chat 단계 Application 설정이 예상과 다릅니다."
+  end
+end
+
+prod_fitting_applications = {
+  "fitting-domain" => ["charts/lookddak-domain", ["$values/environments/prod/domains/fitting/domain.yaml"], "11"],
+  "vton-orchestrator" => ["charts/lookddak-workload", ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/fitting/workloads/vton-orchestrator.yaml"], "12"],
+  "fitting-worker" => ["charts/lookddak-workload", ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/fitting/workloads/fitting-worker.yaml"], "13"],
+  "fitting-api" => ["charts/lookddak-workload", ["$values/environments/prod/images.yaml", "$values/environments/prod/domains/fitting/workloads/fitting-api.yaml"], "14"]
+}
+
+prod_fitting_applications.each do |name, expected|
+  file = "argocd/prod/workloads/#{name}-application.yaml"
+  application = load_yaml(file)
+  unless application.dig("metadata", "name") == "prod-#{name}" &&
+         application.dig("metadata", "namespace") == "argocd" &&
+         application.dig("metadata", "annotations", "argocd.argoproj.io/sync-wave") == expected[2] &&
+         application.dig("spec", "project") == "lookddak-prod" &&
+         application.dig("spec", "sources", 0, "path") == expected[0] &&
+         application.dig("spec", "sources", 0, "helm", "valueFiles") == expected[1] &&
+         application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-fitting" } &&
+         application.dig("spec", "syncPolicy", "automated") == expected_prod_automation
+    abort "#{file}: Prod Fitting 단계 Application 설정이 예상과 다릅니다."
   end
 end
 
@@ -840,6 +866,70 @@ unless prod_chat_env.include?({ "name" => "SPRING_PROFILES_ACTIVE", "value" => "
        prod_chat_env.none? { |entry| %w[REDIS_CLUSTER_NODES REDIS_HOST REDIS_PORT REDIS_PASSWORD].include?(entry["name"]) } &&
        prod_chat_api.dig("routing", "rules", 0, "timeouts", "request") == "0s"
   abort "Prod Chat API는 Redis 구축 전 비활성 fallback과 SSE 무제한 Route를 사용해야 합니다."
+end
+
+prod_fitting_workloads = {
+  "fitting-api" => {
+    image: "be", port: 8080, termination: 330, service: { "enabled" => true, "port" => 80 },
+    role: "arn:aws:iam::686496667254:role/lookddak-prod-v3-fitting-api",
+    parameters: %w[/lookddak/prod/v3/mysql/jdbc-url /lookddak/prod/v3/mysql/app/username /lookddak/prod/v3/mysql/app/password /lookddak/prod/spring/jwt-secret /lookddak/prod/internal/ai-api-key /lookddak/prod/v3/s3/images/bucket]
+  },
+  "fitting-worker" => {
+    image: "be", port: 8080, termination: 120, service: { "enabled" => false },
+    role: "arn:aws:iam::686496667254:role/lookddak-prod-v3-fitting-worker",
+    parameters: %w[/lookddak/prod/v3/mysql/jdbc-url /lookddak/prod/v3/mysql/app/username /lookddak/prod/v3/mysql/app/password /lookddak/prod/spring/jwt-secret /lookddak/prod/v3/sqs/be-fitting-request/url /lookddak/prod/v3/sqs/be-fitting-response/url]
+  },
+  "vton-orchestrator" => {
+    image: "ai", port: 8000, termination: 330, service: { "enabled" => true, "port" => 80 },
+    role: "arn:aws:iam::686496667254:role/lookddak-prod-v3-vton-orchestrator",
+    parameters: %w[/lookddak/prod/v3/postgresql/app/database-url /lookddak/prod/internal/ai-api-key /lookddak/prod/fastapi/runware-vton-api-key /lookddak/prod/fastapi/runware-llm-api-key /lookddak/prod/fastapi/webhook-token /lookddak/prod/fastapi/virtual-fitting-runware-webhook-url /lookddak/prod/v3/s3/images/bucket /lookddak/prod/v3/sqs/be-fitting-request/url /lookddak/prod/v3/sqs/ai-fitting-response/url /lookddak/prod/v3/sqs/be-fitting-response/url]
+  }
+}
+
+prod_fitting_workloads.each do |name, expected|
+  file = "environments/prod/domains/fitting/workloads/#{name}.yaml"
+  values = load_yaml(file)
+  spread = values.dig("scheduling", "topologySpreadConstraints") || []
+  parameters = YAML.safe_load(values.dig("secrets", "parameters", "objects")).map { |object| object.fetch("objectName") }
+  expected_probe = name == "vton-orchestrator" ? ["/health", "/health", "/health"] : ["/actuator/health/liveness", "/actuator/health/liveness", "/actuator/health/readiness"]
+  probe_paths = %w[startup liveness readiness].map { |probe| values.dig("probes", probe, "httpGet", "path") }
+
+  unless values["imageGroup"] == expected.fetch(:image) &&
+         values["replicaCount"] == 2 &&
+         values.dig("container", "port") == expected.fetch(:port) &&
+         values.dig("deployment", "terminationGracePeriodSeconds") == expected.fetch(:termination) &&
+         values.dig("service") == expected.fetch(:service) &&
+         values.dig("pdb") == { "enabled" => true, "maxUnavailable" => 1 } &&
+         values.dig("serviceAccount") == { "create" => true, "roleArn" => expected.fetch(:role) } &&
+         values.dig("secrets", "enabled") == true &&
+         values.dig("secrets", "rolloutOnChange") == true &&
+         parameters == expected.fetch(:parameters) &&
+         probe_paths == expected_probe &&
+         %w[topology.kubernetes.io/zone kubernetes.io/hostname].all? do |key|
+           spread.any? { |rule| rule["topologyKey"] == key && rule["minDomains"] == 2 && rule["whenUnsatisfiable"] == "DoNotSchedule" }
+         end
+    abort "#{file}: Prod Fitting의 이미지·IRSA·Secret·Probe·PDB·AZ/Node 분산 설정이 예상과 다릅니다."
+  end
+end
+
+prod_fitting_api = load_yaml("environments/prod/domains/fitting/workloads/fitting-api.yaml")
+unless prod_fitting_api.dig("container", "env")&.include?({ "name" => "FITTING_OUTBOX_ENABLED", "value" => "false" }) &&
+       prod_fitting_api.dig("container", "env")&.include?({ "name" => "FITTING_RESULT_CONSUMER_ENABLED", "value" => "false" }) &&
+       prod_fitting_api.dig("routing", "rules", 1, "timeouts", "request") == "0s"
+  abort "Prod Fitting API는 Worker 비활성과 알림 SSE 무제한 Route가 필요합니다."
+end
+
+prod_fitting_worker = load_yaml("environments/prod/domains/fitting/workloads/fitting-worker.yaml")
+unless prod_fitting_worker.dig("container", "env")&.include?({ "name" => "FITTING_OUTBOX_ENABLED", "value" => "true" }) &&
+       prod_fitting_worker.dig("container", "env")&.include?({ "name" => "FITTING_RESULT_CONSUMER_ENABLED", "value" => "true" })
+  abort "Prod Fitting Worker는 Outbox 발행과 결과 소비를 담당해야 합니다."
+end
+
+prod_vton = load_yaml("environments/prod/domains/fitting/workloads/vton-orchestrator.yaml")
+unless %w[VIRTUAL_FITTING_REQUEST_WORKER_ENABLED VIRTUAL_FITTING_POSTPROCESS_WORKER_ENABLED VIRTUAL_FITTING_RESULT_PUBLISHER_ENABLED VIRTUAL_FITTING_WATCHDOG_ENABLED].all? do |name|
+         prod_vton.dig("container", "env")&.include?({ "name" => name, "value" => "true" })
+       end
+  abort "Prod VTON Orchestrator는 Queue·후처리·결과 발행·Watchdog 역할을 활성화해야 합니다."
 end
 
 prod_project_file = "argocd/projects/lookddak-prod.yaml"
