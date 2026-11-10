@@ -1,0 +1,76 @@
+tempo:
+  replicas: 1
+
+  serviceAccount:
+    create: true
+    name: tempo
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::686496667254:role/lookddak-prod-v3-tempo
+
+  tempo:
+    reportingEnabled: false
+    retention: 168h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 768Mi
+    storage:
+      trace:
+        backend: s3
+        s3:
+          bucket: lookddak-prod-v3-tempo-686496667254-ap-northeast-2
+          endpoint: s3.ap-northeast-2.amazonaws.com
+          region: ap-northeast-2
+        wal:
+          path: /var/tempo/wal
+    receivers:
+      jaeger: null
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    metricsGenerator:
+      enabled: true
+      remoteWriteUrl: http://prometheus-server.monitoring.svc.cluster.local/api/v1/write
+      registry:
+        external_labels:
+          source: tempo
+      processor:
+        service_graphs:
+          database_name_attributes:
+            - db.system
+          peer_attributes:
+            - peer.service
+            - db.system
+            - server.address
+        span_metrics:
+          dimensions:
+            - db.system
+      storage:
+        path: /var/tempo/generator/wal
+    overrides:
+      defaults:
+        metrics_generator:
+          processors:
+            - service-graphs
+            - span-metrics
+          generate_native_histograms: classic
+
+  priorityClassName: lookddak-monitoring-storage
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClassName: gp3
+
+  nodeSelector:
+    lookddak.io/node-pool: monitoring
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: monitoring
+      effect: NoSchedule
