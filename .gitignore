@@ -13,3 +13,5 @@
 /platform/dev/cert-manager/controller/charts/
 /platform/dev/redis/operator/charts/
 /platform/dev/observability/*/charts/
+/platform/prod/redis/operator/charts/
+/platform/prod/observability/*/charts/

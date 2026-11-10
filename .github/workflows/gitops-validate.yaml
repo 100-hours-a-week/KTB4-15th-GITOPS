@@ -61,8 +61,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            platform/dev/**/charts/*.tgz
-          key: helm-charts-${{ hashFiles('platform/dev/**/Chart.lock') }}
+            platform/*/**/charts/*.tgz
+          key: helm-charts-${{ hashFiles('platform/*/**/Chart.lock') }}
           restore-keys: |
             helm-charts-
 
@@ -121,13 +121,18 @@ jobs:
 
       - name: Redis Operator Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
-        run: scripts/helm-dependency-build.sh platform/dev/redis/operator
+        run: |
+          for env in dev prod; do
+            scripts/helm-dependency-build.sh "platform/$env/redis/operator"
+          done
 
       - name: 모니터링 Helm 의존성 준비
         if: steps.change.outputs.image_only != 'true'
         run: |
-          for chart in prometheus loki tempo alloy-node kube-state-metrics alloy-cluster grafana; do
-            scripts/helm-dependency-build.sh "platform/dev/observability/$chart"
+          for env in dev prod; do
+            for chart in prometheus loki tempo alloy-node kube-state-metrics alloy-cluster grafana; do
+              scripts/helm-dependency-build.sh "platform/$env/observability/$chart"
+            done
           done
 
       - name: Istio Helm 의존성 준비
@@ -157,9 +162,11 @@ jobs:
             helm lint "platform/dev/networking/istio/$chart" --namespace istio-system --kube-version 1.36.0
           done
           helm lint platform/dev/cert-manager/controller --namespace kube-system --kube-version 1.36.0
-          helm lint platform/dev/redis/operator --namespace lookddak-redis --kube-version 1.36.0
-          for chart in prometheus loki tempo alloy-node kube-state-metrics alloy-cluster grafana; do
-            helm lint "platform/dev/observability/$chart" --namespace monitoring --kube-version 1.36.0
+          for env in dev prod; do
+            helm lint "platform/$env/redis/operator" --namespace lookddak-redis --kube-version 1.36.0
+            for chart in prometheus loki tempo alloy-node kube-state-metrics alloy-cluster grafana; do
+              helm lint "platform/$env/observability/$chart" --namespace monitoring --kube-version 1.36.0
+            done
           done
 
       - name: 이미지 영향 Workload Chart 검사
