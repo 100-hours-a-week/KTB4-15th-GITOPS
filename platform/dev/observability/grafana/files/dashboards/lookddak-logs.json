@@ -448,7 +448,7 @@
       "type": "loki",
       "uid": "loki"
      },
-     "expr": "sum(count_over_time({namespace=\"istio-system\", container=\"ztunnel\"} |= \"error=\" [1h])) or vector(0)",
+     "expr": "sum(count_over_time({namespace=\"istio-system\", workload=\"ztunnel\"} |= \"error=\" [1h])) or vector(0)",
      "refId": "A",
      "legendFormat": "",
      "queryType": "instant"
@@ -1740,7 +1740,7 @@
       "type": "loki",
       "uid": "loki"
      },
-     "expr": "sum by (pod) (count_over_time({namespace=\"istio-system\", container=\"ztunnel\"} |= \"error=\" [$__interval]))",
+     "expr": "sum by (pod) (count_over_time({namespace=\"istio-system\", workload=\"ztunnel\"} |= \"error=\" [$__interval]))",
      "refId": "A",
      "legendFormat": "{{pod}}",
      "queryType": "range"
@@ -1832,7 +1832,7 @@
       "type": "loki",
       "uid": "loki"
      },
-     "expr": "{namespace=\"istio-system\", container=\"ztunnel\"} |~ \"$search\"",
+     "expr": "{namespace=\"istio-system\", workload=\"ztunnel\"} |~ \"$search\"",
      "refId": "A",
      "queryType": "range",
      "maxLines": 500
