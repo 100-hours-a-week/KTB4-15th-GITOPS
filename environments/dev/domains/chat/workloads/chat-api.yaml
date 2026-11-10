@@ -151,3 +151,6 @@ tracing:
   enabled: true
   runtime: java
   resourceAttributes: deployment.environment.name=dev,service.namespace=lookddak
+  env:
+    - name: OTEL_INSTRUMENTATION_LETTUCE_QUERY_SANITIZATION_ENABLED
+      value: "false"
