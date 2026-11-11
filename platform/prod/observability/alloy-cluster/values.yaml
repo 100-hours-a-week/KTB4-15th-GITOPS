@@ -123,7 +123,7 @@ alloy:
         discovery.kubernetes "mesh_pods" {
           role = "pod"
           namespaces {
-            names = ["istio-system", "istio-ingress", "lookddak-web"]
+            names = ["istio-system", "istio-ingress", "lookddak-web", "lookddak-identity", "lookddak-chat"]
           }
         }
 
@@ -200,7 +200,7 @@ alloy:
 
           rule {
             source_labels = ["__name__"]
-            regex         = "up|istio_.+"
+            regex         = "up|istio_.+|envoy_cluster_(outlier_detection_.+|upstream_rq_pending_overflow|upstream_cx_overflow|upstream_cx_connect_fail)"
             action        = "keep"
           }
           rule {
