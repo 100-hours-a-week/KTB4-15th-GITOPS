@@ -213,6 +213,15 @@ internal_api_files = %w[
   argocd/dev/internal-api-application.yaml
 ].freeze
 
+ai_waypoint_files = %w[
+  platform/dev/networking/ai-waypoint/README.md
+  platform/dev/networking/ai-waypoint/identity-waypoint.yaml
+  platform/dev/networking/ai-waypoint/chat-egress-waypoint.yaml
+  platform/dev/networking/ai-waypoint/chat-egress-services.yaml
+  platform/dev/networking/policies/ai-waypoint.yaml
+  argocd/dev/ai-waypoint-application.yaml
+].freeze
+
 monitoring_charts = %w[prometheus loki tempo alloy-node kube-state-metrics alloy-cluster grafana].freeze
 monitoring_files = (
   monitoring_charts.flat_map { |chart| %W[platform/dev/observability/#{chart}/Chart.yaml platform/dev/observability/#{chart}/Chart.lock platform/dev/observability/#{chart}/values.yaml argocd/dev/#{chart}-application.yaml] } +
@@ -259,7 +268,7 @@ prod_image_automation_files = %w[
   scripts/diff-prod-image-manifests.sh
 ].freeze
 
-[argocd_files, prod_argocd_files, prod_platform_files, karpenter_files, metrics_server_files, secrets_store_csi_files, prod_cilium_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, monitoring_files, dev_image_automation_files, prod_image_automation_files].flatten.each do |file|
+[argocd_files, prod_argocd_files, prod_platform_files, karpenter_files, metrics_server_files, secrets_store_csi_files, prod_cilium_files, aws_load_balancer_controller_files, istio_files, cert_manager_files, istio_gateway_files, network_policy_files, mesh_security_files, internal_api_files, ai_waypoint_files, monitoring_files, dev_image_automation_files, prod_image_automation_files].flatten.each do |file|
   abort "필수 파일 누락: #{file}" unless File.file?(file)
 end
 
@@ -1940,6 +1949,34 @@ unless internal_application.dig("spec", "project") == "lookddak-dev" &&
        internal_application.dig("spec", "source", "path") == "platform/dev/networking/internal-api" &&
        internal_application.dig("spec", "destination") == { "server" => in_cluster_server, "namespace" => "lookddak-web" }
   abort "argocd/dev/internal-api-application.yaml: 내부 API Application 설정이 예상과 다릅니다."
+end
+
+# AI 서킷 브레이커 waypoint: body-image-validator 앞단, chat-ai egress(Runware·OpenAI)
+body_image_validator = load_yaml("environments/dev/domains/identity/workloads/body-image-validator.yaml")
+unless body_image_validator.dig("service", "labels", "istio.io/use-waypoint") == "waypoint" &&
+       body_image_validator.dig("trafficPolicy", "enabled") == true &&
+       body_image_validator.dig("trafficPolicy", "outlierDetection", "maxEjectionPercent") == 100
+  abort "body-image-validator: identity waypoint 사용과 서킷 브레이커(trafficPolicy, maxEjectionPercent 100)가 필요합니다."
+end
+identity_waypoint = YAML.load_stream(File.read("platform/dev/networking/ai-waypoint/identity-waypoint.yaml")).compact.find { |item| item["kind"] == "Gateway" }
+chat_egress_waypoint = YAML.load_stream(File.read("platform/dev/networking/ai-waypoint/chat-egress-waypoint.yaml")).compact.find { |item| item["kind"] == "Gateway" }
+unless identity_waypoint && identity_waypoint.dig("metadata", "namespace") == "lookddak-identity" && identity_waypoint.dig("metadata", "name") == "waypoint" && identity_waypoint.dig("spec", "gatewayClassName") == "istio-waypoint" &&
+       chat_egress_waypoint && chat_egress_waypoint.dig("metadata", "namespace") == "lookddak-chat" && chat_egress_waypoint.dig("metadata", "name") == "egress-waypoint" && chat_egress_waypoint.dig("spec", "gatewayClassName") == "istio-waypoint"
+  abort "platform/dev/networking/ai-waypoint: identity waypoint·chat egress-waypoint Gateway 설정이 예상과 다릅니다."
+end
+chat_egress_resources = YAML.load_stream(File.read("platform/dev/networking/ai-waypoint/chat-egress-services.yaml")).compact
+chat_egress_entries = chat_egress_resources.select { |item| item["kind"] == "ServiceEntry" }
+chat_egress_rules = chat_egress_resources.select { |item| item["kind"] == "DestinationRule" }
+unless chat_egress_entries.map { |item| item.dig("spec", "hosts") }.flatten.sort == %w[api.openai.com api.runware.ai] &&
+       chat_egress_entries.all? { |item| item.dig("metadata", "namespace") == "lookddak-chat" && item.dig("spec", "exportTo") == ["."] && item.dig("metadata", "labels", "istio.io/use-waypoint") == "egress-waypoint" && item.dig("spec", "location") == "MESH_EXTERNAL" } &&
+       chat_egress_rules.map { |item| item.dig("spec", "host") }.sort == %w[api.openai.com api.runware.ai] &&
+       chat_egress_rules.all? { |item| item.dig("spec", "exportTo") == ["."] && item.dig("spec", "trafficPolicy", "outlierDetection", "maxEjectionPercent") == 100 && item.dig("spec", "trafficPolicy", "portLevelSettings", 0, "tls", "mode") == "SIMPLE" }
+  abort "platform/dev/networking/ai-waypoint/chat-egress-services.yaml: Runware·OpenAI ServiceEntry·DestinationRule은 lookddak-chat 전용, egress-waypoint, TLS 연결, 서킷 브레이커가 필요합니다."
+end
+ai_waypoint_application = load_yaml("argocd/dev/ai-waypoint-application.yaml")
+unless ai_waypoint_application.dig("spec", "project") == "lookddak-dev" &&
+       ai_waypoint_application.dig("spec", "source", "path") == "platform/dev/networking/ai-waypoint"
+  abort "argocd/dev/ai-waypoint-application.yaml: AI waypoint Application 설정이 예상과 다릅니다."
 end
 
 # Redis Cluster (platform/dev/redis): CRD 분리, 영속화 없음, 외부 노출 금지, chat-api만 허용

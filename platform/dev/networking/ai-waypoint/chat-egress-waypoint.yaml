@@ -1,0 +1,38 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: egress-waypoint
+  namespace: lookddak-chat
+  labels:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: egress-waypoint-options
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: egress-waypoint-options
+  namespace: lookddak-chat
+data:
+  deployment: |
+    spec:
+      replicas: 1
+      template:
+        spec:
+          containers:
+            - name: istio-proxy
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 256Mi
