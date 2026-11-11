@@ -8,8 +8,8 @@ imageGroup: be
 container:
   port: 8080
   env:
-    # Redis Cluster가 구축되기 전에는 기존 로컬 SSE·DB fallback 경로를 사용한다.
-    - {name: SPRING_PROFILES_ACTIVE, value: prod}
+    # chat-api profile은 BE application-chat-api.yaml의 Redis Cluster 설정을 켠다.
+    - {name: SPRING_PROFILES_ACTIVE, value: "prod,chat-api"}
     - {name: TZ, value: Asia/Seoul}
     - {name: AWS_REGION, value: ap-northeast-2}
     - {name: AWS_S3_BUCKET, value: lookddak-prod-images-686496667254-ap-northeast-2}
@@ -17,8 +17,12 @@ container:
     - {name: CORS_ALLOWED_ORIGINS, value: "https://v3-prod.lookddak.com"}
     - {name: SENTRY_ENVIRONMENT, value: prod}
     - {name: SSE_SERVER_PORT, value: "8081"}
-    - {name: CHAT_REDIS_ENABLED, value: "false"}
+    # Prod Redis Cluster의 leader Service를 seed endpoint로 사용한다.
+    - {name: REDIS_CLUSTER_NODES, value: "redis-cache-master.lookddak-redis.svc.cluster.local:6379"}
+    - {name: CHAT_REDIS_ENABLED, value: "true"}
+    # Redis 장애 시 local/DB fallback으로 서비스하므로 readiness에서 Redis를 제외한다.
     - {name: MANAGEMENT_HEALTH_REDIS_ENABLED, value: "false"}
+    - {name: SPRING_AUTOCONFIGURE_EXCLUDE, value: org.springframework.boot.data.redis.autoconfigure.observation.LettuceObservationAutoConfiguration}
     - name: JAVA_TOOL_OPTIONS
       value: >-
         -XX:MaxRAMPercentage=75.0
