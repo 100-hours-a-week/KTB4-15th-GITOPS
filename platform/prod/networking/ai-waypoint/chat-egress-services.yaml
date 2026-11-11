@@ -1,0 +1,141 @@
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: runware-llm
+  namespace: lookddak-chat
+  labels:
+    istio.io/use-waypoint: egress-waypoint
+spec:
+  exportTo:
+    - "."
+  hosts:
+    - runware-llm.egress.internal
+  location: MESH_EXTERNAL
+  resolution: DNS
+  ports:
+    - number: 80
+      name: http
+      protocol: HTTP
+  endpoints:
+    - address: api.runware.ai
+      ports:
+        http: 443
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: runware-llm
+  namespace: lookddak-chat
+spec:
+  exportTo:
+    - "."
+  host: runware-llm.egress.internal
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 20
+        http2MaxRequests: 50
+    outlierDetection:
+      consecutive5xxErrors: 3
+      splitExternalLocalOriginErrors: true
+      consecutiveLocalOriginFailures: 3
+      interval: 10s
+      baseEjectionTime: 15s
+      maxEjectionPercent: 100
+    tls:
+      mode: SIMPLE
+      sni: api.runware.ai
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: runware-llm
+  namespace: lookddak-chat
+spec:
+  parentRefs:
+    - group: networking.istio.io
+      kind: ServiceEntry
+      name: runware-llm
+  rules:
+    - filters:
+        - type: URLRewrite
+          urlRewrite:
+            hostname: api.runware.ai
+      backendRefs:
+        - group: networking.istio.io
+          kind: Hostname
+          name: runware-llm.egress.internal
+          port: 80
+---
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: openai
+  namespace: lookddak-chat
+  labels:
+    istio.io/use-waypoint: egress-waypoint
+spec:
+  exportTo:
+    - "."
+  hosts:
+    - openai.egress.internal
+  location: MESH_EXTERNAL
+  resolution: DNS
+  ports:
+    - number: 80
+      name: http
+      protocol: HTTP
+  endpoints:
+    - address: api.openai.com
+      ports:
+        http: 443
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: openai
+  namespace: lookddak-chat
+spec:
+  exportTo:
+    - "."
+  host: openai.egress.internal
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 20
+        http2MaxRequests: 50
+    outlierDetection:
+      consecutive5xxErrors: 3
+      splitExternalLocalOriginErrors: true
+      consecutiveLocalOriginFailures: 3
+      interval: 10s
+      baseEjectionTime: 15s
+      maxEjectionPercent: 100
+    tls:
+      mode: SIMPLE
+      sni: api.openai.com
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openai
+  namespace: lookddak-chat
+spec:
+  parentRefs:
+    - group: networking.istio.io
+      kind: ServiceEntry
+      name: openai
+  rules:
+    - filters:
+        - type: URLRewrite
+          urlRewrite:
+            hostname: api.openai.com
+      backendRefs:
+        - group: networking.istio.io
+          kind: Hostname
+          name: openai.egress.internal
+          port: 80
