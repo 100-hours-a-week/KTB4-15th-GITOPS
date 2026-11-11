@@ -123,6 +123,12 @@ secrets:
       - objectName: /lookddak/dev/fastapi/webhook-token
         objectType: ssmparameter
         objectAlias: WEBHOOK_TOKEN
+      - objectName: /lookddak/dev/fastapi/idm-vton/modal-token-id
+        objectType: ssmparameter
+        objectAlias: MODAL_TOKEN_ID
+      - objectName: /lookddak/dev/fastapi/idm-vton/modal-token-secret
+        objectType: ssmparameter
+        objectAlias: MODAL_TOKEN_SECRET
   startup:
     enabled: true
     environment:
@@ -136,6 +142,10 @@ secrets:
         fileName: RUNWARE_LLM_API_KEY
       - name: WEBHOOK_TOKEN
         fileName: WEBHOOK_TOKEN
+      - name: MODAL_TOKEN_ID
+        fileName: MODAL_TOKEN_ID
+      - name: MODAL_TOKEN_SECRET
+        fileName: MODAL_TOKEN_SECRET
     command:
       - /bin/sh
       - -c

@@ -902,7 +902,7 @@ prod_fitting_workloads = {
   "vton-orchestrator" => {
     image: "ai", port: 8000, termination: 330, service: { "enabled" => true, "port" => 80 },
     role: "arn:aws:iam::686496667254:role/lookddak-prod-v3-vton-orchestrator",
-    parameters: %w[/lookddak/prod/v3/postgresql/app/database-url /lookddak/prod/internal/ai-api-key /lookddak/prod/fastapi/runware-vton-api-key /lookddak/prod/fastapi/runware-llm-api-key /lookddak/prod/fastapi/webhook-token /lookddak/prod/fastapi/virtual-fitting-runware-webhook-url /lookddak/prod/v3/s3/images/bucket /lookddak/prod/v3/sqs/be-fitting-request/url /lookddak/prod/v3/sqs/ai-fitting-response/url /lookddak/prod/v3/sqs/be-fitting-response/url]
+    parameters: %w[/lookddak/prod/v3/postgresql/app/database-url /lookddak/prod/internal/ai-api-key /lookddak/prod/fastapi/runware-vton-api-key /lookddak/prod/fastapi/runware-llm-api-key /lookddak/prod/fastapi/webhook-token /lookddak/prod/fastapi/idm-vton/modal-token-id /lookddak/prod/fastapi/idm-vton/modal-token-secret /lookddak/prod/fastapi/virtual-fitting-runware-webhook-url /lookddak/prod/v3/s3/images/bucket /lookddak/prod/v3/sqs/be-fitting-request/url /lookddak/prod/v3/sqs/ai-fitting-response/url /lookddak/prod/v3/sqs/be-fitting-response/url]
   }
 }
 
@@ -2371,6 +2371,8 @@ expected_vton_parameters = %w[
   /lookddak/dev/fastapi/runware-vton-api-key
   /lookddak/dev/fastapi/runware-llm-api-key
   /lookddak/dev/fastapi/webhook-token
+  /lookddak/dev/fastapi/idm-vton/modal-token-id
+  /lookddak/dev/fastapi/idm-vton/modal-token-secret
 ]
 unless vton_parameter_names == expected_vton_parameters
   abort "#{vton_file}: VTON Orchestrator는 V3 Callback에 필요한 최소 Parameter만 마운트해야 합니다."
