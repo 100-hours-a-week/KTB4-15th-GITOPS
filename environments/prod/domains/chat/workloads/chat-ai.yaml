@@ -95,3 +95,8 @@ secrets:
       - {name: RUNWARE_VTON_API_KEY, fileName: RUNWARE_VTON_API_KEY}
       - {name: OPENAI_API_KEY, fileName: OPENAI_API_KEY}
     command: [uvicorn, "app.main:app", --host, 0.0.0.0, --port, "8000"]
+
+tracing:
+  enabled: true
+  runtime: python
+  resourceAttributes: deployment.environment.name=prod,service.namespace=lookddak
