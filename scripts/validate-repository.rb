@@ -869,12 +869,14 @@ end
 
 prod_chat_api = load_yaml("environments/prod/domains/chat/workloads/chat-api.yaml")
 prod_chat_env = prod_chat_api.dig("container", "env") || []
-unless prod_chat_env.include?({ "name" => "SPRING_PROFILES_ACTIVE", "value" => "prod" }) &&
-       prod_chat_env.include?({ "name" => "CHAT_REDIS_ENABLED", "value" => "false" }) &&
+unless prod_chat_env.include?({ "name" => "SPRING_PROFILES_ACTIVE", "value" => "prod,chat-api" }) &&
+       prod_chat_env.include?({ "name" => "REDIS_CLUSTER_NODES", "value" => "redis-cache-master.lookddak-redis.svc.cluster.local:6379" }) &&
+       prod_chat_env.include?({ "name" => "CHAT_REDIS_ENABLED", "value" => "true" }) &&
        prod_chat_env.include?({ "name" => "MANAGEMENT_HEALTH_REDIS_ENABLED", "value" => "false" }) &&
-       prod_chat_env.none? { |entry| %w[REDIS_CLUSTER_NODES REDIS_HOST REDIS_PORT REDIS_PASSWORD].include?(entry["name"]) } &&
+       prod_chat_env.include?({ "name" => "SPRING_AUTOCONFIGURE_EXCLUDE", "value" => "org.springframework.boot.data.redis.autoconfigure.observation.LettuceObservationAutoConfiguration" }) &&
+       prod_chat_env.none? { |entry| %w[REDIS_HOST REDIS_PORT REDIS_PASSWORD].include?(entry["name"]) } &&
        prod_chat_api.dig("routing", "rules", 0, "timeouts", "request") == "0s"
-  abort "Prod Chat API는 Redis 구축 전 비활성 fallback과 SSE 무제한 Route를 사용해야 합니다."
+  abort "Prod Chat API는 Redis Cluster 활성 설정과 fallback을 고려한 Health·SSE Route 설정을 사용해야 합니다."
 end
 
 prod_fitting_workloads = {
