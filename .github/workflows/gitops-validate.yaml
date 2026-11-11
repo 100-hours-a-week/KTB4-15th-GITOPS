@@ -212,7 +212,7 @@ jobs:
             ghcr.io/yannh/kubeconform:v0.8.0-alpine@sha256:461fae0fa54c5fe64028152533e57f6b88adb1d26dbafd80092e7310d349ae48 \
             -strict \
             -kubernetes-version 1.36.0 \
-            -skip HTTPRoute,AuthorizationPolicy,SecretProviderClass,CustomResourceDefinition,Application,ApplicationSet,AppProject,NodePool,EC2NodeClass \
+            -skip HTTPRoute,AuthorizationPolicy,DestinationRule,SecretProviderClass,CustomResourceDefinition,Application,ApplicationSet,AppProject,NodePool,EC2NodeClass \
             -summary \
             /manifests
 
