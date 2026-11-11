@@ -777,7 +777,7 @@ prod_identity_workloads.each do |name, expected|
   unless values["imageGroup"] == expected.fetch(:image_group) &&
          values["replicaCount"] == 2 &&
          values.dig("container", "port") == expected.fetch(:port) &&
-         values.dig("service") == { "enabled" => true, "port" => 80 } &&
+         values.dig("service").to_h.reject { |key, _| key == "labels" } == { "enabled" => true, "port" => 80 } &&
          values.dig("pdb") == { "enabled" => true, "maxUnavailable" => 1 } &&
          values.dig("serviceAccount") == { "create" => true, "roleArn" => expected.fetch(:role) } &&
          values.dig("secrets", "enabled") == true &&
@@ -902,7 +902,7 @@ prod_fitting_workloads = {
   "vton-orchestrator" => {
     image: "ai", port: 8000, termination: 330, service: { "enabled" => true, "port" => 80 },
     role: "arn:aws:iam::686496667254:role/lookddak-prod-v3-vton-orchestrator",
-    parameters: %w[/lookddak/prod/v3/postgresql/app/database-url /lookddak/prod/internal/ai-api-key /lookddak/prod/fastapi/runware-vton-api-key /lookddak/prod/fastapi/runware-llm-api-key /lookddak/prod/fastapi/webhook-token /lookddak/prod/fastapi/idm-vton/modal-token-id /lookddak/prod/fastapi/idm-vton/modal-token-secret /lookddak/prod/fastapi/virtual-fitting-runware-webhook-url /lookddak/prod/v3/s3/images/bucket /lookddak/prod/v3/sqs/be-fitting-request/url /lookddak/prod/v3/sqs/ai-fitting-response/url /lookddak/prod/v3/sqs/be-fitting-response/url]
+    parameters: %w[/lookddak/prod/v3/postgresql/app/database-url /lookddak/prod/internal/ai-api-key /lookddak/prod/fastapi/runware-vton-api-key /lookddak/prod/fastapi/runware-llm-api-key /lookddak/prod/fastapi/webhook-token /lookddak/prod/fastapi/idm-vton/modal-token-id /lookddak/prod/fastapi/idm-vton/modal-token-secret /lookddak/prod/v3/s3/images/bucket /lookddak/prod/v3/sqs/be-fitting-request/url /lookddak/prod/v3/sqs/ai-fitting-response/url /lookddak/prod/v3/sqs/be-fitting-response/url]
   }
 }
 
@@ -943,6 +943,29 @@ prod_fitting_worker = load_yaml("environments/prod/domains/fitting/workloads/fit
 unless prod_fitting_worker.dig("container", "env")&.include?({ "name" => "FITTING_OUTBOX_ENABLED", "value" => "true" }) &&
        prod_fitting_worker.dig("container", "env")&.include?({ "name" => "FITTING_RESULT_CONSUMER_ENABLED", "value" => "true" })
   abort "Prod Fitting Worker는 Outbox 발행과 결과 소비를 담당해야 합니다."
+end
+
+prod_vton_command = load_yaml("environments/prod/domains/fitting/workloads/vton-orchestrator.yaml").dig("secrets", "startup", "command").to_a.join("\n")
+unless prod_vton_command.include?('VIRTUAL_FITTING_RUNWARE_WEBHOOK_URL="https://v3-prod.lookddak.com/api/v2/webhooks/runware?token=${WEBHOOK_TOKEN}"')
+  abort "Prod VTON Orchestrator Runware Webhook 주소는 V3 Gateway(v3-prod.lookddak.com)여야 합니다."
+end
+
+prod_body_image_validator = load_yaml("environments/prod/domains/identity/workloads/body-image-validator.yaml")
+unless prod_body_image_validator.dig("service", "labels", "istio.io/use-waypoint") == "waypoint" &&
+       prod_body_image_validator.dig("trafficPolicy", "enabled") == true &&
+       prod_body_image_validator.dig("trafficPolicy", "outlierDetection", "maxEjectionPercent") == 100
+  abort "Prod body-image-validator: identity waypoint 사용과 서킷 브레이커(trafficPolicy, maxEjectionPercent 100)가 필요합니다."
+end
+prod_ai_waypoint_application = load_yaml("argocd/prod/platform/ai-waypoint-application.yaml")
+unless prod_ai_waypoint_application.dig("spec", "project") == "lookddak-prod" &&
+       prod_ai_waypoint_application.dig("spec", "source", "path") == "platform/prod/networking/ai-waypoint" &&
+       prod_ai_waypoint_application.dig("spec", "syncPolicy", "automated") == expected_root_automation
+  abort "argocd/prod/platform/ai-waypoint-application.yaml: Prod AI waypoint Application 설정이 예상과 다릅니다."
+end
+prod_chat_egress_entries = YAML.load_stream(File.read("platform/prod/networking/ai-waypoint/chat-egress-services.yaml")).compact.select { |item| item["kind"] == "ServiceEntry" }
+unless prod_chat_egress_entries.map { |item| item.dig("spec", "hosts") }.flatten.sort == %w[openai.egress.internal runware-llm.egress.internal] &&
+       prod_chat_egress_entries.all? { |item| item.dig("metadata", "namespace") == "lookddak-chat" && item.dig("spec", "exportTo") == ["."] }
+  abort "platform/prod/networking/ai-waypoint/chat-egress-services.yaml: Runware·OpenAI ServiceEntry는 chat-ai 전용 내부 이름이어야 합니다."
 end
 
 prod_vton = load_yaml("environments/prod/domains/fitting/workloads/vton-orchestrator.yaml")
