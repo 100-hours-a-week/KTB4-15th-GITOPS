@@ -25,3 +25,4 @@ chat-ai ─(http://api.runware.ai, http://api.openai.com)─▶ ztunnel ─HBONE
 - 네트워크 정책: `../policies/ai-waypoint.yaml`
 - 인가: waypoint 신원(`cluster.local/ns/<ns>/sa/<waypoint>`)은 같은 Namespace라 `allow-same-namespace`로 허용
 - 전제: ztunnel DNS 캡처(Istio 1.25+ Ambient 기본), ServiceEntry IP 자동 할당
+- 주의: ServiceEntry `exportTo: .`는 istiod(Envoy 설정)에만 적용되고 ztunnel(DNS 캡처·VIP 라우팅)은 Namespace 구분 없이 적용한다 → 다른 Namespace에서 `api.runware.ai`·`api.openai.com`을 호출해도 egress-waypoint를 거친다. 새 워크로드가 이 주소를 쓰면 `../policies/ai-waypoint.yaml`에 워크로드 → egress-waypoint 15008 허용을 추가한다 (현재 vton-orchestrator)
