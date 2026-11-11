@@ -2,7 +2,7 @@
 images:
   fe:
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-nextjs
-    digest: sha256:48cbef735398a5ea14b235532aaf6e0e2c226eef8d6d3319d96e59357b2f4103
+    digest: sha256:d69de94331b82a4da1e17080e84e8d946b401371473f5f6a2957204e6e1f96e9
   be:
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-spring
     digest: sha256:28dc78a6fd756d8f73a66ef9fca1a2e9f8e56e3533cd4eef23350dca697563d9
