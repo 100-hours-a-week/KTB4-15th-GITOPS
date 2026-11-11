@@ -9,6 +9,8 @@ container:
   port: 8000
   env:
     - {name: AWS_REGION, value: ap-northeast-2}
+    - {name: LLM_BASE_URL, value: http://runware-llm.egress.internal/v1}
+    - {name: OPENAI_BASE_URL, value: http://openai.egress.internal/v1}
     - {name: BODY_IMAGE_VALIDATION_MODE, value: remote}
     - {name: VIRTUAL_FITTING_REQUEST_WORKER_ENABLED, value: "false"}
     - {name: VIRTUAL_FITTING_POSTPROCESS_WORKER_ENABLED, value: "false"}
