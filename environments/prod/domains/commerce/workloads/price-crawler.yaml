@@ -48,8 +48,7 @@ cronJob:
   nameSuffix: apply
   schedule: "0 11 * * *"
   timeZone: Asia/Seoul
-  # 운영 데이터 변경은 수동 Job 검증 후 별도 PR에서 해제한다.
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 1
