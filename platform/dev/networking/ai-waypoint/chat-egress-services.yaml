@@ -47,6 +47,19 @@ spec:
     portLevelSettings:
       - port:
           number: 80
+        connectionPool:
+          tcp:
+            connectTimeout: 3s
+          http:
+            http1MaxPendingRequests: 20
+            http2MaxRequests: 50
+        outlierDetection:
+          consecutive5xxErrors: 3
+          splitExternalLocalOriginErrors: true
+          consecutiveLocalOriginFailures: 3
+          interval: 10s
+          baseEjectionTime: 15s
+          maxEjectionPercent: 100
         tls:
           mode: SIMPLE
           sni: api.runware.ai
@@ -100,6 +113,19 @@ spec:
     portLevelSettings:
       - port:
           number: 80
+        connectionPool:
+          tcp:
+            connectTimeout: 3s
+          http:
+            http1MaxPendingRequests: 20
+            http2MaxRequests: 50
+        outlierDetection:
+          consecutive5xxErrors: 3
+          splitExternalLocalOriginErrors: true
+          consecutiveLocalOriginFailures: 3
+          interval: 10s
+          baseEjectionTime: 15s
+          maxEjectionPercent: 100
         tls:
           mode: SIMPLE
           sni: api.openai.com
