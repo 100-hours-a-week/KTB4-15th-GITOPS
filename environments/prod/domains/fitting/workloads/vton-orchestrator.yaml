@@ -125,3 +125,8 @@ secrets:
       - |-
         export VIRTUAL_FITTING_RUNWARE_WEBHOOK_URL="https://v3-prod.lookddak.com/api/v2/webhooks/runware?token=${WEBHOOK_TOKEN}"
         exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+tracing:
+  enabled: true
+  runtime: python
+  resourceAttributes: deployment.environment.name=prod,service.namespace=lookddak
