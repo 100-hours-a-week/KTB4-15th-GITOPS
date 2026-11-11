@@ -3,7 +3,7 @@ images:
   fe:
     # Dev에서 기능 검증한 동일 이미지를 Prod V3 검증 환경에 digest로 고정한다.
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-nextjs
-    digest: sha256:56d542393a3c4555e88a26bda6b82e60fe1000868af62e9700bec056a53b4d03
+    digest: sha256:d01462f5f99d6215e36b038580dafd75e8d344abf80e19987003fe76cc7086b8
   be:
     # Dev에서 기능 검증한 최신 BE 이미지를 Prod V3 검증 환경에 고정한다.
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-spring
