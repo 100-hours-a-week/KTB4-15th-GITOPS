@@ -846,7 +846,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (source_workload, destination_service_name, response_flags)(rate(istio_requests_total{reporter=\"waypoint\", destination_service_name=~\"body-image-validator|api.runware.ai|api.openai.com\", response_flags=~\".*(UO|UH|UF|URX).*\"}[5m]))",
+          "expr": "sum by (source_workload, destination_service_name, response_flags)(rate(istio_requests_total{reporter=\"waypoint\", destination_service_name=~\"body-image-validator|runware-llm.egress.internal|openai.egress.internal\", response_flags=~\".*(UO|UH|UF|URX).*\"}[5m]))",
           "legendFormat": "{{source_workload}} → {{destination_service_name}} {{response_flags}}",
           "refId": "A"
         }
