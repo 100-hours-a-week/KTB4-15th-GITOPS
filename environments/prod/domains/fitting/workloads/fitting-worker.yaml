@@ -100,3 +100,8 @@ secrets:
       - {name: BE_FITTING_REQUEST_QUEUE_URL, fileName: BE_FITTING_REQUEST_QUEUE_URL}
       - {name: BE_FITTING_RESPONSE_QUEUE_URL, fileName: BE_FITTING_RESPONSE_QUEUE_URL}
     command: [java, "-XX:+ExitOnOutOfMemoryError", org.springframework.boot.loader.launch.JarLauncher]
+
+tracing:
+  enabled: true
+  runtime: java
+  resourceAttributes: deployment.environment.name=prod,service.namespace=lookddak

@@ -112,3 +112,8 @@ secrets:
       - {name: AI_INTERNAL_API_KEY, fileName: AI_INTERNAL_API_KEY}
       - {name: AWS_S3_BUCKET, fileName: AWS_S3_BUCKET}
     command: [java, "-XX:+ExitOnOutOfMemoryError", org.springframework.boot.loader.launch.JarLauncher]
+
+tracing:
+  enabled: true
+  runtime: java
+  resourceAttributes: deployment.environment.name=prod,service.namespace=lookddak
