@@ -1970,7 +1970,7 @@ chat_egress_rules = chat_egress_resources.select { |item| item["kind"] == "Desti
 unless chat_egress_entries.map { |item| item.dig("spec", "hosts") }.flatten.sort == %w[api.openai.com api.runware.ai] &&
        chat_egress_entries.all? { |item| item.dig("metadata", "namespace") == "lookddak-chat" && item.dig("spec", "exportTo") == ["."] && item.dig("metadata", "labels", "istio.io/use-waypoint") == "egress-waypoint" && item.dig("spec", "location") == "MESH_EXTERNAL" } &&
        chat_egress_rules.map { |item| item.dig("spec", "host") }.sort == %w[api.openai.com api.runware.ai] &&
-       chat_egress_rules.all? { |item| item.dig("spec", "exportTo") == ["."] && item.dig("spec", "trafficPolicy", "outlierDetection", "maxEjectionPercent") == 100 && item.dig("spec", "trafficPolicy", "portLevelSettings", 0, "tls", "mode") == "SIMPLE" }
+       chat_egress_rules.all? { |item| item.dig("spec", "exportTo") == ["."] && item.dig("spec", "trafficPolicy", "outlierDetection", "maxEjectionPercent") == 100 && item.dig("spec", "trafficPolicy", "portLevelSettings", 0, "tls", "mode") == "SIMPLE" && item.dig("spec", "trafficPolicy", "portLevelSettings", 0, "outlierDetection", "maxEjectionPercent") == 100 }
   abort "platform/dev/networking/ai-waypoint/chat-egress-services.yaml: Runware·OpenAI ServiceEntry·DestinationRule은 lookddak-chat 전용, egress-waypoint, TLS 연결, 서킷 브레이커가 필요합니다."
 end
 ai_waypoint_application = load_yaml("argocd/dev/ai-waypoint-application.yaml")
