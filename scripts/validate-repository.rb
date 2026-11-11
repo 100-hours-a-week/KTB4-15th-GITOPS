@@ -815,13 +815,13 @@ unless prod_crawler["imageGroup"] == "crawler" &&
        prod_cron["nameSuffix"] == "apply" &&
        prod_cron["schedule"] == "0 11 * * *" &&
        prod_cron["timeZone"] == "Asia/Seoul" &&
-       prod_cron["suspend"] == true &&
+       prod_cron["suspend"] == false &&
        prod_cron["concurrencyPolicy"] == "Forbid" &&
        prod_cron["startingDeadlineSeconds"] == 3600 &&
        prod_cron["activeDeadlineSeconds"] == 3600 &&
        prod_crawler.dig("secrets", "startup", "command") == %w[python -m price_refresh --apply] &&
        prod_cron["extraJobs"] == [{ "nameSuffix" => "deliver", "schedule" => "40 11,13 * * *", "command" => %w[python -m price_refresh --deliver] }]
-  abort "#{prod_crawler_file}: Prod Crawler의 IRSA·Secret·apply/deliver 일정·초기 suspend 설정이 예상과 다릅니다."
+  abort "#{prod_crawler_file}: Prod Crawler의 IRSA·Secret·apply/deliver 일정·자동 실행 설정이 예상과 다릅니다."
 end
 
 prod_chat_workloads = {
