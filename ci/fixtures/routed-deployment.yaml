@@ -46,3 +46,6 @@ routing:
 
 serviceAccount:
   create: true
+
+trafficPolicy:
+  enabled: true

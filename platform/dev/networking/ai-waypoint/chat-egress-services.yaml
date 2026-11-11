@@ -1,0 +1,105 @@
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: runware-llm
+  namespace: lookddak-chat
+  labels:
+    istio.io/use-waypoint: egress-waypoint
+spec:
+  exportTo:
+    - "."
+  hosts:
+    - api.runware.ai
+  location: MESH_EXTERNAL
+  resolution: DNS
+  ports:
+    - number: 80
+      name: http
+      protocol: HTTP
+      targetPort: 443
+    - number: 443
+      name: tls
+      protocol: TLS
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: runware-llm
+  namespace: lookddak-chat
+spec:
+  exportTo:
+    - "."
+  host: api.runware.ai
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 20
+        http2MaxRequests: 50
+    outlierDetection:
+      consecutive5xxErrors: 3
+      splitExternalLocalOriginErrors: true
+      consecutiveLocalOriginFailures: 3
+      interval: 10s
+      baseEjectionTime: 15s
+      maxEjectionPercent: 100
+    portLevelSettings:
+      - port:
+          number: 80
+        tls:
+          mode: SIMPLE
+          sni: api.runware.ai
+---
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: openai
+  namespace: lookddak-chat
+  labels:
+    istio.io/use-waypoint: egress-waypoint
+spec:
+  exportTo:
+    - "."
+  hosts:
+    - api.openai.com
+  location: MESH_EXTERNAL
+  resolution: DNS
+  ports:
+    - number: 80
+      name: http
+      protocol: HTTP
+      targetPort: 443
+    - number: 443
+      name: tls
+      protocol: TLS
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: openai
+  namespace: lookddak-chat
+spec:
+  exportTo:
+    - "."
+  host: api.openai.com
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 20
+        http2MaxRequests: 50
+    outlierDetection:
+      consecutive5xxErrors: 3
+      splitExternalLocalOriginErrors: true
+      consecutiveLocalOriginFailures: 3
+      interval: 10s
+      baseEjectionTime: 15s
+      maxEjectionPercent: 100
+    portLevelSettings:
+      - port:
+          number: 80
+        tls:
+          mode: SIMPLE
+          sni: api.openai.com

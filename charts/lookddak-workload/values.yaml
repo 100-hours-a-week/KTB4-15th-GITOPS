@@ -69,6 +69,7 @@ probes:
 service:
   enabled: false
   port: null
+  labels: {}
 
 autoscaling:
   enabled: false
@@ -130,6 +131,23 @@ tracing:
     limits:
       memory: 128Mi
   env: []
+
+trafficPolicy:
+  enabled: false
+  connectionPool:
+    tcp:
+      connectTimeout: 3s
+    http:
+      http1MaxPendingRequests: 100
+      http2MaxRequests: 200
+  outlierDetection:
+    consecutive5xxErrors: 0
+    consecutiveGatewayErrors: 3
+    splitExternalLocalOriginErrors: true
+    consecutiveLocalOriginFailures: 3
+    interval: 10s
+    baseEjectionTime: 30s
+    maxEjectionPercent: 50
 
 routing:
   enabled: false

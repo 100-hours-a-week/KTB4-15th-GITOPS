@@ -1,0 +1,46 @@
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-ai-waypoint-egress
+spec:
+  description: "AI waypoint(lookddak-identity/waypoint, lookddak-chat/egress-waypoint) → istiod(xDS)"
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.kubernetes.pod.namespace
+        operator: In
+        values:
+          - lookddak-identity
+          - lookddak-chat
+      - key: gateway.networking.k8s.io/gateway-name
+        operator: In
+        values:
+          - waypoint
+          - egress-waypoint
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: istio-system
+            app: istiod
+      toPorts:
+        - ports:
+            - port: "15012"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: lookddak-chat-egress-waypoint-external
+spec:
+  description: "lookddak-chat egress-waypoint → Runware LLM, OpenAI"
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: lookddak-chat
+      gateway.networking.k8s.io/gateway-name: egress-waypoint
+  egress:
+    - toFQDNs:
+        - matchName: api.runware.ai
+        - matchName: api.openai.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

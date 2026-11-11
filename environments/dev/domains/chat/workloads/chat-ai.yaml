@@ -13,6 +13,10 @@ container:
   env:
     - name: AWS_REGION
       value: ap-northeast-2
+    - name: LLM_BASE_URL
+      value: http://api.runware.ai/v1
+    - name: OPENAI_BASE_URL
+      value: http://api.openai.com/v1
     # Chat 전용 Pod에서는 공용 이미지의 무거운 로컬 전신 이미지 모델을 올리지 않는다.
     - name: BODY_IMAGE_VALIDATION_MODE
       value: remote

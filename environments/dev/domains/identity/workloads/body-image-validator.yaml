@@ -56,6 +56,13 @@ probes:
 service:
   enabled: true
   port: 80
+  labels:
+    istio.io/use-waypoint: waypoint
+
+trafficPolicy:
+  enabled: true
+  outlierDetection:
+    maxEjectionPercent: 100
 
 autoscaling:
   enabled: false
