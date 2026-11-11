@@ -7,7 +7,7 @@ images:
   be:
     # Dev에서 기능 검증한 최신 BE 이미지를 Prod V3 검증 환경에 고정한다.
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-spring
-    digest: sha256:5c0f9fa824b79b7d517ddd4fd9dc465ffc7e3dc6d83307a63d1ce8c473fd2bfc
+    digest: sha256:28dc78a6fd756d8f73a66ef9fca1a2e9f8e56e3533cd4eef23350dca697563d9
   ai:
     # body-image-validator는 같은 시점에 검증된 최신 AI 이미지를 사용한다.
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-fastapi
