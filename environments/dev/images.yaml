@@ -8,7 +8,7 @@ images:
     digest: sha256:28dc78a6fd756d8f73a66ef9fca1a2e9f8e56e3533cd4eef23350dca697563d9
   ai:
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-fastapi
-    digest: sha256:901fa40ec2ba88e91cd68d04a9b707adbc46449a9a76a4f7d35b510395687f55
+    digest: sha256:9e628a9451482d27d107beb71e3fb2eefc4b41ab50558c44dc449d6c2287f3a6
   crawler:
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-crawler
     digest: sha256:80f8c39f299854f7a78aa1bc77e16f9c465b3502418372f7fc0c4336d61ba6b1
