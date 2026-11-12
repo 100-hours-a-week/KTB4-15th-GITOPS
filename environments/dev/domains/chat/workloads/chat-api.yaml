@@ -62,6 +62,13 @@ resources:
     memory: 2Gi
 
 probes:
+  startup:
+    httpGet:
+      path: /actuator/health/liveness
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 60
   liveness:
     httpGet:
       path: /actuator/health/liveness
