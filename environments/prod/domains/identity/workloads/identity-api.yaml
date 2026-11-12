@@ -17,7 +17,7 @@ container:
     - name: AI_SERVER_URL
       value: http://body-image-validator:80
     - name: CORS_ALLOWED_ORIGINS
-      value: https://v3-prod.lookddak.com
+      value: https://lookddak.com,https://www.lookddak.com,https://v3-prod.lookddak.com
     - name: SENTRY_ENVIRONMENT
       value: prod
     - name: SSE_SERVER_PORT
@@ -98,8 +98,20 @@ routing:
       kind: Gateway
       name: lookddak-gateway
       namespace: istio-ingress
+      sectionName: https
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lookddak-gateway
+      namespace: istio-ingress
+      sectionName: https-www
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lookddak-gateway
+      namespace: istio-ingress
       sectionName: https-v3-prod
   hostnames:
+    - lookddak.com
+    - www.lookddak.com
     - v3-prod.lookddak.com
   rules:
     - matches:

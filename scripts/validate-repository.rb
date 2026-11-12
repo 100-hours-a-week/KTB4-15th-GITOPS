@@ -1238,6 +1238,8 @@ prod_public_routes = {
   "environments/prod/domains/fitting/workloads/vton-orchestrator.yaml" => [["/api/v2/webhooks/runware"]]
 }
 expected_prod_route_parents = [
+  { "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway", "namespace" => "istio-ingress", "sectionName" => "https" },
+  { "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway", "namespace" => "istio-ingress", "sectionName" => "https-www" },
   { "group" => "gateway.networking.k8s.io", "kind" => "Gateway", "name" => "lookddak-gateway", "namespace" => "istio-ingress", "sectionName" => "https-v3-prod" }
 ]
 prod_public_routes.each do |file, expected_paths|
@@ -1246,9 +1248,9 @@ prod_public_routes.each do |file, expected_paths|
   unless routing["enabled"] == true &&
          load_yaml(file).dig("service", "port") == 80 &&
          routing["parentRefs"] == expected_prod_route_parents &&
-         routing["hostnames"] == ["v3-prod.lookddak.com"] &&
+         routing["hostnames"] == ["lookddak.com", "www.lookddak.com", "v3-prod.lookddak.com"] &&
          actual_paths == expected_paths
-    abort "#{file}: Prod 검증 Route는 Gateway의 https-v3-prod와 v3-prod.lookddak.com만 사용해야 합니다."
+    abort "#{file}: Prod 공개 Route는 운영·www·V3 검증 Listener와 Hostname을 함께 사용해야 합니다."
   end
 end
 

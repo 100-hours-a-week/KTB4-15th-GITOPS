@@ -73,8 +73,20 @@ routing:
       kind: Gateway
       name: lookddak-gateway
       namespace: istio-ingress
+      sectionName: https
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lookddak-gateway
+      namespace: istio-ingress
+      sectionName: https-www
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lookddak-gateway
+      namespace: istio-ingress
       sectionName: https-v3-prod
   hostnames:
+    - lookddak.com
+    - www.lookddak.com
     - v3-prod.lookddak.com
   rules:
     - matches:

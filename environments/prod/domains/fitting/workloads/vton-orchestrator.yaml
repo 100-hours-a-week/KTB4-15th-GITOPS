@@ -55,8 +55,10 @@ pdb: {enabled: true, maxUnavailable: 1}
 routing:
   enabled: true
   parentRefs:
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https}
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https-www}
     - {group: gateway.networking.k8s.io, kind: Gateway, name: lookddak-gateway, namespace: istio-ingress, sectionName: https-v3-prod}
-  hostnames: [v3-prod.lookddak.com]
+  hostnames: [lookddak.com, www.lookddak.com, v3-prod.lookddak.com]
   rules:
     - matches:
         - path: {type: PathPrefix, value: /api/v2/webhooks/runware}

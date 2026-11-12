@@ -7,8 +7,9 @@ CloudFront VPC Origin과 내부 NLB를 통해 Istio Gateway에 진입한다. TLS
 - 전용 Security Group은 AWS 관리 CloudFront Origin Prefix List의 TCP 443만 허용한다.
 - NLB에서 Gateway Pod로 가는 Backend Security Group Rule은 AWS Load Balancer Controller가 관리한다.
 - DNS·CloudFront VPC Origin·WAF는 Cloud 저장소가, Gateway·HTTPRoute는 GitOps 저장소가 관리한다.
-- 운영 검증 중에는 `v3-prod.lookddak.com` 요청만 `https-v3-prod` Listener를 통해 Prod V3 워크로드로 전달한다.
-- `lookddak.com`, `www.lookddak.com` Listener는 운영 전환용으로 유지하며 검증 단계의 워크로드 Route와 연결하지 않는다.
+- Prod V3 워크로드 Route는 `lookddak.com`, `www.lookddak.com`, `v3-prod.lookddak.com` Listener에 함께 연결한다.
+- CloudFront·Route 53 전환 전까지 실제 운영 트래픽은 V2로 유지되며, 전환 후에는 운영 도메인이 같은 Prod V3 Route를 사용한다.
+- `v3-prod.lookddak.com`은 전환 전 검증과 전환 후 진단·롤백 확인 경로로 유지한다.
 
 ```bash
 kubectl -n istio-ingress get gateway,certificate,pods,service -o wide
