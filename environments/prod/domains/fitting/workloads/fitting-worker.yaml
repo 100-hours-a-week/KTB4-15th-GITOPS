@@ -13,7 +13,7 @@ container:
     - {name: AWS_REGION, value: ap-northeast-2}
     - {name: AWS_S3_BUCKET, value: lookddak-prod-images-686496667254-ap-northeast-2}
     - {name: AI_SERVER_URL, value: "http://vton-orchestrator:80"}
-    - {name: CORS_ALLOWED_ORIGINS, value: "https://v3-prod.lookddak.com"}
+    - {name: CORS_ALLOWED_ORIGINS, value: "https://lookddak.com,https://www.lookddak.com,https://v3-prod.lookddak.com"}
     - {name: SENTRY_ENVIRONMENT, value: prod}
     - {name: SSE_SERVER_PORT, value: "8081"}
     - {name: FITTING_OUTBOX_ENABLED, value: "true"}
