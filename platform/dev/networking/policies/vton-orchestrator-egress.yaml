@@ -34,3 +34,10 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+    - toFQDNs:
+        - matchName: img.29cm.co.kr
+        - matchName: api.modal.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
