@@ -11,7 +11,7 @@ images:
   ai:
     # body-image-validator는 같은 시점에 검증된 최신 AI 이미지를 사용한다.
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-fastapi
-    digest: sha256:22c4d67678c7f15d72536ffe3410fdff41c4e4d4002fee83f6be0ce7750d4b9b
+    digest: sha256:a35865418f6708df11a929c2ac5ea2ea95a7f38c95fe8686b5fbb8c9f92041a0
   crawler:
     # Dev에서 apply/deliver 흐름을 검증한 동일 Crawler 이미지를 승격한다.
     repository: 686496667254.dkr.ecr.ap-northeast-2.amazonaws.com/lookddak-dev-crawler
